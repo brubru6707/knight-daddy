@@ -152,3 +152,11 @@ Added to the dashboard's benchmark list (backend only, additive; `results/finber
 4. Fallback if the public site has a problem: on Oscar run `~/poc1/terminal/run_backend.sh`, then from your laptop
    `ssh -N -L 8000:<gpu-node>:8000 brrodrig@ssh.ccv.brown.edu` and open http://localhost:8000 (everything, including
    read-aloud once a key exists, works locally).
+
+## Final state (01:30 EDT)
+
+All 4 priorities done in about 25 minutes of work; stopped early because everything else needs your input.
+Commits on `main` (pushed): `78256e0` public site, `de1e53b` crypto specialist, `de3f024` broadened backtest,
+`b3727d2` fine-tuned FinBERT + docs, plus this report. Each push triggered a Vercel Git rebuild of the unchanged frontend
+(Ready in 11 to 16 s); the live site was re-checked after each (HTTP 200, data and storage unchanged, last data push
+00:45). Nothing new was deployed beyond those identical rebuilds; the demo path is unchanged.
