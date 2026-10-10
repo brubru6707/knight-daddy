@@ -1,5 +1,5 @@
 // Client for the deployed Knight-Daddy API (same one the web terminal uses). See mobile/API.md.
-export const API_BASE = "https://knightwatch-plum.vercel.app/api";
+export const API_BASE = "https://knight-daddy.us/api";
 
 export class ApiError extends Error {
   status: number;

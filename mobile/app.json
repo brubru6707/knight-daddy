@@ -9,7 +9,8 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0e1114",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.brubru6707.knightdaddy"
     },
     "android": {
       "adaptiveIcon": {
