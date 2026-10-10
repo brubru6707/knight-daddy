@@ -18,3 +18,9 @@ Each entry: what changed, why, when, and whether it could bias results. Copied i
    sellability and dead-pool checks use **every** swap in a qualifying pool, not only router single-swap
    trades, because bots and aggregators keep prices current. Only the trades that rank and judge wallets
    are restricted to router single-swap transactions.
+5. **Pre-data amendment: Q1/Q2 2023 windows and top-150 pools** (requested 2026-10-10, recorded as
+   Amendment 2 in PRE_REGISTRATION.md before any swap, price, or return data was pulled). Why: to save sandbox
+   budget. Formation is now Q1 2023 and test Q2 2023, and only the top 150 qualifying pools by formation USD
+   volume are used. Bias: the conclusions are limited to liquid pools and a 3-month test; the pool list uses
+   formation data only, so it adds no look-ahead. This supersedes the cost plan in item 2 (quarterly chunks of
+   H1/H2), which was never run.

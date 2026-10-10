@@ -169,6 +169,33 @@ In addition to the stress tests above, the result is robust only if total net re
 buy-and-hold ETH after each of these: excluding all whales, excluding rug-flagged tokens, and excluding
 new-launch buys.
 
+## Amendment 2 (2026-10-10, before any swap data pull or return computation): narrower scope
+
+Requested to save sandbox budget. No swap, price, or return data had been pulled or computed when this was
+committed; only the factory pool list (no prices or trades) existed. Everything above stays, except:
+
+1. **Windows.** Formation = **Q1 2023** (2023-01-01 00:00:00 to 2023-03-31 23:59:59 UTC). Test = **Q2 2023**
+   (2023-04-01 00:00:00 to 2023-06-30 23:59:59 UTC). The H2 2023 window is dropped. Every rule that names the
+   formation or test window, or the test-window end, uses these dates. Buy-and-hold ETH and BTC run over Q2 2023.
+2. **Pools.** Only the **top 150 qualifying pools by formation-window swap volume** are used for everything
+   downstream: trades, prices, the sellability and dead-pool checks, wallet filters, ranking, both tests, and
+   baselines.
+   - A qualifying pool is one created by the two factories, with at least one quote-asset leg, and not
+     stablecoin/stablecoin, exactly as in "Trades".
+   - **Volume** = the sum over formation-window swaps of the USD value of the quote leg. Stablecoins count at
+     $1; WETH counts at that UTC day's Binance ETHUSDT daily close. Ties are broken by pool address.
+   - The list is chosen from formation data only and frozen before any test-window swap is pulled.
+3. **Unchanged:** the router-only trader rule, the single-swap rule and bot filters, at least 10 formation
+   trades, at least $1,000 formation buy volume, top 10% by formation ROI, survivorship, Amendment 1 (whales,
+   scams), Tests A and B with their costs and baselines, the five-part win rule, and the stress tests.
+
+**Effect on interpretation (stated before seeing data):** the universe is now the most liquid pools only,
+mostly ETH, stablecoins and large tokens. Trades and copy returns in long-tail, new-launch and scam tokens are
+outside this test; the scam rules from Amendment 1 will rarely trigger. Tokens launched after Q1 (for example
+in April 2023) cannot be in the pool list. A negative result therefore says "no edge in copying wallets in
+liquid Uniswap pools in Q2 2023", not "no edge anywhere". Shorter windows mean fewer trades per wallet and less
+statistical power.
+
 ## Reporting
 
 EXPERIMENT_RESULTS.md reports all numbers above, with sample sizes at each filter stage, the bytes
