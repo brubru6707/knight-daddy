@@ -11,6 +11,8 @@ Auth: Application Default Credentials (gcloud auth application-default login); p
 import json, os, time
 from pathlib import Path
 
+import db_dtypes  # noqa: F401  registers BigQuery DATE/TIME dtypes so saved parquet files read back
+
 DATA = Path(os.path.expanduser(os.getenv("WALLETS_DATA", "~/scratch/poc1/wallets")))
 LEDGER = DATA / "bq_ledger.jsonl"
 FAILURES = Path(__file__).with_name("FAILURES.md")
