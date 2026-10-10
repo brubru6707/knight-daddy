@@ -136,6 +136,39 @@ of these:
 - dropping the single best week
 - the 60-second-delay entry
 
+## Amendment 1 (2026-10-10, before any data pull or return computation): whales and scams
+
+Added at the requester's instruction ("also look at whales and scams"). Committed before any swap, price, or
+return data was downloaded.
+
+### Scams (these change which trades and holdings count, in both windows)
+- **Unsellable tokens (honeypots):** a holding is marked at the pool price only if some other wallet made a
+  successful sell of that token in that pool within the previous 7 days. Otherwise it is valued at **0**.
+  This applies to formation ranking and to test-window valuation, so paper gains in tokens nobody can sell
+  never make a wallet a winner.
+- **Thin or manipulable pools:** trades in pools with fewer than **10 distinct traders** in that window are
+  excluded. Formation counts decide formation, test counts decide test; test data never picks wallets.
+- **Look-alike tokens:** tokens are identified by contract address only, never by symbol, so a fake token
+  with a famous name is a separate token.
+- **Rugs, reported:** a token is flagged *rug* if its price falls at least 90% within any 24 hours. The
+  report gives the share of winners' formation PnL and of copy-strategy PnL that comes from rug-flagged
+  tokens. The 7-day dead-pool rule above still applies.
+- **New launches, reported:** a copied buy is a *new launch* if its pool was created less than 7 days
+  earlier. The report gives the share of copy PnL from new launches.
+
+### Whales (reported; the win rule above is unchanged)
+- **Whale** = top 1% of eligible wallets by formation USD buy volume.
+- Concentration: share of winners' test PnL and of copy-strategy PnL from the top 1 and top 5 wallets.
+- Test A repeated within formation buy-volume terciles (small, mid, large), plus whales only.
+- Copy strategy also reported with whales excluded and with whales only.
+- The copier always trades $1,000 per signal, whatever the whale traded, and cannot reproduce a whale's own
+  market impact. The slippage scenarios are the only cost adjustment for this.
+
+### Added stress tests (if the win rule passes)
+In addition to the stress tests above, the result is robust only if total net return stays positive and above
+buy-and-hold ETH after each of these: excluding all whales, excluding rug-flagged tokens, and excluding
+new-launch buys.
+
 ## Reporting
 
 EXPERIMENT_RESULTS.md reports all numbers above, with sample sizes at each filter stage, the bytes
