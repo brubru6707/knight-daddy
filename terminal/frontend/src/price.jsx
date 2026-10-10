@@ -46,20 +46,20 @@ export function AreaChart({ bars, height = 260, onHover }) {
         <svg width={w} height={height} onMouseMove={move} onMouseLeave={() => set(null)} role="img" aria-label="Price chart">
           <defs>
             <linearGradient id="kd-area" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" style={{ stopColor: "var(--kd-chart)", stopOpacity: 0.16 }} />
-              <stop offset="100%" style={{ stopColor: "var(--kd-chart)", stopOpacity: 0 }} />
+              <stop offset="0%" style={{ stopColor: "var(--kd-price)", stopOpacity: 0.16 }} />
+              <stop offset="100%" style={{ stopColor: "var(--kd-price)", stopOpacity: 0 }} />
             </linearGradient>
           </defs>
           <line x1={0} x2={w} y1={Y(vals[0])} y2={Y(vals[0])} style={{ stroke: "var(--kd-dim)", opacity: 0.35 }} strokeDasharray="3 4" />
           <path d={`${line} L${w},${height - P.b} L0,${height - P.b} Z`} fill="url(#kd-area)" />
-          <path d={line} fill="none" style={{ stroke: "var(--kd-chart)" }} strokeWidth="2" strokeLinejoin="round" />
+          <path d={line} fill="none" style={{ stroke: "var(--kd-price)" }} strokeWidth="2" strokeLinejoin="round" />
           {ticks.map((i, k) => (
             <text key={k} x={X(i)} y={height - 8} fontSize="11" textAnchor={k === 0 ? "start" : k === 4 ? "end" : "middle"} style={{ fill: "var(--kd-dim)" }}>
               {fmtDay(bars[i].time, { month: "short", day: "numeric" })}</text>
           ))}
           {h && <>
-            <line x1={X(hi)} x2={X(hi)} y1={P.t} y2={height - P.b} style={{ stroke: "var(--kd-chart)", opacity: 0.5 }} />
-            <circle cx={X(hi)} cy={Y(h.close)} r="3.5" style={{ fill: "var(--kd-chart)", stroke: "var(--kd-ground)" }} strokeWidth="1.5" />
+            <line x1={X(hi)} x2={X(hi)} y1={P.t} y2={height - P.b} style={{ stroke: "var(--kd-price)", opacity: 0.5 }} />
+            <circle cx={X(hi)} cy={Y(h.close)} r="3.5" style={{ fill: "var(--kd-price)", stroke: "var(--kd-ground)" }} strokeWidth="1.5" />
           </>}
         </svg>
       )}

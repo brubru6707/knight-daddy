@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
-/* "Paper" look: warm off-white page with a faint engineering grid, hairline boxes with square corners, no shadows.
-   Light is the default; html.dark switches every token (a charcoal page with the same grid). */
+/* "Paper" look: warm off-white page, hairline boxes with square corners, no shadows.
+   Light is the default; html.dark switches every token (a charcoal page). */
 :root {
   --kd-ground: #f5f1e6;
   --kd-card: #ece6d6;
   --kd-line: #cfc6b1;
   --kd-rule: #1f1d19;
-  --kd-grid: rgba(70, 90, 120, 0.07);
   --kd-ink: #1f1d19;
   --kd-dim: #6f6a5e;
   --kd-amber: #9a5d0d;
   --kd-chart: #a8650f;
+  --kd-price: #2d7a43;
   --kd-up: #2d7a43;
   --kd-down: #a8322b;
   --kd-flat: #77736a;
@@ -22,11 +22,11 @@ html.dark {
   --kd-card: #1e2024;
   --kd-line: #3a3d43;
   --kd-rule: #d9d5ca;
-  --kd-grid: rgba(200, 210, 230, 0.045);
   --kd-ink: #e6e2d8;
   --kd-dim: #8f9095;
   --kd-amber: #e9a23b;
   --kd-chart: #e9a23b;
+  --kd-price: #4fb873;
   --kd-up: #4fb873;
   --kd-down: #e46a63;
   --kd-flat: #9a9da3;
@@ -70,14 +70,6 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   background-color: var(--kd-ground);
-  /* faint 24px grid with a slightly stronger line every 5 squares, like engineering paper */
-  background-image:
-    linear-gradient(var(--kd-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--kd-grid) 1px, transparent 1px),
-    linear-gradient(var(--kd-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--kd-grid) 1px, transparent 1px);
-  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
-  background-position: -1px -1px;
 }
 ::selection { background: color-mix(in srgb, var(--kd-amber) 25%, transparent); }
 
