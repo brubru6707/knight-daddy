@@ -1,0 +1,52 @@
+{
+ "general_2b": {
+  "model": "Qwen3.5-2B QLoRA (general)",
+  "n": 4000,
+  "binary_accuracy": 0.6615,
+  "binary_accuracy_ci95": [
+   0.64699375,
+   0.6765
+  ],
+  "binary_macro_f1": 0.6601725490196079,
+  "binary_macro_f1_ci95": [
+   0.6455876115844253,
+   0.6765034416974366
+  ],
+  "f1_bearish": 0.6814117647058824,
+  "f1_bullish": 0.6389333333333334,
+  "three_way_accuracy_neutral_wrong": 0.17025,
+  "neutral_rate": 0.78875,
+  "seconds": 75.1
+ },
+ "finbert": {
+  "model": "FinBERT (zero-shot)",
+  "n": 4000,
+  "binary_accuracy": 0.613,
+  "binary_accuracy_ci95": [
+   0.59825,
+   0.6285
+  ],
+  "binary_macro_f1": 0.6129836485591516,
+  "binary_macro_f1_ci95": [
+   0.5983166353491189,
+   0.6272099934011379
+  ],
+  "f1_bearish": 0.6104680422747861,
+  "f1_bullish": 0.6154992548435171,
+  "three_way_accuracy_neutral_wrong": 0.119,
+  "neutral_rate": 0.8355,
+  "seconds": 5.0
+ },
+ "gate": {
+  "threshold_binary_accuracy": 0.889,
+  "general_2b_binary_accuracy": 0.6615,
+  "passes_gate_means_stop": false,
+  "decision": "GAP: train specialist"
+ },
+ "test_set": {
+  "source": "ElKulako/stocktwits-crypto",
+  "n": 4000,
+  "balanced": true,
+  "labels": "author tags, Bullish/Bearish only"
+ }
+}
