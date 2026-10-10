@@ -135,6 +135,25 @@ Details: `~/poc1/specialist/PROGRESS_STRETCH8.md`.
   `/api/health` reports only whether each key is set.
 - Test (adapts to which keys are set): `scripts/briefing_smoke_test.py`.
 
+## Public site (Vercel + Oscar worker)
+
+**Live: https://knightwatch-plum.vercel.app.** Storage: a Modal Dict behind `modal_kv/kv_app.py` (Upstash also
+supported via `UPSTASH_REDIS_REST_URL/TOKEN`). Redeploy: `cd ~/poc1 && npx vercel@60.0.0 deploy --prod`.
+
+Oscar cannot accept inbound connections, so Oscar pushes to Vercel:
+- `frontend/api/kw.js` (one Vercel function, `vercel.json` rewrites `/api/*` to it) stores snapshots and a Train job
+  queue in Upstash Redis. GET requests replay snapshots of the exact URLs the frontend uses, so the UI code is the
+  same in both modes. Train needs `KW_TRAIN_PASSWORD`, runs one job at a time, refuses jobs while the worker is
+  offline, and releases a job that sends no progress for 10 minutes. Read-aloud and live classification are off.
+- `worker/kw_worker.py` runs the backend in-process and, in the foreground: pushes snapshots for NVDA and DDOG every
+  15 minutes, checks for Train jobs every 20 s (Upstash free-tier budget), runs them on the GPU, and pushes progress every 3 s.
+  Run: `source ~/poc1/env.sh; python ~/poc1/terminal/worker/kw_worker.py` (Ctrl-C to stop; `--once`, `--minutes N`).
+- Secrets only in env vars: Vercel `KW_PUSH_SECRET`, `KW_TRAIN_PASSWORD` (+ Upstash vars from the integration);
+  Oscar `terminal/.env`: `KW_API_URL`, `KW_PUSH_SECRET`.
+- Local test without Vercel: `node frontend/scripts/dev-api.mjs 3001` (in-memory store) plus the worker with
+  `KW_API_URL=http://127.0.0.1:3001`; browser test `scripts/public_smoke_test.py <url> <train password>`.
+  Verified 2026-10-09 on Oscar: 11/11 checks, Train click to DONE 130 s. Not yet verified on real Vercel/Upstash.
+
 ## Not done yet (stretch)
 
 All stretch items are built. Live verification of Finnhub, Gemini and ElevenLabs is waiting on the keys in `.env`.

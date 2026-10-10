@@ -258,6 +258,13 @@ export default function App() {
   return (
     <div className="min-h-full">
       <Header ticker={ticker} onSubmit={choose} health={health} />
+      {health?.mode === "vercel" && (
+        <div className="mx-1 mt-1 border border-amber/40 bg-panel px-2 py-1 text-[11px] text-dim">
+          <span className="text-amber">PUBLIC MIRROR </span>
+          Data pushed from our Oscar GPU worker{health.snapshot_pushed_at ? ` at ${new Date(health.snapshot_pushed_at).toLocaleString()}` : ""}.
+          Tracked: {(health.tracked_tickers || []).join(", ")}. Worker {health.worker_online ? <span className="text-up">online</span> : <span className="text-down">offline (training unavailable)</span>}.
+        </div>
+      )}
       {hist.length > 0 && !hist.includes(ticker) && (
         <div className="mx-1 mt-1 border border-line bg-panel px-2 py-1 text-[11px] text-dim">
           Sentiment history and backtest need cached FNSPID headlines, available for {hist.join(", ")}. See README to add {ticker}.

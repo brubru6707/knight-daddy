@@ -137,6 +137,24 @@ runs, drag-and-reload keeps layout, zero console errors); frontend production bu
 
 ## 8. Open tasks (suggested priority)
 
+- **Public site LIVE (verified 2026-10-10 00:46): https://knightwatch-plum.vercel.app** (Vercel project `knightwatch`, root
+  `terminal/frontend`, linked to the GitHub repo). Storage is a Modal Dict behind `terminal/modal_kv/kv_app.py`
+  (https://shapeup--knightwatch-kv-web.modal.run, Modal workspace `shapeup`) because Vercel Storage is full and the
+  user chose not to use Upstash. Vercel env (production): KW_PUSH_SECRET, KW_TRAIN_PASSWORD, KW_KV_URL, KW_KV_SECRET.
+  Oscar `terminal/.env`: KW_API_URL, KW_PUSH_SECRET. Live browser test 11/11, Train click to DONE 92 s.
+  The site only refreshes and trains while the worker runs on Oscar:
+  `source ~/poc1/env.sh && python ~/poc1/terminal/worker/kw_worker.py` (foreground, GPU session).
+  CLI deploys must run from `~/poc1` (root `.vercelignore` uploads only the frontend). Earlier notes below are history.
+- **(history) Public site on Vercel (built 2026-10-09 23:05):** API + job queue (`terminal/frontend/api/kw.js`),
+  Oscar push worker (`terminal/worker/kw_worker.py`), frontend in public mode (banner, password Train, polling).
+  Verified locally with an in-memory stand-in for Upstash (`public_smoke_test.py` 11/11). Needs the user to import the
+  repo in Vercel, add Upstash, set `KW_PUSH_SECRET` / `KW_TRAIN_PASSWORD`, then run the worker on Oscar.
+  **Stopped 2026-10-09 23:51 (session ending):** the 14 changed files are NOT yet committed or pushed to GitHub;
+  the Vercel CLI is not installed and no Vercel login exists. Next session: push (GitHub token, in memory only),
+  then the user either logs in with `npx vercel@60.0.0 login` in their own terminal (device code; writes an auth file
+  in ~) or gives a Vercel access token (preferred, used in memory). Then create the project (root `terminal/frontend`),
+  add Upstash, set env vars, deploy, run the worker, and run `scripts/public_smoke_test.py` against the real URL.
+
 - **Crypto news specialist (paused 2026-10-09 about 22:05, after Step 1):** dataset review in `crypto/DATA_REVIEW.md`.
   No documented human-labeled 3-class crypto set exists on HF; best option is ElKulako/stocktwits-crypto (author
   self-tags; "Neutral" likely means untagged). Waiting on the user's choice of test set before the gate test (Step 2).

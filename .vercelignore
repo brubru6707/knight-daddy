@@ -1,0 +1,9 @@
+# Upload only the frontend (Vercel project root directory: terminal/frontend)
+/*
+!/terminal
+/terminal/*
+!/terminal/frontend
+/terminal/frontend/node_modules
+/terminal/frontend/dist
+/terminal/frontend/.vercel
+/terminal/frontend/.env*

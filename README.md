@@ -40,6 +40,10 @@ with ElevenLabs read-aloud, sentiment vs price with the lead/lag finding, backte
 "stock-specific news analyst" that fine-tunes a per-ticker specialist in about 2 minutes. Panels are draggable.
 The dashboard describes news; it never predicts prices or gives advice.
 
+## Live demo
+
+https://knightwatch-plum.vercel.app (data and Train work while the Oscar GPU worker is running; Train needs the team's password).
+
 ## How to run
 
 Built for Brown's Oscar cluster (needs an Ampere GPU for the model). Full details: `terminal/README.md`.

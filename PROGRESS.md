@@ -1,6 +1,6 @@
 # KNIGHTWATCH progress (Hack Knight, finance track)
 
-Updated 2026-10-09 20:21 EDT, written for the managing Claude model. Full technical detail: `~/poc1/HANDOFF.md`.
+Updated 2026-10-10 00:59 EDT, written for the managing Claude model. Full technical detail: `~/poc1/HANDOFF.md`.
 
 ## Status at a glance
 
@@ -8,97 +8,80 @@ Updated 2026-10-09 20:21 EDT, written for the managing Claude model. Full techni
 |---|---|
 | Sentiment model (Qwen3.5-2B QLoRA) vs FinBERT | Done. 0.919 vs 0.725 accuracy. |
 | Backtest: does sentiment trade? | Done. No: lost to buy and hold, matched random timing. |
-| KNIGHTWATCH dashboard (6 MVP panels + draggable layout) | Done, browser-tested. |
-| Stretch 8: "stock-specific news analyst" (train a per-ticker specialist) | Built and browser-tested (10/10). **Waiting on teammates' hand labels** for the real score. |
-| Finnhub live news (primary), Yahoo fallback | **Verified live.** Filtered to company-named headlines (NVDA 44 of 249 per week). |
-| Stretch 9: Gemini briefing panel | **Verified live** (gemini-3.5-flash): complete, grounded, no advice; browser test passes. |
-| Stretch 10: ElevenLabs read-aloud | Built, error paths verified. **Live check blocked: no key saved.** |
-| Modal deployment | Code written, never deployed. |
+| Dashboard (6 MVP panels + draggable layout) | Done, browser-tested. |
+| Finnhub live news (company-name filtered) | **Verified live.** NVDA 44 of 249 weekly headlines name the company. |
+| Gemini briefing panel | **Verified live** (gemini-3.5-flash), grounded, no advice. |
+| ElevenLabs read-aloud | Built; **key still missing**. Off on the public site by design. |
+| Stretch 8: stock-specific news analyst (per-ticker specialist) | Built and tested; **waiting on teammates' hand labels** for the real score. |
+| **Public site** | **LIVE: https://knightwatch-plum.vercel.app**, live browser test 11/11. |
+| Crypto news specialist | Paused after the dataset review (Step 1). |
+| GitHub repo | https://github.com/brubru6707/knight-daddy. **20 recent paths not pushed yet** (awaiting user OK). |
 
-## Blockers (need a human)
+## Public site (new since last update)
 
-1. **One API key still missing:** `ELEVENLABS_API_KEY` is empty in `~/poc1/terminal/.env`. Gemini and Finnhub keys
-   were pasted in chat and saved (both work). Keys are re-read on every request; no restart needed. Both keys were shared
-   in chat, so they should be rotated after the hackathon.
-2. **Hand labels not back yet.** `~/poc1/specialist/labeling/NVDA_labeled.csv` and `DDOG_labeled.csv` do not exist.
-   Until they do, the specialist panel shows "NO HUMAN TEST LABELS YET" instead of a score (by design).
+- **Architecture:** Vercel serves the frontend and one API function. Storage is a **Modal Dict** behind a tiny Modal
+  endpoint (`terminal/modal_kv/kv_app.py`, workspace `shapeup`), because Vercel Storage is full and the user chose not
+  to use Upstash (code still supports Upstash). The **Oscar worker** (`terminal/worker/kw_worker.py`) pushes snapshots of
+  every page for NVDA and DDOG and runs password-protected Train jobs from the site, pushing progress back.
+- **Verified on the live URL (2026-10-10 00:45):** all panels load from snapshots (0.2 to 0.3 s per request), wrong train
+  password rejected, a real Train run finished in **92 s from click** with live progress ("step 8/75" at 48 s).
+- **Depends on Oscar:** data refreshes (every 15 min) and Train only work while the worker runs in a GPU session.
+  Otherwise the site stays up with the last data and says "Worker offline". Last push: 2026-10-10 00:45 EDT.
+- **Train password:** set as `KW_TRAIN_PASSWORD` on Vercel (the user has it; changeable in Vercel settings).
+- **Secrets:** only in env vars (Vercel: KW_PUSH_SECRET, KW_TRAIN_PASSWORD, KW_KV_URL, KW_KV_SECRET; Oscar
+  `terminal/.env`: KW_API_URL, KW_PUSH_SECRET; Modal Secret `knightwatch-kv`). Nothing printed or committed.
+- **Off on the public site:** read-aloud and live classification; tickers other than NVDA and DDOG.
 
-## Main results so far
+## Main results
 
 | Model (2,388 held-out tweets) | Accuracy | Macro F1 |
 |---|---|---|
 | FinBERT, zero-shot | 0.725 | 0.668 |
 | **Qwen3.5-2B QLoRA (ours, serves the dashboard)** | **0.919** | **0.895** |
-| Qwen3.5-9B QLoRA (ours, used as teacher) | 0.924 | 0.904 |
+| Qwen3.5-9B QLoRA (ours, teacher for Stretch 8) | 0.924 | 0.904 |
 
-Backtest (Dec 2022 to Dec 2023): sentiment strategy NVDA +96% vs buy and hold +190%; DDOG +18% vs +57%.
-Headlines track yesterday's move (corr +0.33), not tomorrow's (about 0).
+Backtest (Dec 2022 to Dec 2023): sentiment NVDA +96% vs buy and hold +190%; DDOG +18% vs +57%. Headlines track
+yesterday's move (corr +0.33), not tomorrow's (about 0). **Pitch:** our model reads financial news better than FinBERT,
+and we used it to show news sentiment lags price. Never claim it makes money.
 
-**Pitch the evidence supports:** our model reads financial news better than FinBERT, and we used it to show news
-sentiment lags price. Never claim it makes money.
+## Bugs found and fixed in the deployment work
 
-## Stretch 8 in brief (details: `~/poc1/specialist/PROGRESS_STRETCH8.md`)
+- Worker claimed a Train job during its own GPU warmup, so the job failed instantly. Now it never claims while busy and
+  retries a briefly busy GPU for up to 2 minutes.
+- Test helpers left an orphaned dev server holding the agent lock; fixed by closing the lock descriptor for children.
+- A test check passed on the button label instead of a real training step; tightened to require "step N/75".
+- Vercel without a database would silently lose data per instance; it now refuses with a clear 503 instead.
 
-- TRAIN on NVDA fine-tunes from the general 2B adapter on 600 9B-labeled headlines + 600 general examples:
-  **about 2 minutes click to DONE** (115 to 125 s warm on an RTX 3090), live progress and loss chart.
-- Before/after is scored only against teammates' hand labels (accuracy and macro F1 with 95% CIs, per-class F1 with n,
-  McNemar). Verdict rule fixed in advance: "better/worse" only if the CI of the difference excludes 0.
-- Early signal without human labels: the specialist changes very little (6 of 120 NVDA test tags, 1 of 100 DDOG;
-  agreement with the 9B teacher 92.4% to 93.2%). Likely outcome: "no clear difference". Report it as is; the user's
-  rule is no tuning until it wins.
+## Blockers and open items (need a human)
 
-## News, briefing, read-aloud in brief (this session)
+1. **Push to GitHub:** 20 changed/new paths (API, worker, Modal store, frontend, docs) are live on Vercel but not in the
+   repo. Secret scan was clean on the earlier batch; rerun before pushing. Needs the user's OK (GitHub token, in memory).
+2. **Hand labels** for NVDA and DDOG (`specialist/labeling/*_labeled.csv`) still not returned; the specialist's real
+   before/after score cannot be computed until then.
+3. **Crypto specialist:** waiting on the user's choice of test set (StockTwits tagged posts as primary + Myashka as
+   secondary, or a hand-labeled set). See `crypto/DATA_REVIEW.md`.
+4. **ElevenLabs key** missing (read-aloud works locally only once it is added; stays off on the public site).
+5. **Credentials pasted in chat** (Gemini, Finnhub, GitHub, Modal tokens) should be rotated after the hackathon.
 
-- **Finnhub first** (7-day company news), Yahoo fallback on missing key, error or empty result; the feed shows the
-  provider. Fallback relevance today: only 6 of 38 NVDA headlines mention Nvidia, which is why Finnhub matters.
-- **Gemini briefing:** one paragraph (max 90 words) from today's model-tagged headlines only (falls back to last
-  24 h, then most recent, and says which). We pass our own tag counts. Output checked for prediction/advice phrases:
-  regenerate once, else a plain non-AI summary. Disclaimer always shown. Cached per headline set.
-- **ElevenLabs read-aloud:** only for briefings this server generated; MP3 cached; bad or unknown IDs rejected.
-- Verified without keys: fallback and invalid-key paths (no key text leaks), every briefing branch with Gemini stubbed,
-  guard caught 4/4 advice sentences with 0/4 false alarms, browser test passes in no-key mode, regression test passes.
-- **Gemini live (verified by 20:10):** NVDA and DDOG briefings of 65 and 73 words in about 4 s, tag counts quoted exactly, every
-  number and name traceable to the given headlines, no advice phrases. NVDA's briefing honestly says the (Yahoo fallback)
-  headlines are mostly not about Nvidia. Fixed on the way: `gemini-2.5-flash` is closed to new keys (now `gemini-3.5-flash`),
-  and thinking tokens truncated answers mid-sentence (budget raised to 4096, low thinking, and any answer that did not
-  finish normally is retried, then replaced by the plain summary; never shown cut off).
-- **Finnhub live:** switching provider alone did not fix relevance: only 6 of the latest 40 NVDA headlines (15%) named
-  Nvidia, because Finnhub's feed for large caps includes general market stories. A fixed rule (same as for FNSPID) now keeps
-  headlines naming the company (from Finnhub's profile) or ticker when at least 8 exist in 7 days: NVDA 44 of 249,
-  DDOG 13 of 24, TSLA 117 of 243. The NVDA briefing is now about Nvidia (AI demand, Taiwan Semi earnings, $1 billion
-  science commitment), every claim traceable to its headlines. Browser test with Finnhub + Gemini: all pass.
-- **Unverified until the key exists:** ElevenLabs
-  voice `JBFqnCBsd6RMkjVDRZzb` and model `eleven_flash_v2_5` (all overridable in `.env`).
+## How to run the demo
 
-## Bugs found and fixed today
-
-- Concurrent first requests (feed + briefing on page load) loaded the model twice at once and both crashed
-  ("Cannot copy out of meta tensor"). Fixed with a GPU lock; 4 simultaneous cold requests all succeed.
-- Training subprocess survived a server stop and held 7.5 GB of GPU memory. Fixed (dies with the server); verified with SIGKILL.
-- Several test-only races fixed; app behavior unchanged.
-
-## Next steps (in order)
-
-1. When keys are saved: start the backend and run `terminal/scripts/briefing_smoke_test.py` (adapts to keys; with
-   keys it requires Finnhub as provider, at least 60% of NVDA titles naming Nvidia, no advice phrases, a real MP3).
-2. When hand labels arrive: open the specialist panel or run `python ~/poc1/specialist/eval_specialist.py NVDA`
-   (and DDOG); report the verdict exactly. Expect wide intervals (about ±7 points at n=100).
-3. Optional: deploy `terminal/backend/modal_app.py` so the demo runs without Oscar (needs a Modal account).
+- Start a GPU session on Oscar, then: `source ~/poc1/env.sh && python ~/poc1/terminal/worker/kw_worker.py`
+  (foreground; Ctrl-C to stop). The public site picks it up within about 20 seconds.
+- Redeploy the site: `cd ~/poc1 && npx vercel@60.0.0 deploy --prod` (Vercel CLI login is saved in `~`).
+- Local dashboard instead: `~/poc1/terminal/run_backend.sh`, then an SSH tunnel to port 8000.
 
 ## Environment
 
-- Oscar GPU session 7245878 on gpu2109 (RTX 3090), about 4 h 26 min left at 19:31.
-- Run the dashboard: `~/poc1/terminal/run_backend.sh`, then on a laptop
-  `ssh -N -L 8000:gpu2109:8000 brrodrig@ssh.ccv.brown.edu` and open http://localhost:8000.
-- Site rules: no squeue polling, show any sbatch to the user before submitting, single-threaded agent work.
+- Oscar GPU session 7256341 on gpu3006 (RTX 3090), about 5 h left at 00:59.
+- Site rules: no squeue polling, show any sbatch before submitting, single-threaded agent work, foreground processes only.
 
 ## Key files
 
 | What | Where |
 |---|---|
 | Technical handoff | `~/poc1/HANDOFF.md` |
+| Public site: API, store, worker | `terminal/frontend/api/`, `terminal/modal_kv/`, `terminal/worker/` |
+| Dashboard README | `~/poc1/terminal/README.md` |
 | Stretch 8 detail | `~/poc1/specialist/PROGRESS_STRETCH8.md` |
-| Dashboard README (run, tunnel, API, tests) | `~/poc1/terminal/README.md` |
-| Keys (gitignored) | `~/poc1/terminal/.env` (template `.env.example`) |
+| Crypto data review | `~/poc1/crypto/DATA_REVIEW.md` |
 | Backtest write-up | `~/poc1/backtest/RESULTS.md` |
-| Training commands and versions | `~/poc1/NOTES.md` |

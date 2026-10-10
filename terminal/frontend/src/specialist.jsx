@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, Panel } from "./ui.jsx";
 
 const PHASES = {
-  starting: "starting", "loading data": "loading data", "loading model": "loading model",
+  queued: "queued, waiting for the Oscar GPU", "waiting for GPU": "waiting for the Oscar GPU", starting: "starting", "loading data": "loading data", "loading model": "loading model",
   "scoring general model": "scoring general model (before)", training: "training",
   "scoring specialist": "scoring specialist (after)", saving: "saving", done: "done", failed: "failed",
 };
@@ -160,23 +160,28 @@ export function SpecialistPanel({ ticker, onTrained }) {
   const [st, setSt] = useState(null);
   const [ev, setEv] = useState(null);
   const [err, setErr] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [pw, setPw] = useState("");
   const esRef = useRef(null);
+  const needPw = !!health?.train_password_required;
   const supported = info?.supported?.includes(ticker);
 
   const loadEval = () => api(`specialist/eval?ticker=${ticker}`).then(setEv).catch((e) => setErr(e.message));
+  // Poll status every 2 s (works locally and on the public site, where Oscar pushes progress to Vercel).
   const follow = () => {
-    esRef.current?.close();
-    const es = new EventSource(`/api/specialist/stream?ticker=${ticker}`);
-    esRef.current = es;
-    es.onmessage = (m) => {
-      const d = JSON.parse(m.data);
-      setSt(d);
-      if (d.phase === "done" || d.phase === "failed") {
-        es.close();
-        if (d.phase === "done") { loadEval(); onTrained?.(); }
-      }
+    clearInterval(esRef.current);
+    const tick = async () => {
+      try {
+        const d = await api(`specialist/status?ticker=${ticker}`);
+        setSt(d);
+        if (d.phase === "done" || d.phase === "failed") {
+          clearInterval(esRef.current);
+          if (d.phase === "done") { loadEval(); onTrained?.(); }
+        }
+      } catch { /* transient network error: keep polling */ }
     };
-    es.onerror = () => { es.close(); }; // status is still refreshed when the panel reloads
+    esRef.current = setInterval(tick, 2000);
+    tick();
   };
 
   useEffect(() => {
@@ -186,24 +191,34 @@ export function SpecialistPanel({ ticker, onTrained }) {
       setSt(d);
       if (d.running) follow(); else if (d.phase === "done") loadEval();
     }).catch(() => {});
-    return () => esRef.current?.close();
+    api("health").then(setHealth).catch(() => setHealth(null));
+    return () => clearInterval(esRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker]);
 
   const train = async () => {
     setErr(null); setEv(null);
     try {
-      await api("specialist/train", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker }) });
-      setSt({ phase: "starting", step: 0, total_steps: null, losses: [] });
+      if (needPw && !pw) throw new Error("Enter the train password first.");
+      await api("specialist/train", { method: "POST", body: JSON.stringify({ ticker }),
+        headers: { "content-type": "application/json", ...(needPw ? { "x-train-password": pw } : {}) } });
+      setSt({ phase: needPw ? "queued" : "starting", step: 0, total_steps: null, losses: [] });
       follow();
     } catch (e) { setErr(e.message); }
   };
 
   const running = st && !["done", "failed", "none"].includes(st.phase);
   const frac = st?.total_steps ? st.step / st.total_steps : 0;
-  const right = supported
-    ? <button onClick={train} disabled={running} className="border border-amber px-2 text-amber hover:bg-amber hover:text-ground disabled:opacity-40">{running ? "TRAINING" : "TRAIN"}</button>
-    : null;
+  const right = supported ? (
+    <span className="flex items-center gap-2">
+      {needPw && !running && (
+        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="train password"
+          aria-label="Train password" onKeyDown={(e) => e.key === "Enter" && train()}
+          className="w-32 border border-line bg-ground px-1 text-[11px] normal-case text-ink outline-none focus:border-amber" />
+      )}
+      <button onClick={train} disabled={running} className="border border-amber px-2 text-amber hover:bg-amber hover:text-ground disabled:opacity-40">{running ? "TRAINING" : "TRAIN"}</button>
+    </span>
+  ) : null;
   return (
     <Panel code="SPC" title="stock-specific news analyst" className="h-full" right={right}>
       <div className="mb-2 text-[11px] text-dim">

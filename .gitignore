@@ -36,3 +36,7 @@ adapters/qwen35-2b/adapter_model.safetensors
 *.bin
 *.pt
 *.mp3
+
+# Vercel CLI project link (no secrets, machine-specific)
+.vercel/
+**/.vercel/
