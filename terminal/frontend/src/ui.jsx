@@ -16,8 +16,27 @@ export const pct = (x, d = 1) => (x === null || x === undefined || Number.isNaN(
 export const money = (x) => (x === null || x === undefined ? "n/a" : "$" + Math.round(x).toLocaleString("en-US"));
 export const usd = (x) => (x === null || x === undefined ? "n/a" : "$" + x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 export const toneClass = (x) => (x > 0 ? "text-up" : x < 0 ? "text-down" : "text-flat");
-export const TAG = { Bullish: "text-up", Bearish: "text-down", Neutral: "text-flat" };
-export const DOT = { Bullish: "bg-up", Bearish: "bg-down", Neutral: "bg-flat" };
+export const TAG = { Bullish: "text-up", Bearish: "text-down", Neutral: "text-neutral" };
+export const DOT = { Bullish: "bg-up", Bearish: "bg-down", Neutral: "bg-neutral" };
+export const LABELS = ["Bearish", "Neutral", "Bullish"];
+
+// Home list: stocks the Oscar worker pushes live data for. Stocks only; crypto stays out of the app.
+export const HOME = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "DDOG"];
+export const headlinesPath = (t, model = "general", source = "live") => `headlines?ticker=${t}&source=${source}&limit=40&model=${model}`;
+
+// Most common Qwen tag among the headlines (ties go to Neutral); null when nothing is tagged.
+export function dominant(items = []) {
+  const c = { Bullish: 0, Bearish: 0, Neutral: 0 };
+  for (const i of items) if (c[i.label] !== undefined) c[i.label]++;
+  const top = Math.max(c.Bullish, c.Bearish, c.Neutral);
+  if (!top) return null;
+  return c.Neutral === top ? "Neutral" : c.Bullish === top ? (c.Bearish === top ? "Neutral" : "Bullish") : "Bearish";
+}
+
+// Small colored pill for a sentiment label.
+export const Pill = ({ label }) => (
+  <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] ${label ? `${TAG[label]} border-current` : "border-line text-dim"}`}
+    data-testid="pill"><Dot label={label} />{label || "n/a"}</span>);
 export const scoreLabel = (x, thr = 0.2) => (x > thr ? "Bullish" : x < -thr ? "Bearish" : "Neutral");
 
 // Static reference data (names and peers), not market data.
@@ -29,11 +48,11 @@ export const NAMES = {
   RIVN: ["Rivian Automotive, Inc.", "NASDAQ"], LCID: ["Lucid Group, Inc.", "NASDAQ"], F: ["Ford Motor Company", "NYSE"],
   SNOW: ["Snowflake Inc.", "NYSE"], MDB: ["MongoDB, Inc.", "NASDAQ"], DT: ["Dynatrace, Inc.", "NYSE"],
   MNST: ["Monster Beverage Corporation", "NASDAQ"], KDP: ["Keurig Dr Pepper Inc.", "NASDAQ"], PEP: ["PepsiCo, Inc.", "NASDAQ"],
-  DELL: ["Dell Technologies Inc.", "NYSE"], HPE: ["Hewlett Packard Enterprise", "NYSE"], QCOM: ["Qualcomm Incorporated", "NASDAQ"],
+  WMT: ["Walmart Inc.", "NYSE"], DELL: ["Dell Technologies Inc.", "NYSE"], HPE: ["Hewlett Packard Enterprise", "NYSE"], QCOM: ["Qualcomm Incorporated", "NASDAQ"],
 };
 export const PEERS = {
   NVDA: ["AMD", "INTC", "TSM"], AAPL: ["MSFT", "GOOGL", "AMZN"], TSLA: ["RIVN", "LCID", "F"], DDOG: ["SNOW", "MDB", "DT"],
-  CELH: ["MNST", "KDP", "PEP"], SMCI: ["DELL", "HPE", "NVDA"], AMD: ["NVDA", "INTC", "QCOM"], MSFT: ["AAPL", "GOOGL", "AMZN"],
+  AMZN: ["WMT", "MSFT", "GOOGL"], CELH: ["MNST", "KDP", "PEP"], SMCI: ["DELL", "HPE", "NVDA"], AMD: ["NVDA", "INTC", "QCOM"], MSFT: ["AAPL", "GOOGL", "AMZN"],
 };
 
 export function relTime(iso) {

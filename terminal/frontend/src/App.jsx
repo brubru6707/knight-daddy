@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdvancedResearch } from "./advanced.jsx";
-import { AiColumn } from "./ai.jsx";
+import { Briefing, ConfidenceBar } from "./ai.jsx";
 import { FineTune } from "./finetune.jsx";
+import { Home } from "./home.jsx";
 import { Competitors, Headlines } from "./news.jsx";
 import { PriceBlock } from "./price.jsx";
-import { api, NAMES } from "./ui.jsx";
+import { api, HOME, NAMES } from "./ui.jsx";
 
-const QUICK = ["NVDA", "DDOG", "AAPL", "TSLA", "CELH", "SMCI"];
-const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
+// Two screens: the home list (/) and a ticker detail page (/?t=NVDA). The URL carries the ticker so the browser's own
+// Back button works too.
+const tickerFromUrl = () => (new URLSearchParams(location.search).get("t") || "").toUpperCase().replace(/[^A-Z.]/g, "").slice(0, 10) || null;
 
-function Header({ ticker, onPick, dark, setDark, watch }) {
+function Header({ onHome, onPick, dark, setDark }) {
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
   const input = useRef(null);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "/" && document.activeElement?.tagName !== "INPUT") { e.preventDefault(); input.current?.focus(); } };
@@ -22,77 +22,75 @@ function Header({ ticker, onPick, dark, setDark, watch }) {
   const submit = (e) => { e.preventDefault(); const t = q.trim().toUpperCase(); if (t) { onPick(t); setQ(""); input.current?.blur(); } };
   return (
     <header className="sticky top-0 z-20 border-b border-rule bg-ground">
-      <div className="mx-auto grid h-16 max-w-[1240px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:grid-cols-[1fr_minmax(0,420px)_1fr] sm:gap-4 sm:px-6 md:px-12">
-        <button onClick={() => onPick("NVDA")} className="flex items-center gap-2 justify-self-start text-[15px] font-semibold text-amber" title="Knight-Daddy">
+      <div className="mx-auto grid h-14 max-w-[720px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:h-16 sm:px-6">
+        <button onClick={onHome} className="flex items-center gap-2 text-[15px] font-semibold text-amber" title="Knight-Daddy home">
           <img src="/favicon.svg" alt="" className="h-5 w-5" /><span className="hidden sm:inline">Knight-Daddy</span></button>
         <form onSubmit={submit} className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim">⌕</span>
           <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search stocks..." aria-label="Ticker" list="kd-tickers"
-            maxLength={10} className="w-full border border-line bg-ground py-2 pl-8 pr-9 text-sm text-ink outline-none placeholder:text-dim focus:border-rule" />
-          <datalist id="kd-tickers">{QUICK.map((t) => <option key={t} value={t}>{NAMES[t]?.[0]}</option>)}</datalist>
-          <kbd className="absolute right-2.5 hidden sm:block top-1/2 -translate-y-1/2 rounded border border-line px-1.5 text-[11px] text-dim">/</kbd>
+            maxLength={10} className="w-full border border-line bg-ground py-2 pl-8 pr-3 text-sm text-ink outline-none placeholder:text-dim focus:border-rule" />
+          <datalist id="kd-tickers">{HOME.map((t) => <option key={t} value={t}>{NAMES[t]?.[0]}</option>)}</datalist>
         </form>
-        <div className="relative flex items-center gap-3 justify-self-end text-sm sm:gap-5">
-          <button onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} className="text-dim hover:text-ink">{dark ? "☀" : "☾"}</button>
-          <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Watchlist" className="flex items-center gap-1.5 text-ink hover:text-amber">
-            <span className="text-amber">★</span><span className="hidden sm:inline">Watchlist</span> {watch.list.length > 0 && <span className="text-dim">{watch.list.length}</span>}</button>
-          {open && (
-            <div className="absolute right-0 top-9 w-56 border border-rule bg-ground p-2" role="menu">
-              {watch.list.length === 0 && <div className="px-2 py-1.5 text-xs text-dim">Empty. Star a stock to add it.</div>}
-              {watch.list.map((t) => (
-                <button key={t} role="menuitem" onClick={() => { onPick(t); setOpen(false); }}
-                  className={`flex w-full justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-card ${t === ticker ? "text-amber" : "text-ink"}`}>
-                  <span>{t}</span><span className="truncate pl-2 text-xs text-dim">{NAMES[t]?.[0]}</span></button>))}
-            </div>
-          )}
-        </div>
+        <button onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+          className="h-9 w-9 text-dim hover:text-ink">{dark ? "☀" : "☾"}</button>
       </div>
     </header>
   );
 }
 
-export default function App() {
-  const [ticker, setTicker] = useState(() => read("kd.ticker", "NVDA"));
-  const [dark, setDarkState] = useState(() => document.documentElement.classList.contains("dark"));
-  const [list, setList] = useState(() => read("kd.watchlist", []));
+function Detail({ ticker, onBack, onPick }) {
   const [health, setHealth] = useState(null);
   const [info, setInfo] = useState(null);
+  const [active, setActive] = useState("general");
   const [specVersion, setSpecVersion] = useState(0);
-  const [specReady, setSpecReady] = useState(false);
+  useEffect(() => {
+    api("health").then(setHealth).catch(() => setHealth(null));
+    api("specialist/info").then(setInfo).catch(() => setInfo(null));
+    api(`specialist/active?ticker=${ticker}`).then((d) => setActive(d.active === "specialist" ? "specialist" : "general")).catch(() => setActive("general"));
+  }, [ticker, specVersion]);
+  return (
+    <div className="mx-auto max-w-[720px] px-4 pb-12 pt-4 sm:px-6 sm:pt-6">
+      <button onClick={onBack} className="-ml-1 mb-5 flex items-center gap-1.5 px-1 py-2 text-sm text-dim hover:text-ink" data-testid="back">
+        <span aria-hidden>‹</span> Back to stocks</button>
+      <PriceBlock key={ticker} ticker={ticker} />
+      <ConfidenceBar key={`c-${ticker}-${active}-${specVersion}`} ticker={ticker} model={active} />
+      <Briefing key={`b-${ticker}`} ticker={ticker} />
+      <FineTune ticker={ticker} health={health} info={info} active={active}
+        onActive={(a) => setActive(a)} onTrained={() => setSpecVersion((v) => v + 1)} />
+      <Headlines key={`h-${ticker}-${active}`} ticker={ticker} model={active} specVersion={specVersion} />
+      <Competitors ticker={ticker} onPick={onPick} />
+      <AdvancedResearch key={`a-${ticker}`} ticker={ticker} health={health} specVersion={specVersion} />
+      <footer className="mt-16 border-t border-rule pt-4 text-xs text-dim">News sentiment, not investment advice.</footer>
+    </div>
+  );
+}
 
+export default function App() {
+  const [ticker, setTicker] = useState(tickerFromUrl);
+  const [dark, setDarkState] = useState(() => document.documentElement.classList.contains("dark"));
   const setDark = (d) => {
     setDarkState(d);
     document.documentElement.classList.toggle("dark", d);
     try { localStorage.setItem("kd.theme", d ? "dark" : "light"); } catch { /* storage unavailable */ }
   };
-  const pick = useCallback((t) => { setTicker(t); write("kd.ticker", t); window.scrollTo({ top: 0, behavior: "smooth" }); }, []);
-  const watched = list.includes(ticker);
-  const toggleWatch = () => { const l = watched ? list.filter((t) => t !== ticker) : [...list, ticker]; setList(l); write("kd.watchlist", l); };
-
-  useEffect(() => { api("health").then(setHealth).catch(() => setHealth(null)); api("specialist/info").then(setInfo).catch(() => setInfo(null)); }, [ticker, specVersion]);
   useEffect(() => {
-    setSpecReady(false);
-    api(`specialist/status?ticker=${ticker}`).then((d) => setSpecReady(d.phase === "done")).catch(() => setSpecReady(false));
-  }, [ticker, specVersion]);
-  const onTrained = () => setSpecVersion((v) => v + 1);
+    const onPop = () => setTicker(tickerFromUrl());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const go = useCallback((t) => {
+    history.pushState(null, "", t ? `/?t=${encodeURIComponent(t)}` : "/");
+    setTicker(t);
+    window.scrollTo({ top: 0 });
+  }, []);
+  // Back returns to the home list (the browser history when we came from it, else a fresh push).
+  const back = () => (history.state?.kd === "from-home" ? history.back() : go(null));
+  const open = (t) => { const fromHome = !ticker; go(t); if (fromHome) history.replaceState({ kd: "from-home" }, "", location.href); };
 
   return (
     <div className="min-h-screen">
-      <Header ticker={ticker} onPick={pick} dark={dark} setDark={setDark} watch={{ list }} />
-      <main className="mx-auto grid max-w-[1240px] gap-0 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="min-w-0 px-6 py-12 md:px-14">
-          <PriceBlock key={ticker} ticker={ticker} watched={watched} onWatch={toggleWatch}>
-            <FineTune ticker={ticker} health={health} info={info} onTrained={onTrained} />
-          </PriceBlock>
-          <Headlines key={`h-${ticker}`} ticker={ticker} specReady={specReady} specVersion={specVersion} />
-          <Competitors ticker={ticker} onPick={pick} />
-          <AdvancedResearch key={`a-${ticker}`} ticker={ticker} health={health} specVersion={specVersion} />
-          <footer className="mt-16 border-t border-rule pt-4 text-xs text-dim">News sentiment, not investment advice.</footer>
-        </div>
-        <div className="px-6 pb-10 md:px-10 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pl-0 lg:pt-12">
-          <AiColumn key={`ai-${ticker}`} ticker={ticker} />
-        </div>
-      </main>
+      <Header onHome={() => go(null)} onPick={open} dark={dark} setDark={setDark} />
+      {ticker ? <Detail ticker={ticker} onBack={back} onPick={go} /> : <Home onOpen={open} />}
     </div>
   );
 }

@@ -6,18 +6,21 @@ const PHASES = {
   "loading data": "Loading data", "loading model": "Loading model", "scoring general model": "Scoring the general model",
   training: "Training", "scoring specialist": "Scoring the specialist", saving: "Saving", done: "Done", failed: "Failed",
 };
+const clock = (s) => (s === null || s === undefined ? null : s >= 60 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s` : `${Math.round(s)}s`);
 
-// Fine-tune the ticker specialist through the same train endpoint as before. The train password lives in React state
-// only (never stored). Progress is polled from /api/specialist/status every 2 s.
-export function FineTune({ ticker, health, info, onTrained }) {
+// Fine-tune a ticker specialist through the password-protected train endpoint. Every run starts from a fresh copy of the
+// general model on Oscar (never from an earlier specialist). Progress and elapsed time come from /api/specialist/status,
+// polled every 2 s. The train password lives in React state only (never stored).
+export function FineTune({ ticker, health, info, active, onActive, onTrained }) {
   const [st, setSt] = useState(null);
   const [err, setErr] = useState(null);
   const [pw, setPw] = useState("");
-  const [askPw, setAskPw] = useState(false);
+  const [ask, setAsk] = useState(null); // "train" | "quick" | "reset" while the password box is open
   const timer = useRef(null);
   const needPw = !!health?.train_password_required;
   const online = health ? (health.mode === "vercel" ? !!health.worker_online : !!(health.gpu || health.model_endpoint)) : null;
-  const supported = info?.supported?.includes(ticker);
+  const stocks = (info?.supported || []).filter((t) => t !== "CRYPTO");
+  const supported = stocks.includes(ticker);
   const running = st && !["done", "failed", "none"].includes(st.phase);
 
   const follow = () => {
@@ -36,72 +39,85 @@ export function FineTune({ ticker, health, info, onTrained }) {
     tick();
   };
   useEffect(() => {
-    setSt(null); setErr(null); setAskPw(false);
+    setSt(null); setErr(null); setAsk(null);
     api(`specialist/status?ticker=${ticker}`).then((d) => { setSt(d); if (d.running) follow(); }).catch(() => {});
     return () => clearInterval(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker]);
 
-  const train = async (quick = false) => {
+  const headers = () => ({ "content-type": "application/json", ...(needPw ? { "x-train-password": pw } : {}) });
+  const run = async (what) => {
     setErr(null);
-    if (needPw && !pw) { setAskPw(true); return; }
+    if (needPw && !pw) { setAsk(what); return; }
     try {
-      await api("specialist/train", { method: "POST", body: JSON.stringify({ ticker, quick }),
-        headers: { "content-type": "application/json", ...(needPw ? { "x-train-password": pw } : {}) } });
-      setAskPw(false);
-      setSt({ phase: needPw ? "queued" : "starting", step: 0, total_steps: null, quick });
-      follow();
+      if (what === "reset") {
+        const r = await api("specialist/reset", { method: "POST", body: JSON.stringify({ ticker }), headers: headers() });
+        onActive?.(r.active);
+      } else {
+        const quick = what === "quick";
+        await api("specialist/train", { method: "POST", body: JSON.stringify({ ticker, quick }), headers: headers() });
+        setSt({ phase: needPw ? "queued" : "starting", step: 0, total_steps: null, quick });
+        follow();
+      }
+      setAsk(null);
     } catch (e) {
-      if (e.status === 401) { setPw(""); setAskPw(true); }
+      if (e.status === 401) { setPw(""); setAsk(what); }
       setErr(e.message);
     }
   };
 
   const frac = st?.phase === "done" ? 1 : st?.total_steps ? st.step / st.total_steps : 0;
-  const pushed = health?.snapshot_pushed_at ? new Date(health.snapshot_pushed_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
+  const elapsed = clock(st?.phase === "queued" ? st.queued_s : st?.elapsed_s);
   return (
-    <div className="kd-box mt-6 p-4" aria-label="Fine-tune">
-      <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => train(false)} disabled={!supported || running || online === false}
-          className="border border-rule px-4 py-2 text-sm font-semibold text-ink hover:border-amber hover:text-amber disabled:cursor-not-allowed disabled:opacity-40">
-          {running ? "Fine-tuning…" : "Fine-tune"}</button>
-        {supported && !running && online !== false && (
-          <button onClick={() => train(true)} className="text-xs text-dim underline-offset-2 hover:text-amber hover:underline"
-            title="Short demo run, about 30 s. Never served or scored.">Quick demo (not scored)</button>
-        )}
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-dim" data-testid="model-status"
-          title={pushed ? `Latest data pushed from the Oscar worker ${pushed}` : undefined}>
+    <section className="kd-box mt-6 p-5" aria-label="Fine-tune">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-ink" data-testid="active-model">Active model: {active === "specialist" ? `${ticker} specialist` : "general"}</div>
+        <span className="flex items-center gap-1.5 text-xs text-dim" data-testid="model-status">
           <span className={`inline-block h-2 w-2 rounded-full ${online === null ? "bg-dim" : online ? "bg-up" : "bg-down"}`} />
           Model {online === null ? "status n/a" : online ? "online" : "offline"}
         </span>
       </div>
-      {askPw && !running && (
-        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (pw) train(false); }}>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button onClick={() => run("train")} disabled={!supported || running || online === false}
+          className="border border-rule bg-ink px-4 py-2 text-sm font-semibold text-ground hover:bg-amber hover:border-amber disabled:cursor-not-allowed disabled:opacity-40">
+          {running ? "Fine-tuning…" : "Fine-tune to this stock"}</button>
+        {active === "specialist" && !running && (
+          <button onClick={() => run("reset")} className="border border-rule px-4 py-2 text-sm text-ink hover:border-amber hover:text-amber">
+            Reset to general model</button>
+        )}
+        {supported && !running && online !== false && (
+          <button onClick={() => run("quick")} className="text-xs text-dim underline-offset-2 hover:text-amber hover:underline"
+            title="Short run, about 30 s. Never served or scored.">Quick run (not scored)</button>
+        )}
+      </div>
+      {ask && !running && (
+        <form className="mt-3 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (pw) run(ask); }}>
           <input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Train password" aria-label="Train password"
-            className="w-56 rounded-md border border-line bg-ground px-3 py-1.5 text-sm text-ink outline-none focus:border-amber" />
-          <button className="rounded-md bg-amber px-3 py-1.5 text-sm font-semibold text-ground disabled:opacity-40" disabled={!pw}>Start</button>
+            className="w-56 border border-line bg-ground px-3 py-1.5 text-sm text-ink outline-none focus:border-amber" />
+          <button className="bg-amber px-3 py-1.5 text-sm font-semibold text-ground disabled:opacity-40" disabled={!pw}>
+            {ask === "reset" ? "Reset" : "Start"}</button>
         </form>
       )}
       {(running || st?.phase === "done" || st?.phase === "failed") && (
-        <div className="mt-3">
-          <div className="mb-1 flex justify-between text-xs text-dim">
-            <span className={st.phase === "failed" ? "text-down" : ""}>{running ? "" : "Last fine-tune: "}{PHASES[st.phase] || st.phase}{st.quick ? " · quick demo, not scored" : ""}</span>
-            {st.total_steps ? <span>step {st.step}/{st.total_steps}</span> : null}
+        <div className="mt-4" data-testid="train-progress">
+          <div className="mb-1.5 flex justify-between gap-3 text-xs text-dim">
+            <span className={st.phase === "failed" ? "text-down" : ""}>{running ? "" : "Last fine-tune: "}{PHASES[st.phase] || st.phase}{st.quick ? " · quick run, not scored" : ""}</span>
+            <span>{[st.total_steps ? `step ${st.step}/${st.total_steps}` : null, elapsed ? `${elapsed} elapsed` : null].filter(Boolean).join(" · ")}</span>
           </div>
-          <div className="h-1 w-full overflow-hidden bg-card" role="progressbar" aria-valuenow={Math.round(frac * 100)} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full bg-amber transition-all" style={{ width: `${frac * 100}%` }} />
+          <div className="h-2 w-full overflow-hidden border border-line bg-card" role="progressbar" aria-valuenow={Math.round(frac * 100)} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full bg-up transition-all" style={{ width: `${frac * 100}%` }} />
           </div>
           {st.phase === "failed" && st.error && <div className="mt-1 text-xs text-down">{st.error}</div>}
           {st.phase === "queued" && st.note && <div className="mt-1 text-xs text-dim">{st.note}</div>}
         </div>
       )}
-      <div className="mt-2 text-xs text-dim">
+      <div className="mt-3 text-xs text-dim">
         {!info ? "Specialist info: n/a"
-          : !supported ? `Fine-tuning is available for ${info.supported.join(", ")}.`
+          : !supported ? `Fine-tuning is available for ${stocks.join(", ")}.`
           : online === false ? "Model offline, showing latest data. Fine-tuning resumes when the Oscar GPU worker is back."
-          : "Fine-tunes our 2B model on this ticker's headlines. It reads news; it is not a trading signal."}
+          : "Each fine-tune starts from a fresh copy of the general model and trains on this stock's headlines. It reads news; it is not a trading signal."}
       </div>
       {err && <div className="mt-1 text-xs text-down">{err}</div>}
-    </div>
+    </section>
   );
 }

@@ -16,6 +16,9 @@ TRAINER = POC / "specialist" / "train_specialist.py"
 DATA = Path(os.path.expanduser(os.getenv("SPECIALIST_DATA", "~/scratch/poc1/specialist")))
 RUNS = Path(os.path.expanduser(os.getenv("CACHE_DIR", "~/scratch/poc1/terminal"))) / "specialists"
 CRYPTO_DATA = Path(os.path.expanduser(os.getenv("CRYPTO_DATA", "~/scratch/poc1/crypto/spec")))
+# Every fine-tune starts from a fresh copy of this general adapter, never from a specialist (chained tunings would drift
+# back toward a generalist). Specialists are written under RUNS/<ticker>/run-*/adapter and are never used as a start point.
+GENERAL_ADAPTER = Path(os.path.expanduser(os.getenv("GENERAL_ADAPTER", "~/poc1/adapters/qwen35-2b")))
 HAND_LABELED = ["NVDA", "DDOG"]  # test set hand-labeled by teammates (the only real score)
 TEACHER_ONLY = ["AAPL", "MSFT", "AMZN", "TSLA", "CELH", "PTON", "ENPH", "SMCI", "WING"]  # 9B labels only: agreement, no score
 SUPPORTED = HAND_LABELED + TEACHER_ONLY + ["CRYPTO"]  # CRYPTO: StockTwits posts with author tags (Bullish/Bearish only)
@@ -28,6 +31,7 @@ NOTES = {"teacher": "No human test set: shows agreement with the 9B model, which
 def _data_dir(t):
     return CRYPTO_DATA if t == "CRYPTO" else DATA
 router = APIRouter(prefix="/api/specialist")
+_reset = set()  # tickers switched back to the general model since their last fine-tune
 _proc = {"p": None, "ticker": None, "run_dir": None, "kind": None}
 _standby = {"p": None, "log": None}  # trainer with libraries imported and model loaded, waiting for a run
 _standby_lock = threading.Lock()
@@ -99,7 +103,8 @@ def _ensure_standby():
             old.unlink(missing_ok=True)
         log = d / time.strftime("standby-%Y%m%d-%H%M%S.log")
         _standby["log"] = log
-        _standby["p"] = _popen([sys.executable, str(TRAINER), "--standby", "--run_dir", str(d)],
+        _standby["p"] = _popen([sys.executable, str(TRAINER), "--standby", "--run_dir", str(d),
+                                          "--init_adapter", str(GENERAL_ADAPTER)],
                                          stdin=subprocess.PIPE, stdout=open(log, "w"), stderr=subprocess.STDOUT,
                                          env=_env(), cwd=str(TRAINER.parent), preexec_fn=_die_with_parent, text=True)
 
@@ -193,6 +198,9 @@ def train(body: TrainIn):
     run_dir = RUNS / t / time.strftime(("quick-" if body.quick else "run-") + "%Y%m%d-%H%M%S")
     args = (["--general_only", "--max_steps", "20", "--no_save"] if body.dry_run
             else ["--ticker", t, "--data_dir", str(_data_dir(t))] + (["--quick"] if body.quick else []))
+    args += ["--init_adapter", str(GENERAL_ADAPTER)]  # always the general base, never a previous specialist
+    if not body.quick and not body.dry_run:
+        _reset.discard(t)
     if body.dry_run:
         _launch(args, run_dir, t, "dry_run")
     else:
@@ -219,6 +227,25 @@ def _status(ticker):
 @router.get("/status")
 def status(ticker: str):
     return _status(ticker)
+
+
+@router.get("/active")
+def active(ticker: str):
+    """Which model serves this ticker: its newest full specialist, unless it was reset to the general model."""
+    t = ticker.strip().upper()
+    has = _latest_run(t, need_preds=True) is not None
+    return {"ticker": t, "active": "specialist" if has and t not in _reset else "general", "specialist_available": has}
+
+
+class ResetIn(BaseModel):
+    ticker: str
+
+
+@router.post("/reset")
+def reset(body: ResetIn):
+    t = body.ticker.strip().upper()
+    _reset.add(t)
+    return active(t)
 
 
 @router.get("/eval")

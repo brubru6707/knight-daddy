@@ -3,6 +3,8 @@ import re
 
 ADVICE = re.compile(r"\b(buy|buys|buying|sell|sells|selling|hold|holds|holding)\b", re.I)
 SIMULATED = re.compile(r"\b(demo data|simulated|pre-written|demo figures|demo assistant)\b", re.I)
+ACCOUNT = re.compile(r"\b(balance|balances|portfolio|holdings|your position|cash balance)\b", re.I)  # we have no accounts
+HOME = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "DDOG"]
 checks, errors = [], []
 
 
@@ -17,9 +19,13 @@ def watch_errors(pg):
 
 
 def load(pg, url, ticker):
-    """Fresh page, then search for `ticker` with the header search box."""
+    """Fresh home page, then open `ticker`: tap its home row, or search for it when it has no row."""
     pg.goto(url); pg.evaluate("localStorage.clear()"); pg.reload()
-    pg.fill("input[aria-label=Ticker]", ticker); pg.press("input[aria-label=Ticker]", "Enter")
+    row = pg.locator(f"[data-testid=home-row][data-ticker={ticker}]")
+    if ticker in HOME:
+        row.wait_for(timeout=60_000); row.click()
+    else:
+        pg.fill("input[aria-label=Ticker]", ticker); pg.press("input[aria-label=Ticker]", "Enter")
     pg.locator("[data-testid=price]").wait_for(timeout=60_000)
 
 
@@ -36,6 +42,8 @@ def copy_rules(pg, label=""):
     bad = ADVICE.findall(re.sub(r"buy-and-hold", "", t, flags=re.I))
     check(f"no buy/sell/hold in UI text {label}", not bad, ", ".join(bad[:5]))
     check(f"no demo or simulated labels {label}", not SIMULATED.search(t))
+    check(f"no balances, holdings or portfolio wording {label}", not ACCOUNT.search(t), ", ".join(ACCOUNT.findall(t)[:3]))
+    check(f"no crypto in the app {label}", not re.search(r"\bcrypto", t, re.I))
 
 
 def finish():

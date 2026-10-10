@@ -38,6 +38,16 @@ p.add_argument("--standby", action="store_true",
 p.add_argument("--quick", action="store_true",
                help="QUICK DEMO RUN, not scored: 64 ticker + 64 general examples, 64-row scoring pools, cached 'before' scores")
 args = p.parse_args()
+
+
+def _fresh_general(a):
+    """Specialists never build on each other: refuse to start from anything under a specialists/ run directory."""
+    init = os.path.realpath(a.init_adapter)
+    if "/specialists/" in init or os.path.basename(os.path.dirname(init)).startswith(("run-", "quick-")):
+        sys.exit(f"refusing to fine-tune from a specialist adapter ({init}); start from the general adapter")
+
+
+_fresh_general(args)
 PRE = None
 if args.standby:
     _t = time.time()
@@ -59,6 +69,7 @@ if args.standby:
     if not line.strip():
         sys.exit(0)
     args = p.parse_args(json.loads(line))
+    _fresh_general(args)
     if (args.base, args.init_adapter) != base_args:  # different model requested: do not reuse the preloaded one
         PRE = None
 if args.quick:

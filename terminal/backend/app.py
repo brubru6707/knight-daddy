@@ -145,6 +145,15 @@ def prices(ticker: str, period: str = "1y"):
             "high": max(b["high"] for b in bars), "low": min(b["low"] for b in bars)}
 
 
+def _confidence(items):
+    """Ticker-level class probabilities for the confidence bar: the mean of the model's per-headline softmax."""
+    ps = [i for i in items if i.get("p_bear") is not None]
+    if not ps:
+        return {"p_bearish": None, "p_neutral": None, "p_bullish": None, "confidence_n": 0}
+    m = lambda k: round(sum(float(i[k]) for i in ps) / len(ps), 4)
+    return {"p_bearish": m("p_bear"), "p_neutral": m("p_neut"), "p_bullish": m("p_bull"), "confidence_n": len(ps)}
+
+
 @app.get("/api/headlines")
 def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "general"):
     t = _ticker(ticker)
@@ -170,7 +179,8 @@ def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "
                   "label": r.label, "p_bear": r.p_bear, "p_bull": r.p_bull, "p_neut": r.p_neut}
                  for r in df.itertuples()]
         if model == "general":
-            return {"ticker": t, "source": source, "provider": provider, "model": model, "items": items, "labeled": True}
+            return {"ticker": t, "source": source, "provider": provider, "model": model, "items": items, "labeled": True,
+                    **_confidence(items)}
     else:
         raise HTTPException(400, "source must be live or historical")
     items = items[:limit]
@@ -192,7 +202,7 @@ def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "
             i["general_label"] = gen["label"] if gen else None
     return {"ticker": t, "source": source, "provider": provider, "provider_note": note, "filter_note": fnote, "model": model,
             "items": items, "labeled": all(labels),
-            "specialist_run": adapter.parent.name if adapter else None}
+            "specialist_run": adapter.parent.name if adapter else None, **_confidence(items)}
 
 
 @app.get("/api/briefing")

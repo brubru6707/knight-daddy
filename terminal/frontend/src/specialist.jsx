@@ -14,7 +14,7 @@ export function SpecialistResults({ ticker, specVersion }) {
   useEffect(() => {
     let live = true;
     api("specialist/info").catch(() => null).then(async (info) => {
-      const tickers = [...new Set([...(info?.supported || []), ...Object.keys(SAVED.tickers)])];
+      const tickers = [...new Set([...(info?.supported || []), ...Object.keys(SAVED.tickers)])].filter((t) => t !== "CRYPTO"); // stocks only
       const out = await Promise.all(tickers.map(async (t) => {
         const ev = await api(`specialist/eval?ticker=${t}`).catch(() => null);
         if (ev?.status === "scored") return { t, ev, from: "api" };

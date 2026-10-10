@@ -135,9 +135,6 @@ function ModelCard() {
               <tr key={r.model} className={`border-t border-line ${r.model.includes("ours") ? "text-ink" : "text-dim"}`}>
                 <td className="py-1.5">{r.model}</td><td className="py-1.5 text-right">{(r.accuracy * 100).toFixed(1)}%</td><td className="py-1.5 text-right">{r.macro_f1.toFixed(3)}</td></tr>))}</tbody>
           </table>
-          {s.data.crypto && (
-            <p className="mt-2 text-xs text-dim">Crypto ({s.data.crypto.dataset}, no Neutral class): {s.data.crypto.rows.map((r) => `${r.model} ${(r.binary_accuracy * 100).toFixed(1)}%`).join(", ")}.</p>
-          )}
         </details>
       )}
     </div>
@@ -147,7 +144,7 @@ function ModelCard() {
 export function AdvancedResearch({ ticker, health, specVersion }) {
   const [open, setOpen] = useState(false);
   return (
-    <section className="kd-section mt-14" aria-label="Advanced research">
+    <section className="kd-section mt-12" aria-label="Advanced research">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-baseline gap-2 text-left">
         <span className="text-dim">{open ? "⌃" : "⌄"}</span>
         <span className="font-serif text-[17px] font-medium text-ink">Advanced research</span>
@@ -156,7 +153,8 @@ export function AdvancedResearch({ ticker, health, specVersion }) {
       {open && (
         <div className="mt-8 space-y-6">
           <div className="kd-box p-5"><SentimentVsPrice ticker={ticker} health={health} /></div>
-          <div className="grid gap-6 md:grid-cols-2"><div className="kd-box p-5"><Backtest ticker={ticker} health={health} /></div><div className="kd-box p-5"><ModelCard /></div></div>
+          <div className="kd-box p-5"><Backtest ticker={ticker} health={health} /></div>
+          <div className="kd-box p-5"><ModelCard /></div>
           <div className="kd-box p-5"><SpecialistResults ticker={ticker} specVersion={specVersion} /></div>
         </div>
       )}

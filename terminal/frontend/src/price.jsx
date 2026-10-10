@@ -83,7 +83,7 @@ const PERIODS = [
   { k: "ALL", api: "2y", label: "past 2 years", span: "2 years", title: "All history the API serves: 2 years" },
 ];
 
-export function PriceBlock({ ticker, watched, onWatch, children }) {
+export function PriceBlock({ ticker, children }) {
   const [pk, setPk] = useState("1M");
   const per = PERIODS.find((p) => p.k === pk);
   const s = useApi(per.api ? `prices?ticker=${ticker}&period=${per.api}` : null, [ticker]);
@@ -96,15 +96,9 @@ export function PriceBlock({ ticker, watched, onWatch, children }) {
   const up = chg !== null && chg >= 0;
   return (
     <section>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-[30px] font-medium leading-tight text-ink">{name}</h1>
-          <div className="kd-label mt-1">{ticker}{exch ? ` · ${exch}` : ""}</div>
-        </div>
-        <button onClick={onWatch} aria-pressed={watched} title={watched ? "Remove from watchlist" : "Add to watchlist"}
-          className={`mt-1 text-lg ${watched ? "text-amber" : "text-dim hover:text-amber"}`}>{watched ? "★" : "☆"}</button>
-      </div>
-      <div className="mt-6 text-[44px] font-semibold leading-none tracking-tight text-ink" data-testid="price">
+      <h1 className="font-serif text-[30px] font-medium leading-tight text-ink">{name}</h1>
+      <div className="kd-label mt-1">{ticker}{exch ? ` · ${exch}` : ""}</div>
+      <div className="mt-5 text-[48px] font-semibold leading-none tracking-tight text-ink" data-testid="price">
         {cur ? usd(cur.close) : s.loading ? "…" : "n/a"}</div>
       <div className="mt-2 h-5 text-sm" data-testid="change">
         {chg !== null ? (

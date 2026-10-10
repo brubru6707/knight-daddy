@@ -1,4 +1,4 @@
-"""Headless test of the live news feed and the Knight-Daddy AI column (Gemini briefing as short bullets, read aloud).
+"""Headless test of the live news feed and the Gemini briefing card (short bullets, read aloud by the speaker button).
 Adapts to which keys are set (from /api/health). Usage: python scripts/briefing_smoke_test.py [base_url] [out.png]"""
 import re, sys
 from playwright.sync_api import sync_playwright
@@ -25,23 +25,22 @@ with sync_playwright() as p:
         check("NVDA headlines are company-specific (>= 60% name it)", titles and on_topic / len(titles) >= 0.6, f"{on_topic}/{len(titles)}")
     else:
         check("fallback provider named in the feed note", pg.locator("text=/Live headlines from Yahoo/").count() == 1)
-    ai = pg.locator("aside[aria-label='Knight-Daddy AI']")
+    ai = pg.locator("section[aria-label=Briefing]")
     bj = pg.request.get(f"{url}/api/briefing?ticker=NVDA").json()
     if bj.get("status") == "ok":
-        ai.locator("[data-testid=tone]").wait_for(timeout=90_000)
+        ai.locator("[data-testid=briefing-bullets]").wait_for(timeout=90_000)
         bl = [x.inner_text() for x in ai.locator("[data-testid=briefing-bullets] li").all()]
         check("briefing shown as 1 to 4 bullets", 1 <= len(bl) <= 4, f"{len(bl)} bullets")
         check("bullets are short (<= 90 chars each)", all(len(x) <= 92 for x in bl), str([len(x) for x in bl]))
         check("bullets have no prediction or advice phrases", not any(BANNED.search(x) or ADVICE.search(x) for x in bl))
-        shown = [int(x.inner_text().split()[-1]) for x in ai.locator("[data-testid=breakdown] li").all()]
-        check("breakdown counts match the API", shown == [bj["counts"].get(k, 0) for k in ("Bullish", "Bearish", "Neutral")], f"{shown} vs {bj['counts']}")
+        check("briefing credits Gemini, tags credit Qwen", ai.locator("text=/Written by Gemini .* Tags come from Qwen/").count() == 1)
         if keys.get("ELEVENLABS_API_KEY"):
-            ai.locator("button:has-text('Read aloud')").click()
+            ai.locator("[data-testid=speaker]").click()
             ai.locator("button:has-text('Stop')").wait_for(timeout=60_000); check("Read aloud starts playback", True)
             ai.locator("button:has-text('Stop')").click()
         else:
-            ai.locator("button:has-text('Read aloud')").click()
-            ai.locator("text=/Read aloud: /").wait_for(timeout=30_000); check("Read aloud explains it is unavailable", True)
+            ai.locator("[data-testid=speaker]").click()
+            ai.locator("text=/Listen: /").wait_for(timeout=30_000); check("speaker explains it is unavailable", True)
     else:
         ai.locator("text=/Briefing: n\\/a/").wait_for(timeout=90_000)
         check("briefing unavailable shows n/a", True)

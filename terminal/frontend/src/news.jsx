@@ -1,21 +1,19 @@
 import { useEffect, useState } from "react";
-import { Dot, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
+import { Dot, headlinesPath, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
 
-export function Headlines({ ticker, specReady, specVersion }) {
+// Latest headlines tagged by the active Qwen model (general or this ticker's specialist).
+export function Headlines({ ticker, model, specVersion }) {
   const [all, setAll] = useState(false);
   const [source, setSource] = useState("live");
-  const [model, setModel] = useState("general");
-  useEffect(() => { if (!specReady) setModel("general"); }, [specReady]);
   useEffect(() => setAll(false), [ticker]);
-  const s = useApi(`headlines?ticker=${ticker}&source=${source}&limit=40&model=${model}`, [specVersion]);
+  const s = useApi(headlinesPath(ticker, model, source), [specVersion]);
   const items = s.data?.items || [];
   const shown = all ? items : items.slice(0, 3);
   const opt = (cur, set, vals) => vals.map((v) => (
     <button key={v} onClick={() => set(v)} aria-pressed={cur === v} className={cur === v ? "text-amber" : "hover:text-ink"}>{v}</button>));
   return (
-    <section className="mt-14" aria-label="Latest headlines">
+    <section className="mt-12" aria-label="Latest headlines">
       <SectionTitle right={<span className="flex items-center gap-3">
-        {specReady && <span className="flex gap-2">{opt(model, setModel, ["general", "specialist"])}</span>}
         <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>
         {s.data && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
       </span>}>Latest headlines</SectionTitle>
@@ -24,7 +22,7 @@ export function Headlines({ ticker, specReady, specVersion }) {
       <ul>
         {shown.map((h, k) => (
           <li key={k} className="flex gap-4 border-b border-line py-3.5" data-testid="headline">
-            <span className={`flex w-[72px] shrink-0 items-center gap-1.5 text-xs ${TAG[h.label] || "text-dim"}`}
+            <span className={`flex h-fit w-[80px] shrink-0 items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}
               title={h.p_bull !== undefined ? `bull ${(h.p_bull * 100).toFixed(0)}% · bear ${(h.p_bear * 100).toFixed(0)}% · neutral ${(h.p_neut * 100).toFixed(0)}%` : "not classified"}>
               <Dot label={h.label} />{h.label || "n/a"}</span>
             <div className="min-w-0">
@@ -43,7 +41,7 @@ export function Headlines({ ticker, specReady, specVersion }) {
       {s.data && (
         <p className="mt-4 text-xs text-dim">
           {source === "live" ? `Live headlines from ${s.data.provider || "n/a"}${s.data.filter_note ? `. ${s.data.filter_note}` : ""}.` : "Historical headlines from the FNSPID dataset."}
-          {" "}Tags by our {model === "specialist" ? `${ticker} specialist` : "general 2B"} model.</p>
+          {" "}Tags by Qwen, {model === "specialist" ? `${ticker} specialist` : "general model"}.</p>
       )}
     </section>
   );
@@ -52,7 +50,7 @@ export function Headlines({ ticker, specReady, specVersion }) {
 export function Competitors({ ticker, onPick }) {
   const peers = PEERS[ticker];
   return (
-    <section className="mt-14" aria-label="Competitors">
+    <section className="mt-12" aria-label="Competitors">
       <SectionTitle>Competitors</SectionTitle>
       {peers ? (
         <div className="grid grid-cols-3 gap-0 border-l border-t border-line">

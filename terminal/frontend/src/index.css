@@ -15,6 +15,7 @@
   --kd-up: #2d7a43;
   --kd-down: #a8322b;
   --kd-flat: #77736a;
+  --kd-neutral: #a07d00;
   color-scheme: light;
 }
 html.dark {
@@ -30,6 +31,7 @@ html.dark {
   --kd-up: #4fb873;
   --kd-down: #e46a63;
   --kd-flat: #9a9da3;
+  --kd-neutral: #d9b343;
   color-scheme: dark;
 }
 
@@ -47,6 +49,7 @@ html.dark {
   --color-up: var(--kd-up);
   --color-down: var(--kd-down);
   --color-flat: var(--kd-flat);
+  --color-neutral: var(--kd-neutral);
 }
 
 /* Drawn-on-paper boxes: square corners everywhere (dots stay round), no drop shadows. */

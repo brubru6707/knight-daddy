@@ -62,7 +62,8 @@ function statusFromJob(job, workerSeen) {
   if (job.status === "queued") {
     const ago = workerSeen ? Math.round((now() - workerSeen) / 1000) : null;
     return { ticker: job.ticker, quick: !!job.quick, phase: "queued", running: true, step: 0, total_steps: null, losses: [],
-             note: `waiting for the Oscar worker${ago !== null ? ` (last seen ${ago}s ago)` : ""}` };
+             note: `waiting for the Oscar worker${ago !== null ? ` (last seen ${ago}s ago)` : ""}`,
+             queued_s: Math.round((now() - job.created_at) / 1000) };
   }
   if (job.status === "failed") return { ...p, ticker: job.ticker, phase: "failed", running: false, error: job.error || p.error };
   return { ...p, ticker: job.ticker, running: job.status === "running" && !["done", "failed"].includes(p.phase) };
@@ -181,6 +182,8 @@ export default async function handler(req, res) {
                              progress: body.progress || job.progress, updated_at: now(), finished_at: now() });
         await setJSON(jobKey(job.id), job, { ex: 86400 });
         await del("kw:job:active");
+        // a finished full fine-tune becomes the ticker's active model (quick demos are never served)
+        if (job.status === "done" && !job.quick) await setJSON(`kw:active:${job.ticker}`, "specialist");
         return send(res, 200, { ok: true });
       }
       return send(res, 404, { detail: "unknown jobs route" });
@@ -191,6 +194,7 @@ export default async function handler(req, res) {
       if (!process.env.KW_TRAIN_PASSWORD) return send(res, 503, { detail: "Training is disabled on this site (no KW_TRAIN_PASSWORD set)." });
       if (!same(req.headers["x-train-password"], process.env.KW_TRAIN_PASSWORD)) return send(res, 401, { detail: "Wrong train password." });
       const ticker = String(body.ticker || "").toUpperCase();
+      if (ticker === "CRYPTO") return send(res, 400, { detail: "Specialists are available for stocks only." });
       const info = (await getJSON("kw:get:specialist/info"))?.body;
       if (!info?.supported?.includes(ticker)) return send(res, 400, { detail: `Specialists are available for ${(info?.supported || []).join(", ") || "no tickers yet"}.` });
       const seen = await getJSON("kw:worker:last_seen");
@@ -215,6 +219,18 @@ export default async function handler(req, res) {
         return send(res, 200, statusFromJob(fresh, await getJSON("kw:worker:last_seen")));
       }
       return mirror(res, canonical("specialist/status", { ticker }));
+    }
+    // Active model per ticker: "general" until a full fine-tune finishes here, then "specialist" until reset.
+    if (route === "specialist/active" && method === "GET") {
+      const ticker = String(req.query.ticker || "").toUpperCase();
+      return send(res, 200, { ticker, active: (await getJSON(`kw:active:${ticker}`)) === "specialist" ? "specialist" : "general" });
+    }
+    if (route === "specialist/reset" && method === "POST") {
+      if (!process.env.KW_TRAIN_PASSWORD) return send(res, 503, { detail: "Model switching is disabled on this site (no KW_TRAIN_PASSWORD set)." });
+      if (!same(req.headers["x-train-password"], process.env.KW_TRAIN_PASSWORD)) return send(res, 401, { detail: "Wrong train password." });
+      const ticker = String(body.ticker || "").toUpperCase();
+      await setJSON(`kw:active:${ticker}`, "general");
+      return send(res, 200, { ticker, active: "general" });
     }
     if (route === "specialist/info" && method === "GET") {
       const job = await activeJob();
