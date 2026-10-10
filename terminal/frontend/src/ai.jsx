@@ -39,9 +39,9 @@ export function AiColumn({ ticker }) {
   const total = ok ? (b.counts.Bullish || 0) + (b.counts.Bearish || 0) + (b.counts.Neutral || 0) : 0;
   return (
     <aside aria-label="Knight-Daddy AI" className="kd-box p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h2 className="flex items-center gap-2 font-serif text-[19px] font-medium text-ink"><span className="text-amber">✦</span>Knight-Daddy AI</h2>
-        <span className="flex gap-3 text-xs text-dim">
+        <span className="ml-auto flex gap-3 text-xs text-dim">
           {ok && <button onClick={readAloud} disabled={audio.state === "loading"} className="hover:text-amber disabled:opacity-40">
             {audio.state === "playing" ? "Stop" : audio.state === "loading" ? "Loading audio" : "Read aloud"}</button>}
           <button onClick={() => load(true)} disabled={loading} className="hover:text-amber disabled:opacity-40">Refresh</button>

@@ -73,12 +73,13 @@ async function syncToTiger(key, snap) {
   if (!tigerOn || !key.startsWith("headlines?") || snap.body?.source !== "live") return;
   const mark = `kw:tiger:${key}`, version = snap.pushed_at || "unversioned";
   try {
-    if ((await getJSON(mark)) === version || (await getJSON("kw:tiger:down"))) return;
+    if ((await getJSON(mark)) === version || ((await getJSON("kw:tiger:down")) || 0) > now()) return;
     await saveHeadlines(snap.body);
     await setJSON(mark, version, { ex: 7 * 86400 });
   } catch (e) {
     console.error("tiger sync failed:", e.message);
-    await setJSON("kw:tiger:down", true, { ex: 300 }).catch(() => {}); // back off 5 min so reads stay fast
+    // back off 5 min so reads stay fast; an explicit until-time because the modal store ignores TTLs
+    await setJSON("kw:tiger:down", now() + 5 * 60 * 1000, { ex: 300 }).catch(() => {});
   }
 }
 
