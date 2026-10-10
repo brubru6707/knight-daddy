@@ -1,11 +1,24 @@
-// Hardcoded competitor map (documented in mobile/API.md).
+// Static reference data (names and peers), not market data. Matches the web app (terminal/frontend/src/ui.jsx).
 export const PEERS: Record<string, string[]> = {
   NVDA: ["AMD", "INTC", "TSM"],
   AAPL: ["MSFT", "GOOGL", "AMZN"],
   TSLA: ["RIVN", "LCID", "F"],
-  DDOG: ["SNOW", "NET", "DT"],
+  DDOG: ["SNOW", "MDB", "DT"],
+  AMZN: ["WMT", "MSFT", "GOOGL"],
   CELH: ["MNST", "KDP", "PEP"],
   SMCI: ["DELL", "HPE", "NVDA"],
   AMD: ["NVDA", "INTC", "QCOM"],
   MSFT: ["AAPL", "GOOGL", "AMZN"],
 };
+
+export const NAMES: Record<string, string> = {
+  NVDA: "NVIDIA Corporation", DDOG: "Datadog, Inc.", AAPL: "Apple Inc.", TSLA: "Tesla, Inc.", MSFT: "Microsoft Corporation",
+  AMZN: "Amazon.com, Inc.", CELH: "Celsius Holdings, Inc.", SMCI: "Super Micro Computer, Inc.", AMD: "Advanced Micro Devices, Inc.",
+  INTC: "Intel Corporation", TSM: "Taiwan Semiconductor", GOOGL: "Alphabet Inc.", RIVN: "Rivian Automotive, Inc.",
+  LCID: "Lucid Group, Inc.", F: "Ford Motor Company", SNOW: "Snowflake Inc.", MDB: "MongoDB, Inc.", DT: "Dynatrace, Inc.",
+  MNST: "Monster Beverage Corporation", KDP: "Keurig Dr Pepper Inc.", PEP: "PepsiCo, Inc.", DELL: "Dell Technologies Inc.",
+  HPE: "Hewlett Packard Enterprise", QCOM: "Qualcomm Incorporated", WMT: "Walmart Inc.",
+};
+
+// Home list: stocks the Oscar worker pushes live data for. Stocks only; crypto stays out of the app.
+export const HOME = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "DDOG"];

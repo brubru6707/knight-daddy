@@ -34,7 +34,13 @@
           "backgroundColor": "#f5f1e6"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

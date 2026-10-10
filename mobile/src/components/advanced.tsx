@@ -1,7 +1,8 @@
-import { Text, View } from "react-native";
-import { paths, type Backtest, type Benchmarks, type Health, type Sentiment, type SpecEval, type SpecInfo, type SpecStatus } from "@/lib/api";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { paths, type Backtest, type Benchmarks, type Sentiment, type SpecEval, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { money, pct, toneColor, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
+import { money, pct, SERIF, toneColor, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
 
@@ -24,14 +25,14 @@ export function SentimentCard({ ticker, nonce }: { ticker: string; nonce: number
   const scores = d ? d.rows.map((r) => r.score ?? 0) : [];
   const smooth = scores.map((_, i) => { const w = scores.slice(Math.max(0, i - 9), i + 1); return w.reduce((a, b) => a + b, 0) / w.length; });
   return (
-    <Card title="Sentiment vs price" collapsible summary={finding}>
+    <Card title="Sentiment vs. price">
       <Status s={s} what="sentiment history" />
       {d && (
         <>
           <View style={st.rowBetween}>{finding}<Text style={st.dim}>{d.start} to {d.end}</Text></View>
-          <Text style={st.lead}>
-            Headlines track the <Text style={{ color: C.amber }}>{lagsPrice ? "past" : "next"}</Text> move more than the {lagsPrice ? "next" : "past"} one.
-          </Text>
+          <Text style={st.lead}>{lagsPrice
+            ? "Sentiment tracks the previous day's move, not the next one. It lags price."
+            : "Sentiment correlates more with the next day's move than the previous one over this window."}</Text>
           <Text style={st.label}>Price</Text>
           <LineChart series={[{ values: d.rows.map((r) => r.close), color: C.amber }]} height={90} />
           <Text style={st.label}>News score (10-day avg)</Text>
@@ -65,20 +66,20 @@ export function BacktestCard({ ticker, nonce }: { ticker: string; nonce: number 
   const beat = !!(sent && bh && sent.total_return > bh.total_return);
   const nRand = d?.diagnostics.random_seeds_beaten_by_sentiment ?? 0;
   const skill = nRand >= 95;
-  const summary = d ? <Pill text={beat ? "BEAT B&H" : "LOST TO B&H"} color={beat ? C.up : C.down} /> : null;
+  const caption = beat ? "Trading on sentiment beat buy-and-hold over this window." : "Trading on sentiment lost to buy-and-hold.";
   return (
-    <Card title="Backtest" collapsible summary={summary}>
+    <Card title="Historical backtest">
       <Status s={s} what="backtest" />
       {d && sent && bh && (
         <>
           <View style={st.bigRow}>
             <View style={st.big}><Text style={st.bigLabel}>News strategy</Text>
               <Text style={[st.bigNum, { color: toneColor(C, sent.total_return) }]}>{pct(sent.total_return, 0)}</Text></View>
-            <View style={st.big}><Text style={st.bigLabel}>Buy and hold</Text>
+            <View style={st.big}><Text style={st.bigLabel}>Buy-and-hold</Text>
               <Text style={[st.bigNum, { color: toneColor(C, bh.total_return) }]}>{pct(bh.total_return, 0)}</Text></View>
           </View>
+          <Text style={st.lead}>{caption}</Text>
           <View style={st.pills}>
-            {summary}
             <Pill text={skill ? "UNUSUAL" : "LUCK"} color={skill ? C.amber : C.flat} />
             <Text style={st.dim}>beat {nRand}/{d.seeds} random</Text>
           </View>
@@ -88,7 +89,7 @@ export function BacktestCard({ ticker, nonce }: { ticker: string; nonce: number 
             { values: d.curves["Sentiment"].map((p) => p.value), color: C.amber, width: 2.5 },
           ]} baseline={d.capital} />
           <Text style={st.small}>
-            <Text style={{ color: C.amber }}>━ news</Text>  <Text style={{ color: C.flat }}>━ buy and hold</Text>  <Text>┅ random avg</Text>
+            <Text style={{ color: C.amber }}>━ news</Text>  <Text style={{ color: C.flat }}>━ buy-and-hold</Text>  <Text>┅ random avg</Text>
             {"\n"}{money(d.capital)} start · {d.start} to {d.end} · {(d.slippage * 100).toFixed(2)}% slippage
           </Text>
           <Text style={st.read}>{skill
@@ -107,10 +108,9 @@ export function BenchmarkCard({ nonce }: { nonce: number }) {
   const rows = s.data?.rows || [];
   const ours = rows.find((r) => r.model.includes("2B QLoRA"));
   const fb = rows.find((r) => /finbert fine/i.test(r.model)) || rows.find((r) => /finbert/i.test(r.model));
-  const ahead = ours && fb ? ours.accuracy > fb.accuracy : null;
-  const summary = ahead === null ? null : <Pill text={ahead ? "AHEAD" : "BEHIND"} color={ahead ? C.up : C.down} />;
   return (
-    <Card title="Benchmark" collapsible summary={summary}>
+    <Card title="Model">
+      <Text style={st.lead}>Qwen3.5-2B QLoRA. 91.9% accuracy, 0.895 macro F1 on 2,388 held-out financial tweets. FinBERT fine-tuned on the same data: 88.9%.</Text>
       <Status s={s} what="benchmarks" />
       {ours && fb && (
         <View style={st.bigRow}>
@@ -145,7 +145,8 @@ export function SpecialistCard({ ticker, nonce }: { ticker: string; nonce: numbe
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const info = useApi<SpecInfo>(paths.specInfo(), nonce);
-  const supported = info.data?.supported?.includes(ticker);
+  const stocks = (info.data?.supported || []).filter((t) => t !== "CRYPTO");
+  const supported = stocks.includes(ticker);
   const ev = useApi<SpecEval>(supported ? paths.specEval(ticker) : null, nonce);
   const status = useApi<SpecStatus>(supported ? paths.specStatus(ticker) : null, nonce);
   const e = ev.data;
@@ -153,10 +154,12 @@ export function SpecialistCard({ ticker, nonce }: { ticker: string; nonce: numbe
   const verdict = c ? (c.verdict === "no clear difference" ? "No clear difference" : `Specialist ${c.verdict}`) : null;
   const vColor = !c ? C.flat : c.verdict === "better" ? C.up : c.verdict === "worse" ? C.down : C.flat;
   const summary = verdict ? <Pill text={verdict.toUpperCase()} color={vColor} /> : null;
+  const claude = /claude/i.test(e?.label_source || "");
   return (
-    <Card title="Specialist before / after" collapsible summary={summary}>
+    <Card title="Specialist before / after">
+      {claude && <View style={st.pills}><Pill text="Claude-labeled, not human-labeled" color={C.amber} /></View>}
       <Status s={info} what="specialist info" />
-      {info.data && !supported && <Text style={st.dim}>No specialist for {ticker}. Available: {info.data.supported.join(", ")}.</Text>}
+      {info.data && !supported && <Text style={st.dim}>No specialist for {ticker}. Available: {stocks.join(", ")}.</Text>}
       <Status s={ev} what="specialist results" />
       {e?.status === "scored" && e.models && c && (
         <>
@@ -194,26 +197,25 @@ export function SpecialistCard({ ticker, nonce }: { ticker: string; nonce: numbe
   );
 }
 
-export function WorkerCard({ health }: { health: Health | null }) {
-  const { C } = useTheme();
+// Advanced research: collapsed by default.
+export function AdvancedResearch({ ticker, nonce }: { ticker: string; nonce: number }) {
+  const [open, setOpen] = useState(false);
   const st = useStyles(makeStyles);
-  const online = !!health?.worker_online;
-  const summary = health ? <Pill text={online ? "ONLINE" : "OFFLINE"} color={online ? C.up : C.down} /> : null;
   return (
-    <Card title="Worker" collapsible summary={summary}>
-      {!health && <Text style={st.dim}>Status unavailable.</Text>}
-      {health && (
+    <View style={{ marginTop: 6 }}>
+      <Pressable onPress={() => setOpen(!open)} style={st.advHead} accessibilityRole="button" accessibilityState={{ expanded: open }}>
+        <Text style={st.advTitle}>{open ? "⌃" : "⌄"}  Advanced research</Text>
+        <Text style={st.small}>sentiment vs. price, backtest, model, specialist</Text>
+      </Pressable>
+      {open && (
         <>
-          <View style={st.pills}>
-            <View style={[st.dot, { backgroundColor: online ? C.up : C.down }]} />
-            <Text style={[st.bigNum, { fontSize: 22, color: online ? C.up : C.down }]}>{online ? "Online" : "Offline"}</Text>
-          </View>
-          <Text style={st.dim}>{online ? "Oscar GPU worker is polling. Training available." : "Oscar GPU worker is not polling. Training unavailable; data below is the latest snapshot."}</Text>
-          {health.snapshot_pushed_at && <Text style={st.small}>Data pushed {new Date(health.snapshot_pushed_at).toLocaleString()}</Text>}
-          <Text style={st.small}>Tracked: {(health.tracked_tickers || []).join(", ") || "none"}</Text>
+          <SentimentCard ticker={ticker} nonce={nonce} />
+          <BacktestCard ticker={ticker} nonce={nonce} />
+          <BenchmarkCard nonce={nonce} />
+          <SpecialistCard ticker={ticker} nonce={nonce} />
         </>
       )}
-    </Card>
+    </View>
   );
 }
 
@@ -223,7 +225,9 @@ const makeStyles = (C: Palette) => sheet({
   lead: { color: C.ink, fontSize: 15, fontWeight: "600", marginVertical: 8 },
   label: { color: C.dim, fontSize: 12, marginTop: 6, marginBottom: 2, letterSpacing: 0.5 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  pill: { borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  advHead: { borderTopWidth: 1, borderTopColor: C.rule, paddingVertical: 14, marginBottom: 8 },
+  advTitle: { color: C.ink, fontSize: 18, fontFamily: SERIF },
   pillText: { fontSize: 12, fontWeight: "800", letterSpacing: 0.8 },
   pills: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 8, flexWrap: "wrap" },
   lagRow: { flexDirection: "row", gap: 4, marginTop: 4 },

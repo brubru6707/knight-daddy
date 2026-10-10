@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
+import { SERIF, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import type { ApiState } from "@/lib/useApi";
 
 interface Props {
@@ -17,7 +17,7 @@ export function Card({ title, right, summary, collapsible, initiallyOpen = true,
   const s = useStyles(makeStyles);
   const header = (
     <View style={s.header}>
-      <Text style={s.title}>{title.toUpperCase()}</Text>
+      <Text style={s.title}>{title}</Text>
       <View style={s.headerRight}>
         {!open && summary}
         {right}
@@ -50,10 +50,10 @@ export function Status<T>({ s: st, what }: { s: ApiState<T>; what: string }) {
 }
 
 const makeStyles = (C: Palette) => sheet({
-  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 12, marginBottom: 14, overflow: "hidden" },
+  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, marginBottom: 14, overflow: "hidden" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, minHeight: 48 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
-  title: { color: C.amber, fontSize: 13, fontWeight: "700", letterSpacing: 1.2 },
+  title: { color: C.ink, fontSize: 18, fontFamily: SERIF },
   chev: { color: C.dim, fontSize: 18 },
   body: { paddingHorizontal: 16, paddingBottom: 16 },
   row: { flexDirection: "row", alignItems: "center" },
