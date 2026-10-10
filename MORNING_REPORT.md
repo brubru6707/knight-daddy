@@ -14,7 +14,7 @@ no sbatch, no squeue polling, no new deploys, no data deleted.
 
 ## 2. Crypto specialist (StockTwits)
 
-### Pre-registered plan (written 01:12, before any scoring)
+### Pre-registered plan (written 01:09, before any scoring)
 
 - Data: `ElKulako/stocktwits-crypto` (1.33M posts, author-tagged). Keep only Bullish (2) and Bearish (0); label 1 is
   "untagged", not a real Neutral, so it is dropped everywhere. Normalize text (lowercase, collapse spaces), drop texts
@@ -31,7 +31,7 @@ no sbatch, no squeue polling, no new deploys, no data deleted.
   lr 5e-5), continuing from the general 2B adapter. Eval general vs specialist vs FinBERT with 95% paired bootstrap CIs
   and exact McNemar. Verdict "better" only if the CI of the accuracy difference excludes 0. No tuning.
 
-### Results (verified 01:37)
+### Results (verified 01:14)
 
 Data: 1.33M posts -> 778,526 tagged, deduplicated, >= 3 words (Bullish 656k, Bearish 122k). Test 4,000 balanced,
 held-out 1,000 balanced, training pool 239,192 balanced. Zero text overlap between splits (asserted).
@@ -63,3 +63,37 @@ with human tags. Left the shared trainer untouched on purpose.
 **Not done (needs you):** adding CRYPTO to the SPC panel and benchmark panel changes the demo path, which the overnight
 rules forbid. Everything is ready: adapter at `~/scratch/poc1/crypto/runs/<run>/adapter`, results in
 `results/crypto_gate.json` and `results/crypto_specialist.json`, code in `crypto/`.
+
+## 3. Broadened backtest: DONE (verified 01:25)
+
+Same strategy and rules as the original (`backtest/broaden.py` reuses `backtest.py`'s engine and constants), 6 tickers
+x 2 windows: 2023 = 2022-12-16 to 2023-12-15 (rising market), 2022 = 2021-12-16 to 2022-12-15 (falling market).
+Outputs in `~/scratch/poc1/backtest_broad/` (separate from the dashboard's cache on purpose) and
+`results/backtest_broad.json`. **Sanity:** NVDA and DDOG 2023 reproduce the original results exactly (+96.5%, +18.0%).
+**Excluded:** AMZN 2022, because FNSPID has zero AMZN headlines in that window (same >= 100 headline-day rule as before).
+
+| Ticker | Window | Headline days | Orders | Sentiment | Buy & hold | Random (mean) | Random seeds beaten | Corr w/ previous day | Corr w/ next day |
+|---|---|---|---|---|---|---|---|---|---|
+| NVDA | 2023 | 249 | 23 | +96.5% | +189.9% | +89.6% | 57/100 | +0.33 | -0.10 |
+| NVDA | 2022 | 240 | 71 | -51.6% | -45.6% | -24.9% | 13/100 | +0.44 | -0.08 |
+| DDOG | 2023 | 146 | 21 | +18.0% | +57.3% | +33.2% | 41/100 | +0.15 | -0.02 |
+| DDOG | 2022 | 129 | 31 | -35.0% | -54.6% | -28.5% | 50/100 | +0.45 | +0.11 |
+| AAPL | 2023 | 251 | 26 | +13.5% | +45.3% | +19.8% | 32/100 | +0.23 | -0.07 |
+| AAPL | 2022 | 132 | 21 | -1.5% | -23.5% | -12.5% | 84/100 | +0.22 | +0.11 |
+| MSFT | 2023 | 249 | 25 | +27.7% | +50.4% | +22.8% | 65/100 | +0.28 | -0.05 |
+| MSFT | 2022 | 157 | 29 | -9.4% | -25.2% | -15.3% | 67/100 | +0.20 | +0.03 |
+| AMZN | 2023 | 191 | 15 | +35.7% | +69.8% | +32.6% | 63/100 | +0.19 | -0.03 |
+| TSLA | 2023 | 251 | 24 | +98.8% | +58.7% | +33.5% | 93/100 | +0.38 | +0.03 |
+| TSLA | 2022 | 158 | 32 | -24.5% | -52.5% | -30.1% | 65/100 | +0.35 | +0.05 |
+
+**Does "sentiment lags price" hold? Yes, in all 11 ticker-years.**
+- Correlation with the previous day's return is positive in 11/11 (range +0.15 to +0.45, mean +0.29);
+  all exceed about 0.12, roughly the 5% significance level for ~250 days.
+- Correlation with the next day's return ranges -0.10 to +0.11 (mean -0.00); none exceeds 0.12 in size.
+
+**Trading:** no consistent edge. In the rising 2023 window sentiment lost to buy and hold in 5/6 (TSLA was the
+exception: +98.8% vs +58.7%, beating 93/100 random runs). In the falling 2022 window it beat buy and hold in 4/5,
+but random timing also beat buy and hold there (any strategy that sits in cash part of the time loses less in a
+falling market). Against random timing it beat on average 57/100 seeds; none reached 95/100, and
+with 11 tries a best result of 93 is about a coin flip by chance (1 - 0.93^11 = 55%). Conclusion unchanged and now
+much stronger: headlines describe moves that already happened; they are not a trading signal.
