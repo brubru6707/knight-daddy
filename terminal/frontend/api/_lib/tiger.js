@@ -11,7 +11,9 @@ function db() {
   if (!pool) {
     const u = new URL(url);
     u.search = ""; // TLS is set below; sslmode params in the URL change meaning across pg versions
-    pool = new pg.Pool({ connectionString: u.toString(), ssl: true, max: 2, connectionTimeoutMillis: 8000, idleTimeoutMillis: 10000 });
+    // sslmode=require, as in Tiger's own connection string: encrypted, but the service's certificate is self-signed
+    // and Tiger offers no CA file to pin. Owner-approved 2026-10-10.
+    pool = new pg.Pool({ connectionString: u.toString(), ssl: { rejectUnauthorized: false }, max: 2, connectionTimeoutMillis: 8000, idleTimeoutMillis: 10000 });
   }
   return pool;
 }
