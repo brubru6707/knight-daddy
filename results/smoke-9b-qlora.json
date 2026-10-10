@@ -1,0 +1,16 @@
+{
+  "model": "smoke-9b-qlora",
+  "n": 128,
+  "accuracy": 0.921875,
+  "macro_f1": 0.9078561165845649,
+  "per_class_f1": {
+    "Bearish": 0.9428571428571428,
+    "Bullish": 0.953125,
+    "Neutral": 0.8275862068965517
+  },
+  "seconds": 4.029469728469849,
+  "examples_per_sec": 31.765966398910443,
+  "eval_bs": 16,
+  "quant": "nf4",
+  "gpu": "NVIDIA GeForce RTX 3090"
+}

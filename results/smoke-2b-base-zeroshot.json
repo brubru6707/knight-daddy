@@ -1,0 +1,16 @@
+{
+  "model": "smoke-2b-base-zeroshot",
+  "n": 200,
+  "accuracy": 0.61,
+  "macro_f1": 0.5484683974628869,
+  "per_class_f1": {
+    "Bearish": 0.7012987012987013,
+    "Bullish": 0.7643312101910829,
+    "Neutral": 0.1797752808988764
+  },
+  "seconds": 1.246575117111206,
+  "examples_per_sec": 160.43958944365656,
+  "eval_bs": 32,
+  "quant": "nf4",
+  "gpu": "NVIDIA GeForce RTX 3090"
+}

@@ -1,0 +1,23 @@
+{
+  "name": "knightwatch-terminal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173"
+  },
+  "dependencies": {
+    "lightweight-charts": "4.2.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-grid-layout": "1.4.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.11",
+    "@vitejs/plugin-react": "4.3.4",
+    "tailwindcss": "4.1.11",
+    "vite": "5.4.11"
+  }
+}

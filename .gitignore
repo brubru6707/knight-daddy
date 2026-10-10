@@ -1,0 +1,38 @@
+# Secrets: any .env file anywhere (keep the template)
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies, builds, caches
+node_modules/
+**/node_modules/
+frontend/dist/
+**/dist/
+__pycache__/
+**/__pycache__/
+*.pyc
+venv/
+.venv/
+venvs/
+env/
+
+# Logs
+logs/
+*.log
+
+# Data (raw downloads, parquet, spreadsheets live in ~/scratch)
+*.parquet
+*.xlsx
+raw/
+**/raw/
+specialist/teacher_labels/
+
+# Files over 50 MB (checked with: find ~/poc1 -type f -size +50M)
+adapters/qwen35-9b/adapter_model.safetensors
+adapters/qwen35-2b/adapter_model.safetensors
+*.safetensors
+*.bin
+*.pt
+*.mp3

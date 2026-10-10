@@ -1,0 +1,108 @@
+{
+ "NVDA": {
+  "strategies": {
+   "Sentiment": {
+    "final_value": 19646.380582196976,
+    "total_return": 0.9646380582196976,
+    "max_drawdown": -0.2021665445307229,
+    "orders": 23,
+    "round_trips": 12,
+    "win_rate": 0.6666666666666666,
+    "sharpe": 1.7757528062103558
+   },
+   "Buy and hold": {
+    "final_value": 28989.12160259982,
+    "total_return": 1.8989121602599819,
+    "max_drawdown": -0.18287263609672078,
+    "orders": 1,
+    "round_trips": 1,
+    "win_rate": 1.0,
+    "sharpe": 2.398855435914831
+   },
+   "Random (mean of 100)": {
+    "final_value": 18959.230234356295,
+    "total_return": 0.8959230234356294,
+    "max_drawdown": -0.16398615378185752,
+    "orders": 23.0,
+    "round_trips": 12.0,
+    "win_rate": 0.6975,
+    "sharpe": 1.8680108035922813
+   },
+   "Cash": {
+    "final_value": 10000.0,
+    "total_return": 0.0,
+    "max_drawdown": 0.0,
+    "orders": 0,
+    "round_trips": 0,
+    "win_rate": NaN,
+    "sharpe": NaN
+   }
+  },
+  "diagnostics": {
+   "headline_days_used": 249,
+   "days_long": 207,
+   "trading_days": 251,
+   "corr_score_vs_forward_open_to_open": -0.09814629798604578,
+   "corr_score_vs_prev_session_open_to_close": 0.2212988026675936,
+   "corr_score_vs_prev_session_close_to_close": 0.3305514505585502,
+   "random_seeds_beaten_by_sentiment": 57,
+   "random_return_p5_p95": [
+    0.16807648102813402,
+    1.635301364661751
+   ]
+  }
+ },
+ "DDOG": {
+  "strategies": {
+   "Sentiment": {
+    "final_value": 11801.482462951531,
+    "total_return": 0.18014824629515314,
+    "max_drawdown": -0.37333474361615293,
+    "orders": 21,
+    "round_trips": 11,
+    "win_rate": 0.6363636363636364,
+    "sharpe": 0.604204512533643
+   },
+   "Buy and hold": {
+    "final_value": 15728.240707189389,
+    "total_return": 0.5728240707189389,
+    "max_drawdown": -0.321110374956761,
+    "orders": 1,
+    "round_trips": 1,
+    "win_rate": 1.0,
+    "sharpe": 1.0566277681726648
+   },
+   "Random (mean of 100)": {
+    "final_value": 13324.149241672096,
+    "total_return": 0.3324149241672098,
+    "max_drawdown": -0.2649699889394758,
+    "orders": 21.0,
+    "round_trips": 11.0,
+    "win_rate": 0.5718181818181818,
+    "sharpe": 0.7948167984963507
+   },
+   "Cash": {
+    "final_value": 10000.0,
+    "total_return": 0.0,
+    "max_drawdown": 0.0,
+    "orders": 0,
+    "round_trips": 0,
+    "win_rate": NaN,
+    "sharpe": NaN
+   }
+  },
+  "diagnostics": {
+   "headline_days_used": 146,
+   "days_long": 158,
+   "trading_days": 251,
+   "corr_score_vs_forward_open_to_open": -0.02690371050166729,
+   "corr_score_vs_prev_session_open_to_close": 0.07276438538658689,
+   "corr_score_vs_prev_session_close_to_close": 0.16113625017846345,
+   "random_seeds_beaten_by_sentiment": 41,
+   "random_return_p5_p95": [
+    -0.22830286335036865,
+    1.0555564908539803
+   ]
+  }
+ }
+}

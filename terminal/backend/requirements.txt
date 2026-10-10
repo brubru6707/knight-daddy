@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-dotenv
+requests
+yfinance
+pandas
+pyarrow
+numpy
+matplotlib
+# GPU classification
+torch
+transformers
+peft
+bitsandbytes
+accelerate
+flash-linear-attention
+causal-conv1d

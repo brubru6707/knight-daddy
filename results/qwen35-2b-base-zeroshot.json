@@ -1,0 +1,16 @@
+{
+  "model": "qwen35-2b-base-zeroshot",
+  "n": 2388,
+  "accuracy": 0.3907035175879397,
+  "macro_f1": 0.3998623391436804,
+  "per_class_f1": {
+    "Bearish": 0.45479082321187586,
+    "Bullish": 0.5423948220064725,
+    "Neutral": 0.20240137221269297
+  },
+  "seconds": 15.499243259429932,
+  "examples_per_sec": 154.07203822980912,
+  "eval_bs": 32,
+  "quant": "nf4",
+  "gpu": "NVIDIA GeForce RTX 3090"
+}

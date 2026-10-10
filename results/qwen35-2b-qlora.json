@@ -1,0 +1,16 @@
+{
+  "model": "qwen35-2b-qlora",
+  "n": 2388,
+  "accuracy": 0.9187604690117253,
+  "macro_f1": 0.8950666519775257,
+  "per_class_f1": {
+    "Bearish": 0.8620689655172413,
+    "Bullish": 0.88,
+    "Neutral": 0.9431309904153354
+  },
+  "seconds": 22.465569019317627,
+  "examples_per_sec": 106.2959944591928,
+  "eval_bs": 32,
+  "quant": "nf4",
+  "gpu": "NVIDIA GeForce RTX 3090"
+}

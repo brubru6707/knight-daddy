@@ -1,0 +1,16 @@
+{
+  "model": "qwen35-9b-qlora",
+  "n": 2388,
+  "accuracy": 0.923785594639866,
+  "macro_f1": 0.9039954575562867,
+  "per_class_f1": {
+    "Bearish": 0.8721590909090909,
+    "Bullish": 0.8958990536277602,
+    "Neutral": 0.9439282281320089
+  },
+  "seconds": 81.75235772132874,
+  "examples_per_sec": 29.21016673476298,
+  "eval_bs": 16,
+  "quant": "nf4",
+  "gpu": "NVIDIA RTX A5000"
+}

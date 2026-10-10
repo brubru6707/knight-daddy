@@ -1,0 +1,16 @@
+{
+  "model": "ProsusAI/finbert",
+  "n": 2388,
+  "accuracy": 0.7252931323283082,
+  "macro_f1": 0.6681732301000801,
+  "per_class_f1": {
+    "Bearish": 0.5986394557823129,
+    "Bullish": 0.6042553191489362,
+    "Neutral": 0.8016249153689912
+  },
+  "seconds": 2.2456214427948,
+  "examples_per_sec": 1063.4027421059902,
+  "batch_size": 64,
+  "precision": "fp32",
+  "gpu": "NVIDIA GeForce RTX 3090"
+}

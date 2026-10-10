@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-ground: #07090b;
+  --color-panel: #0e1114;
+  --color-line: #222830;
+  --color-ink: #e6e3d8;
+  --color-dim: #8b9099;
+  --color-amber: #ffb000;
+  --color-up: #3ddc84;
+  --color-down: #ff5c5c;
+  --color-flat: #9aa3ad;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--color-ground); color: var(--color-ink); font-family: var(--font-mono); font-size: 12px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2a3038; }
+
+/* react-grid-layout on the dark terminal theme */
+.react-grid-item.react-grid-placeholder { background: var(--color-amber); opacity: 0.15; border-radius: 0; }
+.react-grid-item > .react-resizable-handle { z-index: 5; }
+.react-grid-item > .react-resizable-handle::after { border-color: var(--color-amber) !important; opacity: 0.7; }
