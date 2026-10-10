@@ -28,7 +28,7 @@ p = argparse.ArgumentParser()
 p.add_argument("--api", default=ENV.get("KW_API_URL", ""), help="public site base URL")
 p.add_argument("--tickers", default="NVDA,DDOG,AAPL,MSFT,AMZN,TSLA,CELH,PTON,ENPH,SMCI,WING")
 p.add_argument("--snapshot-every", type=int, default=900, help="seconds between snapshot rounds")
-p.add_argument("--poll", type=int, default=20, help="seconds between job checks (each check costs ~2 Upstash commands)")
+p.add_argument("--poll", type=int, default=5, help="seconds between job checks (2 store reads each; keeps QUICK DEMO pickup fast)")
 p.add_argument("--once", action="store_true", help="push one round of snapshots and exit")
 p.add_argument("--minutes", type=float, default=None, help="stop after this many minutes")
 args = p.parse_args()
@@ -137,6 +137,8 @@ def main():
                     job = remote("jobs/claim", {}).get("job")
                     if job:
                         run_job(client, job)
+                else:  # GPU busy (e.g. startup warmup): still tell the site we are online
+                    remote("jobs/heartbeat", {})
                 if time.time() >= next_snap:
                     push_snapshots(client, TICKERS)
                     next_snap = time.time() + args.snapshot_every

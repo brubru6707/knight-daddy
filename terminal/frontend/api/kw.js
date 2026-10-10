@@ -98,6 +98,7 @@ export default async function handler(req, res) {
     if (route.startsWith("jobs/")) {
       if (!secretOk) return send(res, 401, { detail: "bad or missing x-kw-secret" });
       await setJSON("kw:worker:last_seen", now(), { ex: 3600 });
+      if (route === "jobs/heartbeat" && method === "POST") return send(res, 200, { ok: true }); // worker alive, GPU busy
       const job = await activeJob();
       if (route === "jobs/claim" && method === "POST") {
         if (!job || job.status !== "queued") return send(res, 200, { job: null });
