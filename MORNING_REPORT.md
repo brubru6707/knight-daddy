@@ -1,3 +1,79 @@
+# Morning report, night 2 (2026-10-10, 04:40 to about 05:55 EDT)
+
+Branch **`overnight2`** (local commits only; not pushed, because the GitHub token isn't stored; paste it to push).
+**Nothing merged to main. Production untouched** (https://knightwatch-plum.vercel.app still serves the 4 h old deploy; checked HTTP 200).
+**Preview:** https://knightwatch-f5bw3wpx5-brubru6707s-projects.vercel.app (behind Vercel login). Its frontend deployed,
+but its API says "Database not connected": Vercel's Preview environment has no store env vars (they're Production-only).
+I didn't point the preview at the production store (that would mix data). The full public flow was instead tested locally with the
+same `kw.js` plus the worker: **11/11 passed**.
+
+**Constraint that shaped the night:** the GPU/VS Code session (job 7256341, an **L40S**, not a 3090) had 1 h 19 min left at 04:40
+and ends at about 06:00, taking this agent with it. A new GPU session needs an sbatch/interact you'd approve, so I did the
+GPU work first (out of your order) and the data audit last. **The data audit is partial.**
+
+## Done (each verified, all smoke tests passing before each commit)
+
+| # | Task | Result |
+|---|---|---|
+| 2 | Pre-label AAPL MSFT AMZN TSLA | 9B labels done (5,671 headlines incl. niche, 5 min). Train works for each; quick run verified for all. |
+| 2 | CRYPTO in SPC and benchmark | SPC has its own ticker picker incl. CRYPTO: binary score, "NO NEUTRAL CLASS" note, verdict (reproduces 0.660 to 0.692, +3.2 pts, better). Benchmark panel has a crypto table with the same note. |
+| 3 | Customizable terminal | Toolbar: show/hide each of 7 panels, RESET LAYOUT, named saved layouts (SAVE/LOAD/DELETE), all per browser. Drag/resize still work (tested). |
+| 4 | Demo-mode training | QUICK DEMO button, labeled "QUICK DEMO RUN, not scored" everywhere; never served or scored. Full TRAIN stays default. |
+| 5 | Niche stocks | CELH, PTON, ENPH, SMCI, WING added (Train + header shortcuts for CELH/SMCI; worker tracks all). |
+
+## Measured timings (task 4), warm L40S
+
+| Mode | Click to DONE (3 runs) | Notes |
+|---|---|---|
+| Full TRAIN, before tonight | 76 s in-trainer (122 s on the 3090 last night) | |
+| **QUICK DEMO, local UI** | **8.4, 8.3, 8.4 s** | model preloaded; 6.7 s inside the trainer |
+| QUICK DEMO, back-to-back clicks | 26 to 33 s | next preloaded trainer still loading (about 15 s) |
+| QUICK DEMO, public job queue | 11 s | worker poll 3 s (default now 5 s) |
+| Full TRAIN, now | 48 s in-trainer (71 s click to DONE in UI test) | also uses the preloaded trainer |
+
+What helped, by measurement: library import 13 to 16 s and model load 3.5 s (fixed by a preloaded "standby" trainer process,
+spawned after each run); "before" scoring 8 to 41 s (cached per ticker); 64+64 examples (8 steps) instead of 600+600 (75 steps).
+**3090 not measured** (no 3090 tonight). Estimate: about 12 to 15 s with the standby, about 40 s without it.
+
+## Bugs found and fixed
+
+- **Trainers could be killed silently.** `PR_SET_PDEATHSIG` fires when the forking *thread* exits; FastAPI request threads come
+  and go. Explains two "stuck at loading model" test failures. All children now fork from one long-lived thread.
+- **Site said "Worker offline" during the worker's startup warmup** (heartbeat only came with job claims). Added `jobs/heartbeat`.
+- Back-to-back Train clicks got a 409 while the previous trainer was still exiting. Now waits up to 15 s.
+
+## Niche candidates (FNSPID, company-named unique headlines; need >= 150)
+
+Picked: CELH 283, WING 254 (re-filtered to "Wingstop" only; plain "wing" matches unrelated text), SMCI 313, PTON 1,072, ENPH 1,143.
+Rejected (0 rows in FNSPID): SOFI, UPST, AFRM, ETSY, HOOD, LCID, MRNA, TTD, RIVN. Rejected (stale): IRBT 806 but none after 2020-06,
+LULU 44. Passed but not picked (less niche): ROKU 1,437, DKNG 845, CHWY 499, ZS 340, OKTA 634, PLUG 1,769, FSLR 2,272, DOCU 649,
+BYND 965. Finnhub counts **not checked** (ran out of session). Small tickers have small test pools (WING 28, PTON 30 rows), so
+their agreement numbers are noisy.
+
+## Data audit (task 1): PARTIAL, see `DATA_AUDIT.md`
+
+Stats for all 4 datasets are computed (sizes, balance, duplicates, leakage, date overlap). Label-quality judgment covers about 10
+examples per dataset, not 20 per class (samples saved in `audit/`). Key findings: tweet test set 1.6% exact overlap with train;
+specialist test sets 0 overlap; crypto author tags mismatch the text in roughly 30 to 50% of posts; specialist training period
+overlaps the backtest year (Dec 2022 to Jun 2023), so never backtest a specialist on it.
+
+## Needs your OK to merge
+
+1. **Review the preview** (or run locally). To make the preview's API work, add `KW_KV_URL`, `KW_KV_SECRET`, `KW_PUSH_SECRET`,
+   `KW_TRAIN_PASSWORD` to Vercel's **Preview** environment (ideally a separate Modal Dict so preview and production don't mix).
+2. **Push the branch** (paste the GitHub token), then merge `overnight2` into `main`. That auto-deploys production.
+3. **Restart the worker after merging**: the new worker code (new tickers, CRYPTO snapshots, quick jobs, heartbeat) must run on
+   Oscar, and the production site needs the new `kw.js` for quick jobs. Old worker plus new site would ignore QUICK DEMO.
+4. The standby trainer keeps about 2 to 3 GB of extra GPU memory in use (fine on a 24 GB 3090). Turn it off with `SPECIALIST_STANDBY=0`.
+5. Still pending from before: hand labels, ElevenLabs key, credential rotation after the hackathon.
+
+## Not done
+
+- Data audit label-quality pass (20 per class with judgments), license re-checks, Finnhub counts for niche tickers.
+- Quick-demo timing on a 3090.
+
+---
+
 # Morning report (overnight autonomous run, 2026-10-10)
 
 Started 01:05 EDT, hard stop 05:05 EDT. Oscar GPU session 7256341 on gpu3006 (RTX 3090).

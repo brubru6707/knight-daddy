@@ -1,0 +1,527 @@
+{
+ "tweets": {
+  "train": 9543,
+  "validation": 2388,
+  "train_balance": {
+   "Neutral": 6178,
+   "Bullish": 1923,
+   "Bearish": 1442
+  },
+  "val_balance": {
+   "Neutral": 1566,
+   "Bullish": 475,
+   "Bearish": 347
+  },
+  "train_exact_dup_rows": 109,
+  "val_exact_dup_rows": 11,
+  "val_rows_with_exact_text_in_train": 39,
+  "val_rows_with_template_in_train": 59,
+  "texts_with_conflicting_labels": 3
+ },
+ "teacher": {
+  "AAPL_gold": {
+   "n": 100,
+   "balance": {
+    "Neutral": 76,
+    "Bearish": 14,
+    "Bullish": 10
+   },
+   "dates": [
+    "2023-07-02",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "AAPL_heldout": {
+   "n": 300,
+   "balance": {
+    "Neutral": 233,
+    "Bullish": 38,
+    "Bearish": 29
+   },
+   "dates": [
+    "2023-07-01",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "AAPL_train": {
+   "n": 1500,
+   "balance": {
+    "Neutral": 1021,
+    "Bullish": 291,
+    "Bearish": 188
+   },
+   "dates": [
+    "2020-03-10",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "AMZN_gold": {
+   "n": 100,
+   "balance": {
+    "Neutral": 67,
+    "Bullish": 26,
+    "Bearish": 7
+   },
+   "dates": [
+    "2023-07-03",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "AMZN_heldout": {
+   "n": 300,
+   "balance": {
+    "Neutral": 220,
+    "Bullish": 65,
+    "Bearish": 15
+   },
+   "dates": [
+    "2023-07-02",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "AMZN_train": {
+   "n": 588,
+   "balance": {
+    "Neutral": 392,
+    "Bullish": 130,
+    "Bearish": 66
+   },
+   "dates": [
+    "2020-04-27",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "CELH_gold": {
+   "n": 44,
+   "balance": {
+    "Neutral": 25,
+    "Bullish": 17,
+    "Bearish": 2
+   },
+   "dates": [
+    "2023-07-02",
+    "2023-12-12"
+   ],
+   "dup_text": 0
+  },
+  "CELH_heldout": {
+   "n": 44,
+   "balance": {
+    "Neutral": 27,
+    "Bullish": 16,
+    "Bearish": 1
+   },
+   "dates": [
+    "2023-07-03",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "CELH_train": {
+   "n": 178,
+   "balance": {
+    "Neutral": 111,
+    "Bullish": 51,
+    "Bearish": 16
+   },
+   "dates": [
+    "2015-01-28",
+    "2023-06-24"
+   ],
+   "dup_text": 0
+  },
+  "DDOG_gold": {
+   "n": 100,
+   "balance": {
+    "Neutral": 48,
+    "Bullish": 42,
+    "Bearish": 10
+   },
+   "dates": [
+    "2023-07-05",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "DDOG_train": {
+   "n": 348,
+   "balance": {
+    "Neutral": 203,
+    "Bullish": 92,
+    "Bearish": 53
+   },
+   "dates": [
+    "2019-09-18",
+    "2023-06-28"
+   ],
+   "dup_text": 0
+  },
+  "ENPH_gold": {
+   "n": 78,
+   "balance": {
+    "Neutral": 50,
+    "Bullish": 17,
+    "Bearish": 11
+   },
+   "dates": [
+    "2023-07-06",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "ENPH_heldout": {
+   "n": 78,
+   "balance": {
+    "Neutral": 54,
+    "Bearish": 12,
+    "Bullish": 12
+   },
+   "dates": [
+    "2023-07-06",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "ENPH_train": {
+   "n": 893,
+   "balance": {
+    "Neutral": 480,
+    "Bullish": 286,
+    "Bearish": 127
+   },
+   "dates": [
+    "2012-03-30",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "MSFT_gold": {
+   "n": 100,
+   "balance": {
+    "Neutral": 80,
+    "Bullish": 19,
+    "Bearish": 1
+   },
+   "dates": [
+    "2023-07-02",
+    "2023-12-13"
+   ],
+   "dup_text": 0
+  },
+  "MSFT_heldout": {
+   "n": 300,
+   "balance": {
+    "Neutral": 229,
+    "Bullish": 52,
+    "Bearish": 19
+   },
+   "dates": [
+    "2023-07-03",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "MSFT_train": {
+   "n": 1083,
+   "balance": {
+    "Neutral": 830,
+    "Bullish": 168,
+    "Bearish": 85
+   },
+   "dates": [
+    "2022-04-26",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "NVDA_gold": {
+   "n": 120,
+   "balance": {
+    "Neutral": 89,
+    "Bullish": 25,
+    "Bearish": 6
+   },
+   "dates": [
+    "2023-07-03",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "NVDA_heldout": {
+   "n": 725,
+   "balance": {
+    "Neutral": 498,
+    "Bullish": 175,
+    "Bearish": 52
+   },
+   "dates": [
+    "2023-07-02",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "NVDA_train": {
+   "n": 3132,
+   "balance": {
+    "Neutral": 1604,
+    "Bullish": 1064,
+    "Bearish": 464
+   },
+   "dates": [
+    "2011-03-03",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "PTON_gold": {
+   "n": 30,
+   "balance": {
+    "Neutral": 20,
+    "Bullish": 8,
+    "Bearish": 2
+   },
+   "dates": [
+    "2023-07-07",
+    "2023-12-13"
+   ],
+   "dup_text": 0
+  },
+  "PTON_heldout": {
+   "n": 30,
+   "balance": {
+    "Neutral": 22,
+    "Bullish": 5,
+    "Bearish": 3
+   },
+   "dates": [
+    "2023-08-17",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "PTON_train": {
+   "n": 948,
+   "balance": {
+    "Neutral": 581,
+    "Bullish": 198,
+    "Bearish": 169
+   },
+   "dates": [
+    "2019-08-27",
+    "2023-06-27"
+   ],
+   "dup_text": 0
+  },
+  "SMCI_gold": {
+   "n": 48,
+   "balance": {
+    "Neutral": 29,
+    "Bullish": 15,
+    "Bearish": 4
+   },
+   "dates": [
+    "2023-07-06",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "SMCI_heldout": {
+   "n": 48,
+   "balance": {
+    "Neutral": 26,
+    "Bullish": 15,
+    "Bearish": 7
+   },
+   "dates": [
+    "2023-07-13",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "SMCI_train": {
+   "n": 200,
+   "balance": {
+    "Neutral": 126,
+    "Bullish": 52,
+    "Bearish": 22
+   },
+   "dates": [
+    "2013-08-02",
+    "2023-06-28"
+   ],
+   "dup_text": 0
+  },
+  "TSLA_gold": {
+   "n": 100,
+   "balance": {
+    "Neutral": 71,
+    "Bearish": 17,
+    "Bullish": 12
+   },
+   "dates": [
+    "2023-07-01",
+    "2023-12-15"
+   ],
+   "dup_text": 0
+  },
+  "TSLA_heldout": {
+   "n": 300,
+   "balance": {
+    "Neutral": 215,
+    "Bullish": 43,
+    "Bearish": 42
+   },
+   "dates": [
+    "2023-07-02",
+    "2023-12-16"
+   ],
+   "dup_text": 0
+  },
+  "TSLA_train": {
+   "n": 1500,
+   "balance": {
+    "Neutral": 930,
+    "Bullish": 311,
+    "Bearish": 259
+   },
+   "dates": [
+    "2019-07-01",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "WING_gold": {
+   "n": 28,
+   "balance": {
+    "Neutral": 15,
+    "Bullish": 9,
+    "Bearish": 4
+   },
+   "dates": [
+    "2023-07-25",
+    "2023-12-08"
+   ],
+   "dup_text": 0
+  },
+  "WING_heldout": {
+   "n": 28,
+   "balance": {
+    "Neutral": 15,
+    "Bullish": 11,
+    "Bearish": 2
+   },
+   "dates": [
+    "2023-07-03",
+    "2023-12-12"
+   ],
+   "dup_text": 0
+  },
+  "WING_train": {
+   "n": 179,
+   "balance": {
+    "Neutral": 109,
+    "Bullish": 55,
+    "Bearish": 15
+   },
+   "dates": [
+    "2015-06-02",
+    "2023-06-30"
+   ],
+   "dup_text": 0
+  },
+  "NVDA_train_vs_gold": {
+   "exact_overlap": 0,
+   "template_overlap": 0
+  },
+  "DDOG_train_vs_gold": {
+   "exact_overlap": 0,
+   "template_overlap": 0
+  }
+ },
+ "crypto": {
+  "train": {
+   "n": 239192,
+   "balance": {
+    "Bearish": 119596,
+    "Bullish": 119596
+   }
+  },
+  "heldout": {
+   "n": 1000,
+   "balance": {
+    "Bearish": 500,
+    "Bullish": 500
+   }
+  },
+  "gold": {
+   "n": 4000,
+   "balance": {
+    "Bearish": 2000,
+    "Bullish": 2000
+   }
+  },
+  "gold_template_in_train": 80
+ },
+ "fnspid": {
+  "AAPL": {
+   "n": 2784,
+   "dates": [
+    "2020-03-10",
+    "2023-12-16"
+   ],
+   "in_backtest_2023": 1777,
+   "specialist_train_period_overlapping_backtest_2023": 898
+  },
+  "AMZN": {
+   "n": 1616,
+   "dates": [
+    "2020-04-27",
+    "2023-12-16"
+   ],
+   "in_backtest_2023": 1454,
+   "specialist_train_period_overlapping_backtest_2023": 592
+  },
+  "DDOG": {
+   "n": 601,
+   "dates": [
+    "2019-09-18",
+    "2023-12-16"
+   ],
+   "in_backtest_2023": 268,
+   "specialist_train_period_overlapping_backtest_2023": 126
+  },
+  "MSFT": {
+   "n": 2162,
+   "dates": [
+    "2022-04-26",
+    "2023-12-16"
+   ],
+   "in_backtest_2023": 1624,
+   "specialist_train_period_overlapping_backtest_2023": 838
+  },
+  "NVDA": {
+   "n": 4640,
+   "dates": [
+    "2011-03-03",
+    "2023-12-16"
+   ],
+   "in_backtest_2023": 1885,
+   "specialist_train_period_overlapping_backtest_2023": 851
+  },
+  "TSLA": {
+   "n": 4348,
+   "dates": [
+    "2019-07-01",
+    "2023-12-16"
+   ],
+   "in_backtest_2023": 2213,
+   "specialist_train_period_overlapping_backtest_2023": 1201
+  }
+ }
+}
