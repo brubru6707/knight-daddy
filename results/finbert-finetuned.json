@@ -1,0 +1,23 @@
+{
+  "model": "finbert-finetuned",
+  "n": 2388,
+  "accuracy": 0.8890284757118928,
+  "macro_f1": 0.8564562515816867,
+  "per_class_f1": {
+    "Bearish": 0.8073136427566807,
+    "Bullish": 0.8393234672304439,
+    "Neutral": 0.9227316447579352
+  },
+  "seconds": 1.1186423301696777,
+  "examples_per_sec": 2134.7305886750983,
+  "batch_size": 64,
+  "precision": "fp32 eval, bf16 autocast train",
+  "gpu": "NVIDIA L40S",
+  "train": {
+    "epochs": 3,
+    "lr": 2e-05,
+    "batch": 32,
+    "seconds": 31.8,
+    "examples": 9543
+  }
+}

@@ -279,7 +279,8 @@ def backtest(ticker: str):
 
 @app.get("/api/benchmarks")
 def benchmarks():
-    keep = {"ProsusAI_finbert": "FinBERT (zero-shot)", "qwen35-2b-base-zeroshot": "Qwen3.5-2B base (zero-shot)",
+    keep = {"ProsusAI_finbert": "FinBERT (zero-shot)", "finbert-finetuned": "FinBERT fine-tuned (fair baseline)",
+            "qwen35-2b-base-zeroshot": "Qwen3.5-2B base (zero-shot)",
             "qwen35-2b-qlora": "Qwen3.5-2B QLoRA (ours)", "qwen35-9b-qlora": "Qwen3.5-9B QLoRA (ours)"}
     rows = []
     for stem, name in keep.items():

@@ -64,7 +64,7 @@ with human tags. Left the shared trainer untouched on purpose.
 rules forbid. Everything is ready: adapter at `~/scratch/poc1/crypto/runs/<run>/adapter`, results in
 `results/crypto_gate.json` and `results/crypto_specialist.json`, code in `crypto/`.
 
-## 3. Broadened backtest: DONE (verified 01:25)
+## 3. Broadened backtest: DONE (verified 01:22)
 
 Same strategy and rules as the original (`backtest/broaden.py` reuses `backtest.py`'s engine and constants), 6 tickers
 x 2 windows: 2023 = 2022-12-16 to 2023-12-15 (rising market), 2022 = 2021-12-16 to 2022-12-15 (falling market).
@@ -97,3 +97,58 @@ but random timing also beat buy and hold there (any strategy that sits in cash p
 falling market). Against random timing it beat on average 57/100 seeds; none reached 95/100, and
 with 11 tries a best result of 93 is about a coin flip by chance (1 - 0.93^11 = 55%). Conclusion unchanged and now
 much stronger: headlines describe moves that already happened; they are not a trading signal.
+
+## 4. Fine-tuned FinBERT baseline: DONE (verified 01:26)
+
+`finbert_finetune.py`: ProsusAI/finbert fine-tuned on our same 9,543 training tweets, settings fixed in advance
+(3 epochs, lr 2e-5, batch 32, seed 0, final epoch kept, validation never used for choices). 33 s on an L40S.
+
+| Model (2,388 validation tweets) | Accuracy | Macro F1 | F1 Bearish / Bullish / Neutral |
+|---|---|---|---|
+| FinBERT zero-shot | 0.725 | 0.668 | 0.599 / 0.604 / 0.802 |
+| **FinBERT fine-tuned (new fair baseline)** | **0.889** | **0.856** | 0.807 / 0.839 / 0.923 |
+| Qwen3.5-2B QLoRA (ours) | 0.919 | 0.895 | 0.862 / 0.880 / 0.943 |
+
+Paired on the same tweets: **ours +2.9 accuracy points (95% CI +1.7 to +4.1), macro F1 +3.8 (CI +2.1 to +5.2),
+McNemar p = 5e-6** (148 tweets only ours got right, 79 only FinBERT). So our model still wins clearly, but the honest gap
+against a fine-tuned FinBERT is about 3 points, not 19. FinBERT fine-tuned is also about 20x faster. **Update the pitch:**
+"beats FinBERT even after fine-tuning FinBERT on the same data" is the stronger, honest claim.
+
+Added to the dashboard's benchmark list (backend only, additive; `results/finbert-finetuned.json`,
+`results/qwen2b_vs_finbert_finetuned.json`). The public site shows it after the worker's next snapshot push.
+
+## Verification summary
+
+- Live site checked after both GitHub-triggered rebuilds: HTTP 200 on page and APIs, data and storage unchanged.
+- Local regression after all changes: `ui_smoke_test.py` (all panels, 40 tagged headlines, layout drag) and
+  `briefing_smoke_test.py` (8/8, Finnhub + Gemini live), no console errors, no server tracebacks.
+- Crypto and FinBERT results each reproduced their own sanity checks (general model 0.660 vs 0.662 in two runs;
+  FinBERT rerun identical; our 2B scored 0.918 through the dashboard classifier vs 0.919 in training).
+- Note: tonight's GPU is an **NVIDIA L40S** (gpu3006), not the RTX 3090 used earlier; speeds are not directly comparable.
+- No leftover processes; agent lock free.
+
+## What needs you
+
+1. **Crypto in the dashboard?** The specialist wins, but adding CRYPTO to the SPC panel and a results row changes the demo
+   path, which tonight's rules forbid. Say the word and it is about 30 minutes (panel option + benchmark row + test).
+2. **Hand labels** (`specialist/labeling/NVDA_labeled.csv`, `DDOG_labeled.csv`) still not returned.
+3. **ElevenLabs key** still missing (read-aloud is off on the public site regardless).
+4. **Rotate the credentials pasted in chat** after the hackathon: Gemini, Finnhub, GitHub (expires Oct 12), Modal.
+5. **Pitch wording:** lead with "beats a fine-tuned FinBERT by about 3 points" and "sentiment lags price in 11/11
+   ticker-years", not the 19-point zero-shot gap.
+
+## Demo-day startup (exact steps)
+
+1. Start an Oscar GPU session (Open OnDemand desktop/VS Code on a GPU node, or `interact -q gpu -g 1 -f ampere -m 32g -n 4`).
+   Sessions last at most about 6 hours; start it 30 minutes before you present.
+2. In a terminal on that node:
+   ```
+   source ~/poc1/env.sh && python ~/poc1/terminal/worker/kw_worker.py
+   ```
+   Leave it running in the foreground (Ctrl-C to stop). First snapshot push takes about 2 minutes (includes the new
+   fine-tuned FinBERT benchmark row); after that the banner on the site says "Worker online".
+3. Open **https://knightwatch-plum.vercel.app**, click NVDA. Train needs the team's train password (set on Vercel as
+   `KW_TRAIN_PASSWORD`); a run takes about 1.5 to 2 minutes and shows live progress.
+4. Fallback if the public site has a problem: on Oscar run `~/poc1/terminal/run_backend.sh`, then from your laptop
+   `ssh -N -L 8000:<gpu-node>:8000 brrodrig@ssh.ccv.brown.edu` and open http://localhost:8000 (everything, including
+   read-aloud once a key exists, works locally).

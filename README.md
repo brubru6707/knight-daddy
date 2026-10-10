@@ -2,8 +2,9 @@
 
 A terminal-style stock research dashboard built for Hack Knight (finance track). It tags financial news with our
 own fine-tuned sentiment model (Qwen3.5-2B, QLoRA), shows that sentiment next to price, and tests honestly whether
-news sentiment can be traded. Short answer: our model reads financial news much better than FinBERT, but news
-sentiment lags price, so it is not a free trading signal.
+news sentiment can be traded. Short answer: our model reads financial news better than FinBERT, even a FinBERT
+fine-tuned on the same data (+2.9 accuracy points, 95% CI +1.7 to +4.1), but news sentiment lags price, so it is not
+a free trading signal (this held in all 11 ticker-years we tested).
 
 ## Benchmark
 
@@ -12,11 +13,14 @@ Held-out validation split of `zeroshot/twitter-financial-news-sentiment` (2,388 
 | Model | Accuracy | Macro F1 | Speed (headlines/s) |
 |---|---|---|---|
 | FinBERT (ProsusAI/finbert), zero-shot | 0.725 | 0.668 | 1063 |
+| FinBERT fine-tuned on our training split (fair baseline) | 0.889 | 0.856 | 2099 (L40S) |
 | Qwen3.5-2B base, zero-shot | 0.391 | 0.400 | 154 |
 | **Qwen3.5-2B QLoRA, 1 epoch (ours, serves the dashboard)** | **0.919** | **0.895** | 106 |
 | Qwen3.5-9B QLoRA, 1 epoch (ours) | 0.924 | 0.904 | 29 |
 
-Training the 2B takes about 8 minutes on one RTX 3090. Speeds are GPU eval throughput (the 9B ran on an A5000).
+Training the 2B takes about 8 minutes on one RTX 3090. Speeds are GPU eval throughput (the 9B ran on an A5000, the
+fine-tuned FinBERT on an L40S, so speeds are only roughly comparable). Ours vs fine-tuned FinBERT, paired on the same
+2,388 tweets: accuracy +2.9 points (95% CI +1.7 to +4.1), macro F1 +3.8 (CI +2.1 to +5.2), McNemar p = 5e-6.
 
 ## Backtest finding
 
@@ -32,6 +36,10 @@ trades at the next open with 0.05% slippage, no lookahead.
 The strategy lost to buy and hold on both stocks and beat only 57 and 41 of 100 random-timing runs. Daily sentiment
 correlates +0.33 with the previous day's return and about 0 with any later day: headlines describe moves that
 already happened. Details: `backtest/RESULTS.md`.
+
+Broadened to 6 tickers (NVDA, DDOG, AAPL, MSFT, AMZN, TSLA) x 2 years (11 ticker-years with enough news): sentiment
+correlated with the previous day's move in 11/11 (mean +0.29) and with the next day's in none (mean 0.00). The strategy
+beat on average 57/100 random-timing runs. Details: `results/backtest_broad.json`, `MORNING_REPORT.md`.
 
 ## Dashboard panels
 
@@ -75,4 +83,6 @@ terminal/run_backend.sh             # API + UI on port 8000
 ## Status
 
 - Specialist before/after scores are waiting on teammates' hand labels (`specialist/labeling/`).
-- Crypto specialist: dataset review done (`crypto/DATA_REVIEW.md`), paused before the gate test.
+- Crypto specialist: on 4,000 author-tagged StockTwits posts, a crypto specialist beat our general model by +3.2 points
+  binary accuracy (CI +2.3 to +4.1) and FinBERT by +7.9; the general model called 79% of crypto posts Neutral.
+  See `results/crypto_specialist.json`. Not in the dashboard yet.

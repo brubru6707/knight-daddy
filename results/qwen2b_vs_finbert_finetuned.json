@@ -1,0 +1,19 @@
+{
+ "qwen_2b_accuracy": 0.9179229480737019,
+ "finbert_ft_accuracy": 0.8890284757118928,
+ "accuracy_diff": 0.028894472361809087,
+ "accuracy_diff_ci95": [
+  0.01675041876046901,
+  0.04104899497487429
+ ],
+ "macro_f1_diff": 0.03766442806976755,
+ "macro_f1_diff_ci95": [
+  0.02058556393727549,
+  0.05204238014686052
+ ],
+ "mcnemar": {
+  "qwen_right_finbert_wrong": 148,
+  "finbert_right_qwen_wrong": 79,
+  "p": 5.454465666648675e-06
+ }
+}

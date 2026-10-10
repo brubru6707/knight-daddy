@@ -137,6 +137,10 @@ runs, drag-and-reload keeps layout, zero console errors); frontend production bu
 
 ## 8. Open tasks (suggested priority)
 
+- **Overnight run 2026-10-10 (see `MORNING_REPORT.md`):** pushed to GitHub; crypto specialist wins (+3.2 pts binary,
+  CI excludes 0) but not in the dashboard yet; broadened backtest confirms the lag finding in 11/11 ticker-years;
+  fine-tuned FinBERT (0.889) added to the benchmark (our 2B leads by +2.9 pts, CI +1.7 to +4.1).
+
 - **Public site LIVE (verified 2026-10-10 00:46): https://knightwatch-plum.vercel.app** (Vercel project `knightwatch`, root
   `terminal/frontend`, linked to the GitHub repo). Storage is a Modal Dict behind `terminal/modal_kv/kv_app.py`
   (https://shapeup--knightwatch-kv-web.modal.run, Modal workspace `shapeup`) because Vercel Storage is full and the
