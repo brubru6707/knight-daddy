@@ -1,87 +1,92 @@
 # KNIGHTWATCH progress (Hack Knight, finance track)
 
-Updated 2026-10-10 00:59 EDT, written for the managing Claude model. Full technical detail: `~/poc1/HANDOFF.md`.
+Updated 2026-10-10 04:20 EDT, written for the managing Claude model. Overnight detail: `~/poc1/MORNING_REPORT.md`.
+Full technical detail: `~/poc1/HANDOFF.md`. Repo: https://github.com/brubru6707/knight-daddy (`main` at `4d28ff9`,
+working tree clean, everything pushed).
 
 ## Status at a glance
 
 | Part | Status |
 |---|---|
-| Sentiment model (Qwen3.5-2B QLoRA) vs FinBERT | Done. 0.919 vs 0.725 accuracy. |
-| Backtest: does sentiment trade? | Done. No: lost to buy and hold, matched random timing. |
-| Dashboard (6 MVP panels + draggable layout) | Done, browser-tested. |
-| Finnhub live news (company-name filtered) | **Verified live.** NVDA 44 of 249 weekly headlines name the company. |
-| Gemini briefing panel | **Verified live** (gemini-3.5-flash), grounded, no advice. |
+| Sentiment model (Qwen3.5-2B QLoRA) | Done. 0.919 accuracy; beats **fine-tuned** FinBERT (0.889) by +2.9 pts, CI excludes 0. |
+| Backtest | Done and broadened to 6 tickers x 2 years. Sentiment lags price in 11/11; no trading edge. |
+| Dashboard (FastAPI + React, 7 draggable panels) | Done, browser-tested. |
+| Finnhub live news, Gemini briefing | Verified live. |
 | ElevenLabs read-aloud | Built; **key still missing**. Off on the public site by design. |
-| Stretch 8: stock-specific news analyst (per-ticker specialist) | Built and tested; **waiting on teammates' hand labels** for the real score. |
-| **Public site** | **LIVE: https://knightwatch-plum.vercel.app**, live browser test 11/11. |
-| Crypto news specialist | Paused after the dataset review (Step 1). |
-| GitHub repo | https://github.com/brubru6707/knight-daddy. **20 recent paths not pushed yet** (awaiting user OK). |
+| Stretch 8: per-ticker specialist (Train button) | Works for **NVDA and DDOG only**; real score **waiting on hand labels**. |
+| Crypto specialist (StockTwits) | Done offline: +3.2 pts vs general model, CI excludes 0. **Not in the dashboard yet** (needs OK). |
+| Public site | **LIVE: https://knightwatch-plum.vercel.app**. Needs the Oscar worker running for fresh data and Train. |
+| GitHub | All work pushed. |
 
-## Public site (new since last update)
-
-- **Architecture:** Vercel serves the frontend and one API function. Storage is a **Modal Dict** behind a tiny Modal
-  endpoint (`terminal/modal_kv/kv_app.py`, workspace `shapeup`), because Vercel Storage is full and the user chose not
-  to use Upstash (code still supports Upstash). The **Oscar worker** (`terminal/worker/kw_worker.py`) pushes snapshots of
-  every page for NVDA and DDOG and runs password-protected Train jobs from the site, pushing progress back.
-- **Verified on the live URL (2026-10-10 00:45):** all panels load from snapshots (0.2 to 0.3 s per request), wrong train
-  password rejected, a real Train run finished in **92 s from click** with live progress ("step 8/75" at 48 s).
-- **Depends on Oscar:** data refreshes (every 15 min) and Train only work while the worker runs in a GPU session.
-  Otherwise the site stays up with the last data and says "Worker offline". Last push: 2026-10-10 00:45 EDT.
-- **Train password:** set as `KW_TRAIN_PASSWORD` on Vercel (the user has it; changeable in Vercel settings).
-- **Secrets:** only in env vars (Vercel: KW_PUSH_SECRET, KW_TRAIN_PASSWORD, KW_KV_URL, KW_KV_SECRET; Oscar
-  `terminal/.env`: KW_API_URL, KW_PUSH_SECRET; Modal Secret `knightwatch-kv`). Nothing printed or committed.
-- **Off on the public site:** read-aloud and live classification; tickers other than NVDA and DDOG.
-
-## Main results
+## Headline results (use these in the pitch)
 
 | Model (2,388 held-out tweets) | Accuracy | Macro F1 |
 |---|---|---|
-| FinBERT, zero-shot | 0.725 | 0.668 |
+| FinBERT zero-shot | 0.725 | 0.668 |
+| FinBERT fine-tuned on our data (fair baseline) | 0.889 | 0.856 |
 | **Qwen3.5-2B QLoRA (ours, serves the dashboard)** | **0.919** | **0.895** |
 | Qwen3.5-9B QLoRA (ours, teacher for Stretch 8) | 0.924 | 0.904 |
 
-Backtest (Dec 2022 to Dec 2023): sentiment NVDA +96% vs buy and hold +190%; DDOG +18% vs +57%. Headlines track
-yesterday's move (corr +0.33), not tomorrow's (about 0). **Pitch:** our model reads financial news better than FinBERT,
-and we used it to show news sentiment lags price. Never claim it makes money.
+- Ours vs fine-tuned FinBERT: +2.9 accuracy pts (95% CI +1.7 to +4.1), McNemar p = 5e-6. FinBERT is about 20x faster.
+- Crypto (4,000 balanced StockTwits posts, binary): specialist 0.692 vs general 0.660 vs FinBERT 0.613. The big visible
+  change is Neutral rate 79% to 5%; absolute accuracy is still modest.
+- Backtest: sentiment correlates with the previous day's return (+0.15 to +0.45, all 11 ticker-years), not the next
+  day's (mean 0.00). Lost to buy and hold in 5/6 rising-market runs; never beat 95/100 random-timing seeds.
+- **Pitch wording:** "beats FinBERT even after fine-tuning FinBERT on the same data (about 3 pts)" and "news sentiment
+  lags price in 11/11 ticker-years". Never claim it makes money; don't lead with the 19-pt zero-shot gap.
 
-## Bugs found and fixed in the deployment work
+## Open question from the user (answered, awaiting decision)
 
-- Worker claimed a Train job during its own GPU warmup, so the job failed instantly. Now it never claims while busy and
-  retries a briefly busy GPU for up to 2 minutes.
-- Test helpers left an orphaned dev server holding the agent lock; fixed by closing the lock descriptor for children.
-- A test check passed on the button label instead of a real training step; tightened to require "step N/75".
-- Vercel without a database would silently lose data per instance; it now refuses with a clear 503 instead.
+The user asked whether Train can fine-tune a specialist for **any** stock (the panel only offers NVDA/DDOG).
+Answer given: not today. Each specialist needs 9B-teacher-labeled headlines (batch-precomputed only for NVDA/DDOG) and a
+hand-labeled test set (`SUPPORTED` in `terminal/backend/specialist.py`). Two options offered, neither started:
 
-## Blockers and open items (need a human)
+1. **Any-ticker mode** (about 2 to 3 h): fetch a year of company-named Finnhub headlines, label with the 9B on the fly,
+   train, show "agreement with our 9B model" clearly marked **not accuracy**; minimum about 150 headlines; worker also
+   pushes that ticker's data to the public site. Adds about 1 min per run (3 to 4 min total). VRAM tight on a 3090.
+   Changes the demo path: build on a branch, test locally and on a Vercel preview before merging.
+2. **Quick option** (under 1 h): pre-label AAPL, MSFT, AMZN, TSLA (headlines already extracted for the broadened
+   backtest) so they get Train buttons via the existing pipeline. Still no hand-label score for them.
 
-1. **Push to GitHub:** 20 changed/new paths (API, worker, Modal store, frontend, docs) are live on Vercel but not in the
-   repo. Secret scan was clean on the earlier batch; rerun before pushing. Needs the user's OK (GitHub token, in memory).
-2. **Hand labels** for NVDA and DDOG (`specialist/labeling/*_labeled.csv`) still not returned; the specialist's real
-   before/after score cannot be computed until then.
-3. **Crypto specialist:** waiting on the user's choice of test set (StockTwits tagged posts as primary + Myashka as
-   secondary, or a hand-labeled set). See `crypto/DATA_REVIEW.md`.
-4. **ElevenLabs key** missing (read-aloud works locally only once it is added; stays off on the public site).
-5. **Credentials pasted in chat** (Gemini, Finnhub, GitHub, Modal tokens) should be rotated after the hackathon.
+## Needs a human
 
-## How to run the demo
+1. Decide on the any-ticker Train option above (1, 2, or neither).
+2. OK to add CRYPTO to the SPC and benchmark panels (about 30 min; changes the demo path).
+3. **Hand labels** `specialist/labeling/NVDA_labeled.csv` and `DDOG_labeled.csv` from teammates.
+4. **ElevenLabs key** (local read-aloud only).
+5. Rotate credentials pasted in chat after the hackathon: Gemini, Finnhub, GitHub (expires Oct 12), Modal.
 
-- Start a GPU session on Oscar, then: `source ~/poc1/env.sh && python ~/poc1/terminal/worker/kw_worker.py`
-  (foreground; Ctrl-C to stop). The public site picks it up within about 20 seconds.
-- Redeploy the site: `cd ~/poc1 && npx vercel@60.0.0 deploy --prod` (Vercel CLI login is saved in `~`).
-- Local dashboard instead: `~/poc1/terminal/run_backend.sh`, then an SSH tunnel to port 8000.
+## Public site architecture (short)
 
-## Environment
+- Vercel serves the frontend plus one function (`terminal/frontend/api/kw.js`). Storage is a Modal Dict behind
+  `terminal/modal_kv/kv_app.py` (Vercel Storage full; user declined Upstash).
+- Oscar cannot accept inbound connections, so the **worker** (`terminal/worker/kw_worker.py`) pushes snapshots for NVDA
+  and DDOG every 15 min and runs password-protected Train jobs queued from the site. Without it the site stays up with
+  last data and shows "Worker offline".
+- Secrets live only in env vars (Vercel env, Oscar `terminal/.env`, Modal Secret `knightwatch-kv`); none committed.
+  Train password is `KW_TRAIN_PASSWORD` on Vercel (the user has it).
 
-- Oscar GPU session 7256341 on gpu3006 (RTX 3090), about 5 h left at 00:59.
-- Site rules: no squeue polling, show any sbatch before submitting, single-threaded agent work, foreground processes only.
+## Demo-day startup
+
+1. Start an Oscar GPU session about 30 min before presenting (sessions last about 6 h).
+2. `source ~/poc1/env.sh && python ~/poc1/terminal/worker/kw_worker.py` (foreground; first push about 2 min).
+3. Open https://knightwatch-plum.vercel.app, pick NVDA; Train takes about 1.5 to 2 min with live progress.
+4. Fallback: `~/poc1/terminal/run_backend.sh` on Oscar plus an SSH tunnel to port 8000.
+
+## Rules for any agent working on this
+
+- Oscar site policy: flock `/tmp/$USER.agent-lock`, foreground only, no squeue polling, show any sbatch before submitting.
+- Don't break the live site or demo path; demo-path changes need the user's OK.
+- Never write tokens to files; secrets only in env vars. No em dashes in docs.
 
 ## Key files
 
 | What | Where |
 |---|---|
+| Overnight report | `~/poc1/MORNING_REPORT.md` |
 | Technical handoff | `~/poc1/HANDOFF.md` |
+| Specialist trainer / backend | `specialist/train_specialist.py`, `terminal/backend/specialist.py` |
 | Public site: API, store, worker | `terminal/frontend/api/`, `terminal/modal_kv/`, `terminal/worker/` |
-| Dashboard README | `~/poc1/terminal/README.md` |
-| Stretch 8 detail | `~/poc1/specialist/PROGRESS_STRETCH8.md` |
-| Crypto data review | `~/poc1/crypto/DATA_REVIEW.md` |
-| Backtest write-up | `~/poc1/backtest/RESULTS.md` |
+| Crypto | `crypto/` and `results/crypto_*.json` |
+| Backtests | `backtest/RESULTS.md`, `results/backtest_broad.json` |
+| FinBERT baseline | `finbert_finetune.py`, `results/finbert-finetuned.json` |
