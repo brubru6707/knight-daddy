@@ -30,7 +30,7 @@ function ensure() {
 
 // Insert the labeled live headlines from one /api/headlines response. Existing rows are left alone.
 export async function saveHeadlines(body) {
-  const rows = (body?.headlines || []).filter((h) => h.time && h.title && h.label);
+  const rows = (body?.items || body?.headlines || []).filter((h) => h.time && h.title && h.label);
   if (!tigerOn || body?.source !== "live" || !rows.length) return 0;
   await ensure();
   const col = (f) => rows.map(f);
