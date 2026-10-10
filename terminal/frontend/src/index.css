@@ -1,39 +1,46 @@
 @import "tailwindcss";
 
-/* Light is the default (matches the prototype); html.dark switches every token. */
+/* "Paper" look: warm off-white page with a faint engineering grid, hairline boxes with square corners, no shadows.
+   Light is the default; html.dark switches every token (a charcoal page with the same grid). */
 :root {
-  --kd-ground: #f7f6f1;
-  --kd-card: #eeece5;
-  --kd-line: #e2dfd6;
-  --kd-ink: #1c1c1a;
-  --kd-dim: #77746c;
+  --kd-ground: #f5f1e6;
+  --kd-card: #ece6d6;
+  --kd-line: #cfc6b1;
+  --kd-rule: #1f1d19;
+  --kd-grid: rgba(70, 90, 120, 0.07);
+  --kd-ink: #1f1d19;
+  --kd-dim: #6f6a5e;
   --kd-amber: #9a5d0d;
-  --kd-chart: #b07219;
-  --kd-up: #2e8b48;
-  --kd-down: #b02a2a;
-  --kd-flat: #6c7079;
+  --kd-chart: #a8650f;
+  --kd-up: #2d7a43;
+  --kd-down: #a8322b;
+  --kd-flat: #77736a;
   color-scheme: light;
 }
 html.dark {
-  --kd-ground: #0f1113;
-  --kd-card: #181b1f;
-  --kd-line: #262b31;
-  --kd-ink: #e8e6df;
-  --kd-dim: #8d9097;
-  --kd-amber: #f0a92a;
-  --kd-chart: #f0a92a;
-  --kd-up: #45c46e;
-  --kd-down: #f0646a;
-  --kd-flat: #9aa0a8;
+  --kd-ground: #16171a;
+  --kd-card: #1e2024;
+  --kd-line: #3a3d43;
+  --kd-rule: #d9d5ca;
+  --kd-grid: rgba(200, 210, 230, 0.045);
+  --kd-ink: #e6e2d8;
+  --kd-dim: #8f9095;
+  --kd-amber: #e9a23b;
+  --kd-chart: #e9a23b;
+  --kd-up: #4fb873;
+  --kd-down: #e46a63;
+  --kd-flat: #9a9da3;
   color-scheme: dark;
 }
 
 @theme inline {
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
   --color-ground: var(--kd-ground);
   --color-panel: var(--kd-ground);
   --color-card: var(--kd-card);
   --color-line: var(--kd-line);
+  --color-rule: var(--kd-rule);
   --color-ink: var(--kd-ink);
   --color-dim: var(--kd-dim);
   --color-amber: var(--kd-amber);
@@ -42,6 +49,39 @@ html.dark {
   --color-flat: var(--kd-flat);
 }
 
+/* Drawn-on-paper boxes: square corners everywhere (dots stay round), no drop shadows. */
+@theme {
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+}
+
 html, body, #root { min-height: 100%; }
-body { background: var(--kd-ground); color: var(--kd-ink); font-family: var(--font-mono); font-size: 14px; -webkit-font-smoothing: antialiased; }
+body {
+  color: var(--kd-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--kd-ground);
+  /* faint 24px grid with a slightly stronger line every 5 squares, like engineering paper */
+  background-image:
+    linear-gradient(var(--kd-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--kd-grid) 1px, transparent 1px),
+    linear-gradient(var(--kd-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--kd-grid) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  background-position: -1px -1px;
+}
 ::selection { background: color-mix(in srgb, var(--kd-amber) 25%, transparent); }
+
+/* Section heading: small caps label over a hairline rule, like a printed form. */
+.kd-section { border-top: 1px solid var(--kd-rule); padding-top: 14px; }
+.kd-label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--kd-dim); }
+.kd-box { border: 1px solid var(--kd-line); background: color-mix(in srgb, var(--kd-ground) 70%, transparent); }

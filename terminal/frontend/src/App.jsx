@@ -21,23 +21,23 @@ function Header({ ticker, onPick, dark, setDark, watch }) {
   }, []);
   const submit = (e) => { e.preventDefault(); const t = q.trim().toUpperCase(); if (t) { onPick(t); setQ(""); input.current?.blur(); } };
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-ground/95 backdrop-blur">
-      <div className="mx-auto grid h-16 max-w-[1240px] grid-cols-[1fr_minmax(0,420px)_1fr] items-center gap-4 px-6 md:px-12">
+    <header className="sticky top-0 z-20 border-b border-rule bg-ground">
+      <div className="mx-auto grid h-16 max-w-[1240px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:grid-cols-[1fr_minmax(0,420px)_1fr] sm:gap-4 sm:px-6 md:px-12">
         <button onClick={() => onPick("NVDA")} className="flex items-center gap-2 justify-self-start text-[15px] font-semibold text-amber" title="Knight-Daddy">
-          <img src="/favicon.svg" alt="" className="h-5 w-5" />Knight-Daddy</button>
+          <img src="/favicon.svg" alt="" className="h-5 w-5" /><span className="hidden sm:inline">Knight-Daddy</span></button>
         <form onSubmit={submit} className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dim">⌕</span>
           <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search stocks..." aria-label="Ticker" list="kd-tickers"
-            maxLength={10} className="w-full rounded-lg bg-card py-2 pl-8 pr-9 text-sm text-ink outline-none placeholder:text-dim focus:ring-1 focus:ring-amber" />
+            maxLength={10} className="w-full border border-line bg-ground py-2 pl-8 pr-9 text-sm text-ink outline-none placeholder:text-dim focus:border-rule" />
           <datalist id="kd-tickers">{QUICK.map((t) => <option key={t} value={t}>{NAMES[t]?.[0]}</option>)}</datalist>
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-line px-1.5 text-[11px] text-dim">/</kbd>
+          <kbd className="absolute right-2.5 hidden sm:block top-1/2 -translate-y-1/2 rounded border border-line px-1.5 text-[11px] text-dim">/</kbd>
         </form>
-        <div className="relative flex items-center gap-5 justify-self-end text-sm">
+        <div className="relative flex items-center gap-3 justify-self-end text-sm sm:gap-5">
           <button onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} className="text-dim hover:text-ink">{dark ? "☀" : "☾"}</button>
-          <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-1.5 text-ink hover:text-amber">
-            <span className="text-amber">★</span>Watchlist {watch.list.length > 0 && <span className="text-dim">{watch.list.length}</span>}</button>
+          <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Watchlist" className="flex items-center gap-1.5 text-ink hover:text-amber">
+            <span className="text-amber">★</span><span className="hidden sm:inline">Watchlist</span> {watch.list.length > 0 && <span className="text-dim">{watch.list.length}</span>}</button>
           {open && (
-            <div className="absolute right-0 top-9 w-56 rounded-lg border border-line bg-ground p-2 shadow-lg" role="menu">
+            <div className="absolute right-0 top-9 w-56 border border-rule bg-ground p-2" role="menu">
               {watch.list.length === 0 && <div className="px-2 py-1.5 text-xs text-dim">Empty. Star a stock to add it.</div>}
               {watch.list.map((t) => (
                 <button key={t} role="menuitem" onClick={() => { onPick(t); setOpen(false); }}
@@ -79,17 +79,17 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Header ticker={ticker} onPick={pick} dark={dark} setDark={setDark} watch={{ list }} />
-      <main className="mx-auto grid max-w-[1240px] lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="min-w-0 px-6 py-10 md:px-12 lg:border-r lg:border-line">
+      <main className="mx-auto grid max-w-[1240px] gap-0 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-w-0 px-6 py-12 md:px-14">
           <PriceBlock key={ticker} ticker={ticker} watched={watched} onWatch={toggleWatch}>
             <FineTune ticker={ticker} health={health} info={info} onTrained={onTrained} />
           </PriceBlock>
           <Headlines key={`h-${ticker}`} ticker={ticker} specReady={specReady} specVersion={specVersion} />
           <Competitors ticker={ticker} onPick={pick} />
           <AdvancedResearch key={`a-${ticker}`} ticker={ticker} health={health} specVersion={specVersion} />
-          <footer className="mt-16 border-t border-line pt-6 text-xs text-dim">News sentiment, not investment advice.</footer>
+          <footer className="mt-16 border-t border-rule pt-4 text-xs text-dim">News sentiment, not investment advice.</footer>
         </div>
-        <div className="px-6 py-10 md:px-10 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+        <div className="px-6 pb-10 md:px-10 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pl-0 lg:pt-12">
           <AiColumn key={`ai-${ticker}`} ticker={ticker} />
         </div>
       </main>

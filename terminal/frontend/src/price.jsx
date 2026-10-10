@@ -64,7 +64,7 @@ export function AreaChart({ bars, height = 260, onHover }) {
         </svg>
       )}
       {h && (
-        <div className="pointer-events-none absolute rounded-md border border-line bg-ground px-2.5 py-1.5 text-xs shadow-sm"
+        <div className="pointer-events-none absolute border border-rule bg-ground px-2.5 py-1.5 text-xs"
           style={{ left: Math.min(Math.max(0, X(hi) + 12), w - 150), top: Math.max(0, Y(h.close) - 50) }}>
           <div className="font-medium text-ink">{usd(h.close)}</div><div className="text-dim">{fmtDay(h.time)}</div>
         </div>
@@ -98,8 +98,8 @@ export function PriceBlock({ ticker, watched, onWatch, children }) {
     <section>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[26px] font-semibold leading-tight text-ink">{name}</h1>
-          <div className="mt-1 text-xs tracking-wide text-dim">{ticker}{exch ? ` · ${exch}` : ""}</div>
+          <h1 className="font-serif text-[30px] font-medium leading-tight text-ink">{name}</h1>
+          <div className="kd-label mt-1">{ticker}{exch ? ` · ${exch}` : ""}</div>
         </div>
         <button onClick={onWatch} aria-pressed={watched} title={watched ? "Remove from watchlist" : "Add to watchlist"}
           className={`mt-1 text-lg ${watched ? "text-amber" : "text-dim hover:text-amber"}`}>{watched ? "★" : "☆"}</button>
@@ -112,9 +112,9 @@ export function PriceBlock({ ticker, watched, onWatch, children }) {
             <span className="text-dim">{hover !== null ? fmtDay(cur.time) : per.label}</span></>
         ) : <span className="text-dim">{per.api ? (s.loading ? "" : s.status === 404 ? `No price data for ${ticker} on the public site yet` : "n/a") : "Intraday prices: n/a"}</span>}
       </div>
-      <div className="mt-6">
+      <div className="kd-box mt-6 px-4 pt-4">
         {bars.length > 1 ? <AreaChart bars={bars} onHover={setHover} /> : (
-          <div className="flex h-[260px] items-center justify-center rounded-lg border border-dashed border-line text-sm text-dim">
+          <div className="flex h-[260px] items-center justify-center text-sm text-dim">
             {s.loading ? "Loading prices…" : per.api ? "Chart: n/a" : "1D needs intraday prices, which the API does not serve (n/a)"}</div>
         )}
       </div>
@@ -122,7 +122,7 @@ export function PriceBlock({ ticker, watched, onWatch, children }) {
         <div className="flex gap-1" role="tablist" aria-label="Period">
           {PERIODS.map((p) => (
             <button key={p.k} role="tab" aria-selected={p.k === pk} onClick={() => setPk(p.k)} title={p.title || (p.api ? p.label : "Intraday data not available")}
-              className={`rounded-md px-3 py-1.5 text-xs ${p.k === pk ? "bg-card font-semibold text-amber" : "text-dim hover:text-ink"} ${p.api ? "" : "opacity-60"}`}>{p.k}</button>
+              className={`border px-2 py-1 text-xs sm:px-3 ${p.k === pk ? "border-rule font-semibold text-ink" : "border-transparent text-dim hover:text-ink"} ${p.api ? "" : "opacity-60"}`}>{p.k}</button>
           ))}
         </div>
         {chg !== null && hover === null && <span className={`text-xs ${up ? "text-up" : "text-down"}`}>{up ? "Up" : "Down"} over {per.span}</span>}

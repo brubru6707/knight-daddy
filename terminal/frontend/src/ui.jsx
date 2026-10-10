@@ -87,8 +87,8 @@ export const Status = ({ s, what }) =>
 export const Dot = ({ label, className = "" }) => <span className={`inline-block h-1.5 w-1.5 rounded-full ${DOT[label] || "bg-dim"} ${className}`} />;
 
 export const SectionTitle = ({ children, right }) => (
-  <div className="mb-3 flex items-baseline justify-between gap-3">
-    <h2 className="text-[15px] font-semibold text-ink">{children}</h2>
+  <div className="kd-section mb-4 flex items-baseline justify-between gap-3">
+    <h2 className="font-serif text-[17px] font-medium text-ink">{children}</h2>
     {right && <div className="text-xs text-dim">{right}</div>}
   </div>
 );

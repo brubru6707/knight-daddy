@@ -13,7 +13,7 @@ export function Headlines({ ticker, specReady, specVersion }) {
   const opt = (cur, set, vals) => vals.map((v) => (
     <button key={v} onClick={() => set(v)} aria-pressed={cur === v} className={cur === v ? "text-amber" : "hover:text-ink"}>{v}</button>));
   return (
-    <section className="mt-12" aria-label="Latest headlines">
+    <section className="mt-14" aria-label="Latest headlines">
       <SectionTitle right={<span className="flex items-center gap-3">
         {specReady && <span className="flex gap-2">{opt(model, setModel, ["general", "specialist"])}</span>}
         <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>
@@ -52,12 +52,12 @@ export function Headlines({ ticker, specReady, specVersion }) {
 export function Competitors({ ticker, onPick }) {
   const peers = PEERS[ticker];
   return (
-    <section className="mt-12" aria-label="Competitors">
+    <section className="mt-14" aria-label="Competitors">
       <SectionTitle>Competitors</SectionTitle>
       {peers ? (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-0 border-l border-t border-line">
           {peers.map((p) => (
-            <button key={p} onClick={() => onPick(p)} className="rounded-lg border border-line px-4 py-3 text-left hover:border-amber">
+            <button key={p} onClick={() => onPick(p)} className="border-b border-r border-line px-4 py-3 text-left hover:bg-card">
               <div className="text-[15px] font-semibold text-ink">{p}</div>
               <div className="mt-0.5 truncate text-xs text-dim">{NAMES[p]?.[0] || "n/a"}</div>
             </button>

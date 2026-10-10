@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, bullets, Dot, TAG, toneOf } from "./ui.jsx";
+import { api, bullets, Dot, fmtDay, TAG, toneOf, useApi } from "./ui.jsx";
 
 // Knight-Daddy AI: tone, Gemini briefing as at most 4 short bullets, and the sentiment breakdown. All from /api/briefing.
 export function AiColumn({ ticker }) {
@@ -22,7 +22,7 @@ export function AiColumn({ ticker }) {
     try {
       const h = await api("health");
       if (!h.keys?.ELEVENLABS_API_KEY) throw new Error("not available here");
-      const r = await fetch(`/api/briefing/audio?id=${b.id}`);
+      const r = await fetch(`/api/briefing/audio?id=${b.id}&ticker=${ticker}`);
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
       const url = URL.createObjectURL(await r.blob());
       const a = new Audio(url);
@@ -38,9 +38,9 @@ export function AiColumn({ ticker }) {
   const pts = ok ? bullets(b.text) : [];
   const total = ok ? (b.counts.Bullish || 0) + (b.counts.Bearish || 0) + (b.counts.Neutral || 0) : 0;
   return (
-    <aside aria-label="Knight-Daddy AI">
+    <aside aria-label="Knight-Daddy AI" className="kd-box p-6">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-[17px] font-semibold text-ink"><span className="text-amber">✦</span>Knight-Daddy AI</h2>
+        <h2 className="flex items-center gap-2 font-serif text-[19px] font-medium text-ink"><span className="text-amber">✦</span>Knight-Daddy AI</h2>
         <span className="flex gap-3 text-xs text-dim">
           {ok && <button onClick={readAloud} disabled={audio.state === "loading"} className="hover:text-amber disabled:opacity-40">
             {audio.state === "playing" ? "Stop" : audio.state === "loading" ? "Loading audio" : "Read aloud"}</button>}
@@ -67,7 +67,7 @@ export function AiColumn({ ticker }) {
 
           <div className="mt-8 border-t border-line pt-6">
             <h3 className="text-sm font-semibold text-ink">Sentiment breakdown</h3>
-            <div className="mt-3 flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full" aria-hidden>
+            <div className="mt-3 flex h-2 w-full gap-px overflow-hidden border border-line" aria-hidden>
               {["Bullish", "Bearish", "Neutral"].map((l) => (b.counts[l] || 0) > 0 && (
                 <span key={l} className={l === "Bullish" ? "bg-up" : l === "Bearish" ? "bg-down" : "bg-flat"} style={{ width: `${(b.counts[l] / total) * 100}%` }} />))}
             </div>
@@ -84,7 +84,37 @@ export function AiColumn({ ticker }) {
           </div>
         </>
       )}
+      <History ticker={ticker} />
       <p className="mt-8 text-xs text-dim">Knight-Daddy reads how coverage is framed. News sentiment, not investment advice.</p>
     </aside>
+  );
+}
+
+// Daily headline sentiment stored in Tiger Data (/api/history). Hidden when the site has no history store.
+function History({ ticker }) {
+  const s = useApi(`history?ticker=${ticker}&days=30`, [ticker]);
+  if (s.status === 503 || s.status === 404 || (!s.data && !s.loading && !s.err)) return null; // no history store on this API
+  const days = s.data?.days || [];
+  const max = Math.max(1, ...days.map((d) => d.Bullish + d.Bearish + d.Neutral));
+  return (
+    <div className="mt-8 border-t border-line pt-6" data-testid="history">
+      <h3 className="text-sm font-semibold text-ink">Sentiment history</h3>
+      {s.loading && <div className="mt-3 text-xs text-dim">Loading history<span className="animate-pulse">_</span></div>}
+      {s.err && <div className="mt-3 text-xs text-dim">History: n/a ({s.err})</div>}
+      {s.data && (days.length === 0 ? <div className="mt-3 text-xs text-dim">History: n/a (no stored headlines yet)</div> : (
+        <div className="mt-3 flex h-16 items-end gap-[3px]" aria-label="Daily headline sentiment">
+          {days.map((d) => (
+            <div key={d.day} className="flex flex-1 flex-col-reverse" style={{ height: `${((d.Bullish + d.Bearish + d.Neutral) / max) * 100}%` }}
+              title={`${fmtDay(d.day, { month: "short", day: "numeric" })}: ${d.Bullish} bullish, ${d.Bearish} bearish, ${d.Neutral} neutral`}>
+              {["Bullish", "Bearish", "Neutral"].map((l) => d[l] > 0 && (
+                <span key={l} className={l === "Bullish" ? "bg-up" : l === "Bearish" ? "bg-down" : "bg-flat"} style={{ flexGrow: d[l] }} />))}
+            </div>
+          ))}
+        </div>
+      ))}
+      {s.data?.total_stored > 0 && (
+        <div className="mt-2 text-xs text-dim">{s.data.total_stored} headlines stored in Tiger Data since {fmtDay(s.data.first.slice(0, 10), { month: "short", day: "numeric" })}.</div>
+      )}
+    </div>
   );
 }

@@ -60,10 +60,10 @@ export function FineTune({ ticker, health, info, onTrained }) {
   const frac = st?.phase === "done" ? 1 : st?.total_steps ? st.step / st.total_steps : 0;
   const pushed = health?.snapshot_pushed_at ? new Date(health.snapshot_pushed_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : null;
   return (
-    <div className="mt-6 rounded-lg border border-line p-4" aria-label="Fine-tune">
+    <div className="kd-box mt-6 p-4" aria-label="Fine-tune">
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => train(false)} disabled={!supported || running || online === false}
-          className="rounded-md border border-amber px-4 py-2 text-sm font-semibold text-amber hover:bg-amber hover:text-ground disabled:cursor-not-allowed disabled:opacity-40">
+          className="border border-rule px-4 py-2 text-sm font-semibold text-ink hover:border-amber hover:text-amber disabled:cursor-not-allowed disabled:opacity-40">
           {running ? "Fine-tuning…" : "Fine-tune"}</button>
         {supported && !running && online !== false && (
           <button onClick={() => train(true)} className="text-xs text-dim underline-offset-2 hover:text-amber hover:underline"
@@ -88,8 +88,8 @@ export function FineTune({ ticker, health, info, onTrained }) {
             <span className={st.phase === "failed" ? "text-down" : ""}>{running ? "" : "Last fine-tune: "}{PHASES[st.phase] || st.phase}{st.quick ? " · quick demo, not scored" : ""}</span>
             {st.total_steps ? <span>step {st.step}/{st.total_steps}</span> : null}
           </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-card" role="progressbar" aria-valuenow={Math.round(frac * 100)} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full rounded-full bg-amber transition-all" style={{ width: `${frac * 100}%` }} />
+          <div className="h-1 w-full overflow-hidden bg-card" role="progressbar" aria-valuenow={Math.round(frac * 100)} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full bg-amber transition-all" style={{ width: `${frac * 100}%` }} />
           </div>
           {st.phase === "failed" && st.error && <div className="mt-1 text-xs text-down">{st.error}</div>}
           {st.phase === "queued" && st.note && <div className="mt-1 text-xs text-dim">{st.note}</div>}

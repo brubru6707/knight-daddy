@@ -147,17 +147,17 @@ function ModelCard() {
 export function AdvancedResearch({ ticker, health, specVersion }) {
   const [open, setOpen] = useState(false);
   return (
-    <section className="mt-12 border-t border-line pt-6" aria-label="Advanced research">
+    <section className="kd-section mt-14" aria-label="Advanced research">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-baseline gap-2 text-left">
         <span className="text-dim">{open ? "⌃" : "⌄"}</span>
-        <span className="text-[15px] text-ink">Advanced research</span>
+        <span className="font-serif text-[17px] font-medium text-ink">Advanced research</span>
         <span className="text-xs text-dim">sentiment vs. price, backtest, model, specialist</span>
       </button>
       {open && (
-        <div className="mt-8 space-y-12">
-          <SentimentVsPrice ticker={ticker} health={health} />
-          <div className="grid gap-10 md:grid-cols-2"><Backtest ticker={ticker} health={health} /><ModelCard /></div>
-          <SpecialistResults ticker={ticker} specVersion={specVersion} />
+        <div className="mt-8 space-y-6">
+          <div className="kd-box p-5"><SentimentVsPrice ticker={ticker} health={health} /></div>
+          <div className="grid gap-6 md:grid-cols-2"><div className="kd-box p-5"><Backtest ticker={ticker} health={health} /></div><div className="kd-box p-5"><ModelCard /></div></div>
+          <div className="kd-box p-5"><SpecialistResults ticker={ticker} specVersion={specVersion} /></div>
         </div>
       )}
     </section>

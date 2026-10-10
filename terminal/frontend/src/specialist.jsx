@@ -37,7 +37,7 @@ export function SpecialistResults({ ticker, specVersion }) {
     <div>
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-sm font-semibold text-ink">Specialist before / after</h3>
-        {claude && <span className="rounded border border-amber/50 px-1.5 py-0.5 text-[11px] text-amber" data-testid="claude-badge">Claude-labeled, not human-labeled</span>}
+        {claude && <span className="border border-amber/60 px-1.5 py-0.5 text-[11px] text-amber" data-testid="claude-badge">Claude-labeled, not human-labeled</span>}
       </div>
       <p className="mt-2 text-sm text-dim">General 2B (before) vs the ticker specialist (after), scored on held-out Jul to Dec 2023 headlines. Better or worse only if the 95% CI of the accuracy change excludes 0 (rule fixed in advance).</p>
       {!rows && <div className="mt-3 text-sm text-dim">Loading specialist results<span className="animate-pulse">_</span></div>}
