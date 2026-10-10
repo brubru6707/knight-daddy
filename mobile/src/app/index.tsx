@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Image, Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Keyboard, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { api, ApiError, paths, startTraining, type Health, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useSession, type Mode } from "@/lib/session";
-import { useStyles, useTheme, type Palette } from "@/lib/theme";
+import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { PEERS } from "@/lib/peers";
 import { CompetitorsCard, HeadlinesCard, OutlookCard, PriceHero } from "@/components/simple";
 import { BacktestCard, BenchmarkCard, SentimentCard, SpecialistCard, WorkerCard } from "@/components/advanced";
@@ -210,7 +210,7 @@ export default function Home() {
   );
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const makeStyles = (C: Palette) => sheet({
   screen: { flex: 1, backgroundColor: C.ground },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line },
   brand: { flexDirection: "row", alignItems: "center", gap: 8 },

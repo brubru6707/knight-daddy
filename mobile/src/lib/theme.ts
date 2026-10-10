@@ -1,4 +1,5 @@
 import { createContext, createElement, useContext, useMemo, useState, type ReactNode } from "react";
+import { StyleSheet } from "react-native";
 
 // Colors match the web terminal (terminal/frontend). Light "paper" is the default; dark is the original terminal look.
 export interface Palette {
@@ -49,6 +50,24 @@ export const useTheme = () => useContext(Ctx);
 export function useStyles<T>(make: (C: Palette) => T): T {
   const { C } = useTheme();
   return useMemo(() => make(C), [C, make]);
+}
+
+// IBM Plex Mono everywhere. Custom fonts ignore fontWeight on iOS, so each weight maps to its own font file.
+export const MONO = { 400: "IBMPlexMono_400Regular", 500: "IBMPlexMono_500Medium", 600: "IBMPlexMono_600SemiBold", 700: "IBMPlexMono_700Bold" };
+const monoFor = (w?: string | number) => {
+  const n = w === "bold" ? 700 : Number(w) || 400;
+  return n >= 700 ? MONO[700] : n >= 600 ? MONO[600] : n >= 500 ? MONO[500] : MONO[400];
+};
+// StyleSheet.create, with fontFamily set (and fontWeight dropped) on every text style.
+export function sheet<T extends StyleSheet.NamedStyles<T>>(styles: T): T {
+  const out: Record<string, object> = {};
+  for (const [k, v] of Object.entries(styles) as [string, Record<string, unknown>][]) {
+    if ("fontSize" in v || "fontWeight" in v) {
+      const { fontWeight, ...rest } = v;
+      out[k] = { ...rest, fontFamily: monoFor(fontWeight as string | number | undefined) };
+    } else out[k] = v;
+  }
+  return StyleSheet.create(out as T);
 }
 
 export const labelColor = (C: Palette, l?: string | null) =>

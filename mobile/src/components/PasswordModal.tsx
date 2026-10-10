@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useStyles, useTheme, type Palette } from "@/lib/theme";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 
 interface Props { visible: boolean; error?: string | null; onSubmit: (pw: string) => void; onCancel: () => void }
 
@@ -31,7 +31,7 @@ export function PasswordModal({ visible, error, onSubmit, onCancel }: Props) {
   );
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const makeStyles = (C: Palette) => sheet({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", padding: 24 },
   box: { backgroundColor: C.panel, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 20, gap: 12 },
   title: { color: C.ink, fontSize: 18, fontWeight: "700" },

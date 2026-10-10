@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { SpecStatus } from "@/lib/api";
-import { useStyles, useTheme, type Palette } from "@/lib/theme";
+import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 
 const PHASES: Record<string, string> = {
   queued: "Queued, waiting for the GPU", "waiting for GPU": "Waiting for the GPU", starting: "Starting",
@@ -41,7 +41,7 @@ export function TrainBar({ state }: { state: TrainState }) {
   );
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const makeStyles = (C: Palette) => sheet({
   box: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 8 },
   row: { flexDirection: "row", justifyContent: "space-between" },
   text: { fontSize: 14, fontWeight: "700" },

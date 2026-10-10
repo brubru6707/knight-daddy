@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { useStyles, useTheme, type Palette } from "@/lib/theme";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import type { ApiState } from "@/lib/useApi";
 
 interface Props {
@@ -49,7 +49,7 @@ export function Status<T>({ s: st, what }: { s: ApiState<T>; what: string }) {
   return null;
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const makeStyles = (C: Palette) => sheet({
   card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 12, marginBottom: 14, overflow: "hidden" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, minHeight: 48 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },

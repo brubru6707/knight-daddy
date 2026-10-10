@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { paths, type Backtest, type Benchmarks, type Health, type Sentiment, type SpecEval, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { money, pct, toneColor, useStyles, useTheme, type Palette } from "@/lib/theme";
+import { money, pct, toneColor, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
 
@@ -217,7 +217,7 @@ export function WorkerCard({ health }: { health: Health | null }) {
   );
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const makeStyles = (C: Palette) => sheet({
   dim: { color: C.dim, fontSize: 14, lineHeight: 20 },
   small: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 6 },
   lead: { color: C.ink, fontSize: 15, fontWeight: "600", marginVertical: 8 },

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { paths, type Briefing, type Headlines, type Label, type Prices } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { labelColor, pct, relTime, toneColor, useStyles, useTheme, type Palette } from "@/lib/theme";
+import { labelColor, pct, relTime, toneColor, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { reasons, toneLine, hasAdvice } from "@/lib/outlook";
 import { PEERS } from "@/lib/peers";
 import { Card, Status } from "./Card";
@@ -148,7 +148,7 @@ export function CompetitorsCard({ ticker, onPick }: { ticker: string; onPick: (t
   );
 }
 
-const makeStyles = (C: Palette) => StyleSheet.create({
+const makeStyles = (C: Palette) => sheet({
   hero: { paddingVertical: 8, marginBottom: 12 },
   heroTicker: { color: C.dim, fontSize: 15, fontWeight: "700", letterSpacing: 1.5 },
   price: { color: C.ink, fontSize: 48, fontWeight: "800", fontVariant: ["tabular-nums"], marginTop: 2 },
