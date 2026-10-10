@@ -47,7 +47,7 @@ spawned after each run); "before" scoring 8 to 41 s (cached per ticker); 64+64 e
 Picked: CELH 283, WING 254 (re-filtered to "Wingstop" only; plain "wing" matches unrelated text), SMCI 313, PTON 1,072, ENPH 1,143.
 Rejected (0 rows in FNSPID): SOFI, UPST, AFRM, ETSY, HOOD, LCID, MRNA, TTD, RIVN. Rejected (stale): IRBT 806 but none after 2020-06,
 LULU 44. Passed but not picked (less niche): ROKU 1,437, DKNG 845, CHWY 499, ZS 340, OKTA 634, PLUG 1,769, FSLR 2,272, DOCU 649,
-BYND 965. Finnhub counts **not checked** (ran out of session). Small tickers have small test pools (WING 28, PTON 30 rows), so
+BYND 965. Finnhub, last year, company-named, lower bound (4 capped calls each; `results/niche_finnhub_counts.json`): CELH 502, SMCI 480, WING 398, ENPH 308, PTON 240, so all picks pass in both sources. The FNSPID rejects have plenty in Finnhub (RIVN 572, SOFI 486, HOOD 445, AFRM 383, UPST 280): they could get specialists from Finnhub-only training data (not built; the pipeline reads FNSPID). Small tickers have small test pools (WING 28, PTON 30 rows), so
 their agreement numbers are noisy.
 
 ## Data audit (task 1): PARTIAL, see `DATA_AUDIT.md`
@@ -69,7 +69,7 @@ overlaps the backtest year (Dec 2022 to Jun 2023), so never backtest a specialis
 
 ## Not done
 
-- Data audit label-quality pass (20 per class with judgments), license re-checks, Finnhub counts for niche tickers.
+- Data audit label-quality pass (20 per class with judgments), license re-checks.
 - Quick-demo timing on a 3090.
 
 ---
