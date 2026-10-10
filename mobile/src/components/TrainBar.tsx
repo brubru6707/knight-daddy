@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { SpecStatus } from "@/lib/api";
-import { C } from "@/lib/theme";
+import { useStyles, useTheme, type Palette } from "@/lib/theme";
 
 const PHASES: Record<string, string> = {
   queued: "Queued, waiting for the GPU", "waiting for GPU": "Waiting for the GPU", starting: "Starting",
@@ -14,6 +14,8 @@ export type TrainState =
   | { kind: "job"; ticker: string; status: SpecStatus | null };
 
 export function TrainBar({ state }: { state: TrainState }) {
+  const { C } = useTheme();
+  const s = useStyles(makeStyles);
   if (state.kind === "idle") return null;
   if (state.kind === "info") {
     const color = state.tone === "warn" ? C.amber : C.dim;
@@ -39,12 +41,12 @@ export function TrainBar({ state }: { state: TrainState }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   box: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, gap: 8 },
   row: { flexDirection: "row", justifyContent: "space-between" },
   text: { fontSize: 14, fontWeight: "700" },
-  dim: { color: C.dim, fontSize: 12 },
-  err: { color: C.down, fontSize: 12 },
+  dim: { color: C.dim, fontSize: 13 },
+  err: { color: C.down, fontSize: 13 },
   track: { height: 8, borderRadius: 4, backgroundColor: C.ground, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 4 },
 });

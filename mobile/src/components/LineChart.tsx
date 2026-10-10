@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import Svg, { Line, Path } from "react-native-svg";
-import { C } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
 
 export interface Series { values: number[]; color: string; width?: number; dashed?: boolean }
 
@@ -14,6 +14,7 @@ interface Props {
 // Minimal responsive line chart: shared y-range across series, no axes, built for glancing.
 export function LineChart({ series, height = 180, baseline }: Props) {
   const [w, setW] = useState(0);
+  const { C } = useTheme();
   const onLayout = (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width);
   const all = series.flatMap((s) => s.values).filter((v) => Number.isFinite(v));
   if (baseline !== undefined) all.push(baseline);

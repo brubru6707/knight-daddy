@@ -6,15 +6,15 @@
     "scheme": "knightdaddy",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0e1114",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#f5f1e6",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.brubru6707.knightdaddy"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0e1114",
+        "backgroundColor": "#f5f1e6",
         "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false
@@ -31,7 +31,7 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 160,
-          "backgroundColor": "#0e1114"
+          "backgroundColor": "#f5f1e6"
         }
       ]
     ]

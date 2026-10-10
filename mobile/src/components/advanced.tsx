@@ -1,15 +1,18 @@
 import { StyleSheet, Text, View } from "react-native";
 import { paths, type Backtest, type Benchmarks, type Health, type Sentiment, type SpecEval, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { C, money, pct, toneColor } from "@/lib/theme";
+import { money, pct, toneColor, useStyles, useTheme, type Palette } from "@/lib/theme";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
 
-const Pill = ({ text, color }: { text: string; color: string }) => (
-  <View style={[st.pill, { borderColor: color }]}><Text style={[st.pillText, { color }]}>{text}</Text></View>
-);
+function Pill({ text, color }: { text: string; color: string }) {
+  const st = useStyles(makeStyles);
+  return <View style={[st.pill, { borderColor: color }]}><Text style={[st.pillText, { color }]}>{text}</Text></View>;
+}
 
 export function SentimentCard({ ticker, nonce }: { ticker: string; nonce: number }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
   const s = useApi<Sentiment>(paths.sentiment(ticker), nonce);
   const d = s.data;
   const lags = d ? Object.entries(d.corr_by_lag).map(([k, v]) => [Number(k), v] as const).sort((a, b) => a[0] - b[0]) : [];
@@ -54,6 +57,8 @@ export function SentimentCard({ ticker, nonce }: { ticker: string; nonce: number
 }
 
 export function BacktestCard({ ticker, nonce }: { ticker: string; nonce: number }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
   const s = useApi<Backtest>(paths.backtest(ticker), nonce);
   const d = s.data;
   const sent = d?.metrics["Sentiment"], bh = d?.metrics["Buy and hold"];
@@ -68,9 +73,9 @@ export function BacktestCard({ ticker, nonce }: { ticker: string; nonce: number 
         <>
           <View style={st.bigRow}>
             <View style={st.big}><Text style={st.bigLabel}>News strategy</Text>
-              <Text style={[st.bigNum, { color: toneColor(sent.total_return) }]}>{pct(sent.total_return, 0)}</Text></View>
+              <Text style={[st.bigNum, { color: toneColor(C, sent.total_return) }]}>{pct(sent.total_return, 0)}</Text></View>
             <View style={st.big}><Text style={st.bigLabel}>Buy and hold</Text>
-              <Text style={[st.bigNum, { color: toneColor(bh.total_return) }]}>{pct(bh.total_return, 0)}</Text></View>
+              <Text style={[st.bigNum, { color: toneColor(C, bh.total_return) }]}>{pct(bh.total_return, 0)}</Text></View>
           </View>
           <View style={st.pills}>
             {summary}
@@ -96,6 +101,8 @@ export function BacktestCard({ ticker, nonce }: { ticker: string; nonce: number 
 }
 
 export function BenchmarkCard({ nonce }: { nonce: number }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
   const s = useApi<Benchmarks>(paths.benchmarks(), nonce);
   const rows = s.data?.rows || [];
   const ours = rows.find((r) => r.model.includes("2B QLoRA"));
@@ -135,6 +142,8 @@ export function BenchmarkCard({ nonce }: { nonce: number }) {
 const fmt = (x?: number | null) => (x === null || x === undefined ? "n/a" : `${(x * 100).toFixed(1)}%`);
 
 export function SpecialistCard({ ticker, nonce }: { ticker: string; nonce: number }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
   const info = useApi<SpecInfo>(paths.specInfo(), nonce);
   const supported = info.data?.supported?.includes(ticker);
   const ev = useApi<SpecEval>(supported ? paths.specEval(ticker) : null, nonce);
@@ -186,6 +195,8 @@ export function SpecialistCard({ ticker, nonce }: { ticker: string; nonce: numbe
 }
 
 export function WorkerCard({ health }: { health: Health | null }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
   const online = !!health?.worker_online;
   const summary = health ? <Pill text={online ? "ONLINE" : "OFFLINE"} color={online ? C.up : C.down} /> : null;
   return (
@@ -206,14 +217,14 @@ export function WorkerCard({ health }: { health: Health | null }) {
   );
 }
 
-const st = StyleSheet.create({
-  dim: { color: C.dim, fontSize: 13 },
-  small: { color: C.dim, fontSize: 11, marginTop: 6 },
+const makeStyles = (C: Palette) => StyleSheet.create({
+  dim: { color: C.dim, fontSize: 14, lineHeight: 20 },
+  small: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 6 },
   lead: { color: C.ink, fontSize: 15, fontWeight: "600", marginVertical: 8 },
-  label: { color: C.dim, fontSize: 11, marginTop: 6, marginBottom: 2, letterSpacing: 0.5 },
+  label: { color: C.dim, fontSize: 12, marginTop: 6, marginBottom: 2, letterSpacing: 0.5 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  pillText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
+  pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  pillText: { fontSize: 12, fontWeight: "800", letterSpacing: 0.8 },
   pills: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 8, flexWrap: "wrap" },
   lagRow: { flexDirection: "row", gap: 4, marginTop: 4 },
   lagCol: { flex: 1, alignItems: "center" },
@@ -224,9 +235,9 @@ const st = StyleSheet.create({
   bigLabel: { color: C.dim, fontSize: 12 },
   bigNum: { color: C.ink, fontSize: 30, fontWeight: "800", fontVariant: ["tabular-nums"] },
   arrow: { color: C.dim, fontSize: 22 },
-  read: { color: C.ink, fontSize: 13, marginTop: 8, borderLeftWidth: 2, borderLeftColor: C.amber, paddingLeft: 8 },
-  tr: { flexDirection: "row", gap: 8, paddingVertical: 5, borderTopWidth: 1, borderTopColor: C.line },
-  th: { color: C.dim, fontSize: 11, width: 52, textAlign: "right" },
+  read: { color: C.ink, fontSize: 14, lineHeight: 20, marginTop: 8, borderLeftWidth: 2, borderLeftColor: C.amber, paddingLeft: 8 },
+  tr: { flexDirection: "row", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.line },
+  th: { color: C.dim, fontSize: 12, width: 52, textAlign: "right" },
   td: { color: C.dim, fontSize: 13, width: 52, textAlign: "right", fontVariant: ["tabular-nums"] },
   dot: { width: 10, height: 10, borderRadius: 5 },
 });

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { C } from "@/lib/theme";
+import { useStyles, useTheme, type Palette } from "@/lib/theme";
 
 interface Props { visible: boolean; error?: string | null; onSubmit: (pw: string) => void; onCancel: () => void }
 
 // Asked once per app session. The value goes to session state (memory only), nowhere else.
 export function PasswordModal({ visible, error, onSubmit, onCancel }: Props) {
   const [pw, setPw] = useState("");
+  const { C } = useTheme();
+  const s = useStyles(makeStyles);
   const submit = () => { if (pw) { onSubmit(pw); setPw(""); } };
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -29,7 +31,7 @@ export function PasswordModal({ visible, error, onSubmit, onCancel }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", padding: 24 },
   box: { backgroundColor: C.panel, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 20, gap: 12 },
   title: { color: C.ink, fontSize: 18, fontWeight: "700" },
@@ -37,9 +39,9 @@ const s = StyleSheet.create({
   err: { color: C.down, fontSize: 13 },
   input: { borderWidth: 1, borderColor: C.line, borderRadius: 10, color: C.ink, fontSize: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.ground },
   row: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
-  btn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  btn: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, minHeight: 44, justifyContent: "center" },
   ghost: { borderWidth: 1, borderColor: C.line },
   primary: { backgroundColor: C.amber },
   dimBtn: { color: C.dim, fontWeight: "600" },
-  primaryText: { color: C.ground, fontWeight: "700" },
+  primaryText: { color: C.onAmber, fontWeight: "700" },
 });

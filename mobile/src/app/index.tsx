@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import { api, ApiError, paths, startTraining, type Health, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useSession, type Mode } from "@/lib/session";
-import { C } from "@/lib/theme";
+import { useStyles, useTheme, type Palette } from "@/lib/theme";
 import { PEERS } from "@/lib/peers";
 import { CompetitorsCard, HeadlinesCard, OutlookCard, PriceHero } from "@/components/simple";
 import { BacktestCard, BenchmarkCard, SentimentCard, SpecialistCard, WorkerCard } from "@/components/advanced";
@@ -16,6 +16,9 @@ const TICKER_RE = /^[A-Z][A-Z.-]{0,9}$/;
 
 export default function Home() {
   const { mode, setMode, password, setPassword } = useSession();
+  const { C, dark, toggle } = useTheme();
+  const s = useStyles(makeStyles);
+  const [history, setHistory] = useState<string[]>([]); // tickers to go back to after tapping a competitor
   // Deep links: knightdaddy://?ticker=DDOG&mode=advanced (also exp://<host>/--/?ticker=... in Expo Go).
   const link = useLocalSearchParams<{ ticker?: string; mode?: string }>();
   const linkTicker = typeof link.ticker === "string" && TICKER_RE.test(link.ticker.toUpperCase()) ? link.ticker.toUpperCase() : null;
@@ -85,11 +88,21 @@ export default function Home() {
     }
   };
 
-  const load = (t: string) => {
+  const load = (t: string, keepHistory = false) => {
+    if (!keepHistory) setHistory([]);
     if (poll.current) clearInterval(poll.current);
     setTrain({ kind: "idle" });
     setTicker(t); setQuery(t); setNonce((n) => n + 1);
     refreshHealth();
+  };
+
+  // Competitor taps remember where you came from, so Back returns there.
+  const goTo = (t: string) => { if (t === ticker) return; setHistory((h) => [...h, ticker]); load(t, true); };
+  const goBack = () => {
+    const prev = history[history.length - 1];
+    if (!prev) return;
+    setHistory((h) => h.slice(0, -1));
+    load(prev, true);
   };
 
   // "Load + Fine-tune": load everything for the ticker, then queue a training job if the worker can take it.
@@ -123,13 +136,19 @@ export default function Home() {
           <Image source={require("../../assets/icon.png")} style={s.logo} />
           <Text style={s.brandText}>Knight-Daddy</Text>
         </View>
+        <View style={s.headerRight}>
+        <Pressable onPress={toggle} style={s.themeBtn} hitSlop={6} accessibilityRole="button"
+          accessibilityLabel={dark ? "Switch to light mode" : "Switch to dark mode"}>
+          <Text style={s.themeIcon}>{dark ? "☀︎" : "☾"}</Text>
+        </Pressable>
         <View style={s.toggle} accessibilityRole="tablist">
           {(["simple", "advanced"] as Mode[]).map((m) => (
             <Pressable key={m} onPress={() => setMode(m)} style={[s.toggleBtn, mode === m && s.toggleOn]}
               accessibilityRole="tab" accessibilityState={{ selected: mode === m }}>
-              <Text style={[s.toggleText, mode === m && { color: C.ground }]}>{m === "simple" ? "Simple" : "Advanced"}</Text>
+              <Text style={[s.toggleText, mode === m && { color: C.onAmber }]}>{m === "simple" ? "Simple" : "Advanced"}</Text>
             </Pressable>
           ))}
+        </View>
         </View>
       </View>
 
@@ -144,6 +163,12 @@ export default function Home() {
           </Pressable>
         </View>
 
+        {history.length > 0 && (
+          <Pressable onPress={goBack} style={({ pressed }) => [s.back, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button" accessibilityLabel={`Back to ${history[history.length - 1]}`}>
+            <Text style={s.backText}>‹  Back to {history[history.length - 1]}</Text>
+          </Pressable>
+        )}
         <TrainBar state={train} />
         {healthErr && !health && <Text style={s.warn}>{"Can't reach the server right now. Pull down to retry."}</Text>}
 
@@ -151,21 +176,21 @@ export default function Home() {
           <>
             <View style={s.friendly}>
               <Text style={s.friendlyBig}>{`${ticker} isn't tracked yet`}</Text>
-              <Text style={s.dim}>Knight-Daddy currently follows {tracked!.join(" and ")}. Tap one to jump back.</Text>
+              <Text style={s.dim}>Knight-Daddy currently follows {tracked!.length > 1 ? `${tracked!.slice(0, -1).join(", ")} and ${tracked!.at(-1)}` : tracked![0]}. Tap one to jump there.</Text>
               <View style={s.peers}>
                 {tracked!.map((t) => (
-                  <Pressable key={t} onPress={() => load(t)} style={s.peer}><Text style={s.peerText}>{t}</Text></Pressable>
+                  <Pressable key={t} onPress={() => goTo(t)} style={s.peer}><Text style={s.peerText}>{t}</Text></Pressable>
                 ))}
               </View>
             </View>
-            {PEERS[ticker] && <CompetitorsCard ticker={ticker} onPick={load} />}
+            {PEERS[ticker] && <CompetitorsCard ticker={ticker} onPick={goTo} />}
           </>
         ) : mode === "simple" ? (
           <>
             <PriceHero key={`px-${ticker}`} ticker={ticker} nonce={nonce} />
             <HeadlinesCard ticker={ticker} nonce={nonce} />
             <OutlookCard ticker={ticker} nonce={nonce} />
-            <CompetitorsCard ticker={ticker} onPick={load} />
+            <CompetitorsCard ticker={ticker} onPick={goTo} />
           </>
         ) : (
           <>
@@ -177,7 +202,6 @@ export default function Home() {
             <WorkerCard health={health} />
           </>
         )}
-        <Text style={s.disclaimer}>Research demo. News summary, not financial advice.</Text>
       </ScrollView>
 
       <PasswordModal visible={pwOpen} error={pwErr} onSubmit={onPassword}
@@ -186,27 +210,31 @@ export default function Home() {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.ground },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.line },
   brand: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 2 },
+  themeBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  themeIcon: { color: C.ink, fontSize: 20 },
+  back: { alignSelf: "flex-start", paddingVertical: 10, paddingHorizontal: 14, minHeight: 44, justifyContent: "center", borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel, marginBottom: 12 },
+  backText: { color: C.ink, fontSize: 15, fontWeight: "700" },
   logo: { width: 26, height: 26, borderRadius: 6 },
-  brandText: { color: C.amber, fontSize: 16, fontWeight: "800", letterSpacing: 1 },
+  brandText: { color: C.amber, fontSize: 16, fontWeight: "800", letterSpacing: 0.5 },
   toggle: { flexDirection: "row", backgroundColor: C.panel, borderRadius: 999, borderWidth: 1, borderColor: C.line, padding: 3 },
-  toggleBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  toggleBtn: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 999 },
   toggleOn: { backgroundColor: C.amber },
   toggleText: { color: C.dim, fontWeight: "700", fontSize: 13 },
   content: { padding: 16, paddingBottom: 48 },
   search: { flexDirection: "row", gap: 10, marginBottom: 12 },
-  input: { flex: 1, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 12, color: C.ink, fontSize: 18, fontWeight: "700", paddingHorizontal: 14, paddingVertical: 12, letterSpacing: 1 },
-  go: { backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 14, justifyContent: "center" },
-  goText: { color: C.ground, fontWeight: "800", fontSize: 14 },
+  input: { flex: 1, minWidth: 0, minHeight: 50, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 12, color: C.ink, fontSize: 18, fontWeight: "700", paddingHorizontal: 14, paddingVertical: 12, letterSpacing: 1 },
+  go: { flexShrink: 0, backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 14, minHeight: 50, justifyContent: "center" },
+  goText: { color: C.onAmber, fontWeight: "800", fontSize: 15 },
   warn: { color: C.amber, fontSize: 13, marginBottom: 12 },
   dim: { color: C.dim, fontSize: 14 },
   friendly: { backgroundColor: C.panel, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 16, marginBottom: 12, gap: 8 },
   friendlyBig: { color: C.ink, fontSize: 22, fontWeight: "800" },
-  peers: { flexDirection: "row", gap: 10, marginTop: 4 },
-  peer: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.amber },
+  peers: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 },
+  peer: { paddingHorizontal: 20, paddingVertical: 12, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: C.amber },
   peerText: { color: C.amber, fontWeight: "800", fontSize: 16 },
-  disclaimer: { color: C.dim, fontSize: 11, textAlign: "center", marginTop: 8 },
 });
