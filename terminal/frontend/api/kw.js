@@ -144,6 +144,11 @@ export default async function handler(req, res) {
       const items = Array.isArray(body.items) ? body.items : [];
       for (const it of items) {
         const key = canonical(it.path), snap = { status: it.status || 200, body: it.body, pushed_at: body.pushed_at };
+        if (key.startsWith("briefing?") && (snap.status >= 400 || snap.body?.status !== "ok")) {
+          // Gemini failed (e.g. quota). Keep serving the last good briefing instead of replacing it with the error.
+          const prev = await getJSON(`kw:get:${key}`);
+          if (prev?.body?.status === "ok") { await setJSON(`kw:err:${key}`, snap, { ex: 86400 }); continue; }
+        }
         await setJSON(`kw:get:${key}`, snap);
         await syncToTiger(key, snap);
       }
