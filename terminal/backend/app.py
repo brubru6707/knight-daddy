@@ -290,7 +290,14 @@ def benchmarks():
             rows.append({"model": name, "accuracy": m["accuracy"], "macro_f1": m["macro_f1"],
                          "per_class_f1": m["per_class_f1"], "examples_per_sec": m["examples_per_sec"],
                          "gpu": m.get("gpu", ""), "n": m["n"]})
-    return {"dataset": "zeroshot/twitter-financial-news-sentiment (validation, 2388 tweets)", "rows": rows}
+    crypto = None
+    f = POC / "results" / "crypto_specialist.json"
+    if f.exists():  # separate test set: StockTwits author tags, Bullish/Bearish only (no Neutral class)
+        c = json.loads(f.read_text())
+        crypto = {"dataset": c["test_set"], "note": "No Neutral class: binary accuracy, P(Bullish) vs P(Bearish).",
+                  "rows": [{"model": m["name"], "binary_accuracy": m["binary_accuracy"], "ci95": m["binary_accuracy_ci95"],
+                            "macro_f1": m["binary_macro_f1"], "neutral_rate": m["neutral_rate"]} for m in c["models"].values()]}
+    return {"dataset": "zeroshot/twitter-financial-news-sentiment (validation, 2388 tweets)", "rows": rows, "crypto": crypto}
 
 
 # Serve the built frontend (frontend/dist) on the same port, if it exists.

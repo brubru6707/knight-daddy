@@ -25,9 +25,54 @@ const DEFAULT_LAYOUTS = {
     { i: "spc", x: 0, y: 52, w: 1, h: 20 }, { i: "bm", x: 0, y: 72, w: 1, h: 8 },
   ],
 };
+const PANELS = [["px", "price"], ["nws", "news"], ["brf", "briefing"], ["snt", "sentiment"], ["bt", "backtest"], ["spc", "specialist"], ["bm", "benchmark"]];
+const HIDDEN_KEY = "kw.hidden.v1", SAVED_KEY = "kw.saved.v1";
+const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
+// Keep positions of hidden panels: RGL drops layout items without a child, so merge new items over the old ones.
+const mergeLayouts = (prev, next) => Object.fromEntries(Object.keys({ ...prev, ...next }).map((bp) => {
+  const n = next[bp] || [], ids = new Set(n.map((i) => i.i));
+  return [bp, [...n, ...(prev[bp] || []).filter((i) => !ids.has(i.i))]];
+}));
 const loadLayouts = () => {
-  try { return JSON.parse(localStorage.getItem(LAYOUT_KEY)) || DEFAULT_LAYOUTS; } catch { return DEFAULT_LAYOUTS; }
+  let l;
+  try { l = JSON.parse(localStorage.getItem(LAYOUT_KEY)); } catch { l = null; }
+  return l ? mergeLayouts(DEFAULT_LAYOUTS, l) : DEFAULT_LAYOUTS;
 };
+const QUICK_TICKERS = ["NVDA", "DDOG", "AAPL", "TSLA", "CELH", "SMCI"];
+
+function Toolbar({ hidden, setHidden, onReset, saved, onSave, onLoad, onDelete }) {
+  const [name, setName] = useState("");
+  const [sel, setSel] = useState("");
+  const names = Object.keys(saved);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-panel px-3 py-1 text-[11px]" role="toolbar" aria-label="Panels">
+      <span className="text-dim">PANELS</span>
+      {PANELS.map(([id, label]) => {
+        const on = !hidden.includes(id);
+        return (
+          <button key={id} aria-pressed={on} onClick={() => setHidden(on ? [...hidden, id] : hidden.filter((h) => h !== id))}
+            className={`border px-1 ${on ? "border-amber/70 text-amber" : "border-line text-dim line-through hover:text-ink"}`}>
+            {id.toUpperCase()} <span className="normal-case">{label}</span></button>
+        );
+      })}
+      <button onClick={onReset} className="border border-line px-1 text-dim hover:border-amber hover:text-amber">RESET LAYOUT</button>
+      <span className="ml-auto flex flex-wrap items-center gap-1">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="layout name" aria-label="Layout name" maxLength={24}
+          className="w-28 border border-line bg-ground px-1 text-ink outline-none focus:border-amber" />
+        <button onClick={() => { if (name.trim()) { onSave(name.trim()); setSel(name.trim()); setName(""); } }}
+          className="border border-line px-1 text-dim hover:border-amber hover:text-amber">SAVE</button>
+        <select value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Saved layouts"
+          className="border border-line bg-ground px-1 text-ink outline-none focus:border-amber">
+          <option value="">saved layouts ({names.length})</option>
+          {names.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <button disabled={!sel} onClick={() => onLoad(sel)} className="border border-line px-1 text-dim hover:border-amber hover:text-amber disabled:opacity-40">LOAD</button>
+        <button disabled={!sel} onClick={() => { onDelete(sel); setSel(""); }} className="border border-line px-1 text-dim hover:border-down hover:text-down disabled:opacity-40">DELETE</button>
+      </span>
+    </div>
+  );
+}
 
 function Header({ ticker, onSubmit, health }) {
   const [q, setQ] = useState(ticker);
@@ -44,7 +89,7 @@ function Header({ ticker, onSubmit, health }) {
         <button className="border border-amber px-2 py-1 text-amber hover:bg-amber hover:text-ground">GO</button>
       </form>
       <div className="flex gap-1">
-        {["NVDA", "DDOG"].map((t) => (
+        {QUICK_TICKERS.map((t) => (
           <button key={t} onClick={() => onSubmit(t)} className={`border px-2 py-1 ${t === ticker ? "border-amber text-amber" : "border-line text-dim hover:text-ink"}`}>{t}</button>
         ))}
       </div>
@@ -230,6 +275,21 @@ function BenchmarkPanel() {
               </tr>))}</tbody>
           </table>
           <div className="mt-1 text-[11px] text-dim">&#9654; model serving this terminal. Speed is GPU eval throughput; the 9B ran on a different GPU.</div>
+          {s.data.crypto && (
+            <div className="mt-2">
+              <div className="text-[11px]"><span className="text-amber">CRYPTO </span>{s.data.crypto.dataset}.{" "}
+                <span className="border border-amber/60 px-1 text-amber">NO NEUTRAL CLASS</span> <span className="text-dim">{s.data.crypto.note}</span></div>
+              <table className="w-full min-w-[480px] text-right">
+                <thead className="text-dim"><tr><th className="text-left font-normal">model</th><th className="font-normal">binary accuracy [95% CI]</th><th className="font-normal">macro F1</th><th className="font-normal">says Neutral</th></tr></thead>
+                <tbody>{s.data.crypto.rows.map((r) => (
+                  <tr key={r.model} className={`border-t border-line/60 ${r.model.includes("specialist") ? "text-ink" : "text-dim"}`}>
+                    <td className="text-left">{r.model}</td>
+                    <td>{r.binary_accuracy.toFixed(3)} <span className="text-dim">[{r.ci95[0].toFixed(3)}, {r.ci95[1].toFixed(3)}]</span></td>
+                    <td>{r.macro_f1.toFixed(3)}</td><td>{(r.neutral_rate * 100).toFixed(0)}%</td>
+                  </tr>))}</tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </Panel>
@@ -242,6 +302,14 @@ export default function App() {
   });
   const [health, setHealth] = useState(null);
   const [layouts, setLayouts] = useState(loadLayouts);
+  const [hidden, setHiddenState] = useState(() => readJSON(HIDDEN_KEY, []));
+  const [saved, setSaved] = useState(() => readJSON(SAVED_KEY, {}));
+  const setHidden = (h) => { setHiddenState(h); writeJSON(HIDDEN_KEY, h); };
+  const applyLayouts = (l) => { setLayouts(l); writeJSON(LAYOUT_KEY, l); setGridKey((k) => k + 1); };
+  const resetLayout = () => { try { localStorage.removeItem(LAYOUT_KEY); } catch { /* ignore */ } setHidden([]); setLayouts(DEFAULT_LAYOUTS); setGridKey((k) => k + 1); };
+  const saveLayout = (n) => { const s = { ...saved, [n]: { layouts, hidden } }; setSaved(s); writeJSON(SAVED_KEY, s); };
+  const loadSaved = (n) => { const x = saved[n]; if (x) { setHidden(x.hidden || []); applyLayouts(x.layouts || DEFAULT_LAYOUTS); } };
+  const deleteSaved = (n) => { const s = { ...saved }; delete s[n]; setSaved(s); writeJSON(SAVED_KEY, s); };
   const [gridKey, setGridKey] = useState(0);
   const [specVersion, setSpecVersion] = useState(0);
   const [specReady, setSpecReady] = useState(false);
@@ -258,6 +326,8 @@ export default function App() {
   return (
     <div className="min-h-full">
       <Header ticker={ticker} onSubmit={choose} health={health} />
+      <Toolbar hidden={hidden} setHidden={setHidden} onReset={resetLayout} saved={saved}
+        onSave={saveLayout} onLoad={loadSaved} onDelete={deleteSaved} />
       {health?.mode === "vercel" && (
         <div className="mx-1 mt-1 border border-amber/40 bg-panel px-2 py-1 text-[11px] text-dim">
           <span className="text-amber">PUBLIC MIRROR </span>
@@ -271,24 +341,26 @@ export default function App() {
         </div>
       )}
       <div className="flex justify-end gap-3 px-2 pt-1 text-[10px] text-dim">
-        <span>drag panel headers to move, corner to resize; layout is saved in this browser</span>
-        <button onClick={() => { try { localStorage.removeItem(LAYOUT_KEY); } catch { /* ignore */ } setLayouts(DEFAULT_LAYOUTS); setGridKey((k) => k + 1); }}
-          className="text-amber hover:underline">RESET LAYOUT</button>
+        <span>drag panel headers to move, corner to resize; layout and panel choices are saved in this browser</span>
       </div>
       <Grid key={gridKey} className="layout" layouts={layouts} breakpoints={{ lg: 1000, sm: 0 }} cols={{ lg: 12, sm: 1 }}
         rowHeight={34} margin={[4, 4]} containerPadding={[4, 4]} draggableHandle=".kw-drag"
         draggableCancel="button,input,a" onLayoutChange={(_, all) => {
-          setLayouts(all);
-          try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(all)); } catch { /* storage unavailable */ }
+          setLayouts((prev) => { const m = mergeLayouts(prev, all); writeJSON(LAYOUT_KEY, m); return m; });
         }}>
-        <div key="px"><PricePanel ticker={ticker} /></div>
-        <div key="nws"><NewsPanel ticker={ticker} specReady={specReady} specVersion={specVersion} /></div>
-        <div key="brf"><BriefingPanel ticker={ticker} /></div>
-        <div key="snt"><SentimentPanel ticker={ticker} /></div>
-        <div key="bt"><BacktestPanel ticker={ticker} /></div>
-        <div key="spc"><SpecialistPanel ticker={ticker} onTrained={() => setSpecVersion((v) => v + 1)} /></div>
-        <div key="bm"><BenchmarkPanel /></div>
+        {[
+          ["px", <PricePanel ticker={ticker} />],
+          ["nws", <NewsPanel ticker={ticker} specReady={specReady} specVersion={specVersion} />],
+          ["brf", <BriefingPanel ticker={ticker} />],
+          ["snt", <SentimentPanel ticker={ticker} />],
+          ["bt", <BacktestPanel ticker={ticker} />],
+          ["spc", <SpecialistPanel ticker={ticker} onTrained={() => setSpecVersion((v) => v + 1)} />],
+          ["bm", <BenchmarkPanel />],
+        ].filter(([id]) => !hidden.includes(id)).map(([id, el]) => (
+          <div key={id}>{el}</div>
+        ))}
       </Grid>
+      {hidden.length === PANELS.length && <div className="px-3 py-6 text-center text-dim">All panels hidden. Turn one on in the PANELS toolbar.</div>}
       <footer className="px-3 py-2 text-[10px] text-dim">KNIGHTWATCH, Hack Knight finance track. Research demo, not investment advice.</footer>
     </div>
   );

@@ -26,7 +26,7 @@ ENV = {**dotenv_values(HERE.parent / ".env"), **os.environ}
 
 p = argparse.ArgumentParser()
 p.add_argument("--api", default=ENV.get("KW_API_URL", ""), help="public site base URL")
-p.add_argument("--tickers", default="NVDA,DDOG")
+p.add_argument("--tickers", default="NVDA,DDOG,AAPL,MSFT,AMZN,TSLA,CELH,PTON,ENPH,SMCI,WING")
 p.add_argument("--snapshot-every", type=int, default=900, help="seconds between snapshot rounds")
 p.add_argument("--poll", type=int, default=20, help="seconds between job checks (each check costs ~2 Upstash commands)")
 p.add_argument("--once", action="store_true", help="push one round of snapshots and exit")
@@ -63,10 +63,18 @@ def urls_for(client, t):
     return u
 
 
+def spc_urls(t):
+    return [f"specialist/status?ticker={t}", f"specialist/eval?ticker={t}"]
+
+
 def push_snapshots(client, tickers, include_global=True):
     t0 = time.time()
+    # specialist-only tickers (e.g. CRYPTO: no prices or news feed) still get SPC panel snapshots
+    spc_only = [t for t in client.get("/api/specialist/info").json().get("supported", []) if t not in TICKERS] \
+        if include_global else []
     groups = ([("global", ["health", "benchmarks", "specialist/info"])] if include_global else []) + \
-             [(t, urls_for(client, t)) for t in tickers]
+             [(t, spc_urls(t) if t not in TICKERS else urls_for(client, t)) for t in tickers] + \
+             [(t, spc_urls(t)) for t in spc_only]
     total = 0
     for name, urls in groups:
         items = []
@@ -86,10 +94,10 @@ def push_snapshots(client, tickers, include_global=True):
 
 def run_job(client, job):
     t = job["ticker"]
-    log(f"job {job['id'][:8]}: train {t}")
+    log(f"job {job['id'][:8]}: train {t}" + (" (quick demo)" if job.get("quick") else ""))
     deadline = time.time() + 120
     while True:  # the local GPU can be briefly busy (e.g. startup warmup); wait up to 2 min before giving up
-        r = client.post("/api/specialist/train", json={"ticker": t})
+        r = client.post("/api/specialist/train", json={"ticker": t, "quick": bool(job.get("quick"))})
         if r.status_code != 409 or time.time() > deadline:
             break
         remote("jobs/progress", {"id": job["id"], "progress": {"phase": "waiting for GPU", "step": 0, "losses": []}})

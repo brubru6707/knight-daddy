@@ -23,7 +23,7 @@ sanity = model.classify(["Nvidia shares plunge after guidance cut", "Nvidia beat
 print("sanity:", [r["label"] for r in sanity], flush=True)
 assert [r["label"] for r in sanity] == ["Bearish", "Bullish", "Neutral"], "teacher sanity check failed"
 
-for t in ["NVDA", "DDOG"]:
+for t in sys.argv[1:] or ["NVDA", "DDOG"]:
     for pool in ["train", "heldout", "gold"]:
         df = pd.read_parquet(f"{D}/{t}_{pool}_pool.parquet")
         if df.empty:

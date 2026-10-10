@@ -82,6 +82,26 @@ def score(df):
         "verdict": verdict}
 
 
+def score_crypto(gold):
+    """CRYPTO test set = StockTwits author tags (human), Bullish/Bearish only: binary P(Bullish) vs P(Bearish),
+    same rule as crypto/eval_crypto.py. Paired bootstrap CI and exact McNemar, verdict rule fixed in advance."""
+    y = (gold.teacher_label == "Bullish").to_numpy()
+    right = {m: (gold[f"{m}_p_bull"] > gold[f"{m}_p_bear"]).to_numpy() == y for m in ("general", "specialist")}
+    idx = np.random.default_rng(SEED).integers(0, len(y), size=(B, len(y)))
+    models = {m: {"name": MODELS[m], "n": int(len(y)), "binary_accuracy": float(r.mean()),
+                  "binary_accuracy_ci95": [float(np.percentile(r[idx].mean(1), 2.5)), float(np.percentile(r[idx].mean(1), 97.5))]}
+              for m, r in right.items()}
+    d = right["specialist"][idx].mean(1) - right["general"][idx].mean(1)
+    lo, hi = float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))
+    s_only, g_only, p = mcnemar_exact(right["general"], right["specialist"])
+    return {"status": "scored_binary", "n_scored": int(len(y)), "models": models,
+            "label_source": "StockTwits author tags (human), balanced Bullish/Bearish",
+            "no_neutral_note": "No Neutral class in this test set: scored as Bullish vs Bearish only.",
+            "comparison": {"accuracy_diff": float(right["specialist"].mean() - right["general"].mean()),
+                           "accuracy_diff_ci95": [lo, hi], "verdict": "better" if lo > 0 else "worse" if hi < 0 else "no clear difference",
+                           "mcnemar": {"specialist_right_general_wrong": s_only, "general_right_specialist_wrong": g_only, "p": p}}}
+
+
 def evaluate(ticker, run_dir, labels_csv=None, out_dir=RESULTS):
     run_dir = Path(run_dir)
     gold = pd.read_parquet(run_dir / "preds_gold.parquet").rename(columns={"teacher_label": "teacher_label"})
@@ -90,6 +110,8 @@ def evaluate(ticker, run_dir, labels_csv=None, out_dir=RESULTS):
             "changed_on_test_rows": int((gold.general_label != gold.specialist_label).sum()),
             "agreement_with_teacher": prog.get("agreement_with_teacher"),
             "note": "Stock-specific news analyst: reads headlines. Not a trading signal."}
+    if ticker == "CRYPTO":
+        return {**base, **score_crypto(gold)}
     labels_csv = Path(labels_csv) if labels_csv else LAB_DIR / f"{ticker}_labeled.csv"
     if not labels_csv.exists():
         return {**base, "status": "no_human_labels",

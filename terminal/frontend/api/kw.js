@@ -59,7 +59,7 @@ function statusFromJob(job, workerSeen) {
   const p = job.progress || {};
   if (job.status === "queued") {
     const ago = workerSeen ? Math.round((now() - workerSeen) / 1000) : null;
-    return { ticker: job.ticker, phase: "queued", running: true, step: 0, total_steps: null, losses: [],
+    return { ticker: job.ticker, quick: !!job.quick, phase: "queued", running: true, step: 0, total_steps: null, losses: [],
              note: `waiting for the Oscar worker${ago !== null ? ` (last seen ${ago}s ago)` : ""}` };
   }
   if (job.status === "failed") return { ...p, ticker: job.ticker, phase: "failed", running: false, error: job.error || p.error };
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
       if (!seen || now() - seen > WORKER_ONLINE_MS) return send(res, 503, { detail: "The Oscar GPU worker is offline right now, so training is unavailable." });
       const busy = await activeJob();
       if (busy) return send(res, 409, { detail: `GPU busy with a ${busy.ticker} run; try again when it finishes.` });
-      const job = { id: crypto.randomUUID(), ticker, status: "queued", created_at: now(), updated_at: now(), progress: {} };
+      const job = { id: crypto.randomUUID(), ticker, quick: !!body.quick, status: "queued", created_at: now(), updated_at: now(), progress: {} };
       if (!(await setIfAbsent("kw:job:active", job.id, 3600))) return send(res, 409, { detail: "Another training job just started." });
       await setJSON(jobKey(job.id), job, { ex: 86400 });
       await setJSON(`kw:job:last:${ticker}`, job.id, { ex: 86400 });

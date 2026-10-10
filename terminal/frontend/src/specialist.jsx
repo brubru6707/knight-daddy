@@ -84,9 +84,52 @@ export function LossChart({ probe = [], tickerLoss = [], total = 1, probeSource 
   );
 }
 
-function Results({ ev }) {
+function QuickResult({ st }) {
+  const agree = st.agreement_with_teacher;
+  return (
+    <div>
+      <div className="border border-amber/60 px-2 py-2">
+        <div className="font-bold text-amber">QUICK DEMO RUN, not scored</div>
+        <div className="text-[11px]">A short run ({st.data?.ticker_examples} + {st.data?.general_examples} examples) to show training live.
+          It is never served or scored; use TRAIN for the real run.</div>
+      </div>
+      <div className="mt-2 space-y-1 text-[11px] text-dim">
+        {agree && <div>Agreement with {st.ticker === "CRYPTO" ? "author tags" : "the 9B teacher (not accuracy)"} on {agree.n} held-out rows:
+          general {fmtPct(agree.general)}, specialist {fmtPct(agree.specialist)}.</div>}
+        {st.changed_on_test_rows !== undefined && <div>Tags changed on a 64-row sample: {st.changed_on_test_rows}.</div>}
+      </div>
+    </div>
+  );
+}
+
+function BinaryResults({ ev }) {
+  const m = ev.models, c = ev.comparison;
+  return (
+    <div>
+      <div className="mb-1 border border-amber/60 px-2 py-1 text-[11px]"><span className="text-amber">NO NEUTRAL CLASS. </span>{ev.no_neutral_note}</div>
+      <table className="w-full text-right text-[11px]">
+        <thead className="text-dim"><tr><th className="text-left font-normal">model (n={ev.n_scored}, {ev.label_source})</th>
+          <th className="font-normal">binary accuracy [95% CI]</th></tr></thead>
+        <tbody>{["general", "specialist"].map((k) => (
+          <tr key={k} className="border-t border-line/60"><td className="text-left">{m[k].name}</td>
+            <td>{fmtPct(m[k].binary_accuracy)} <span className="text-dim">[{ci(m[k].binary_accuracy_ci95)}]</span></td></tr>))}
+        </tbody>
+      </table>
+      <div className="mt-2 border-l-2 border-amber pl-2 text-[11px]">
+        <span className="text-amber">VERDICT </span>
+        {c.verdict === "no clear difference" ? "No clear difference." : `The specialist is ${c.verdict} than the general model.`}{" "}
+        Change {(c.accuracy_diff * 100).toFixed(1)} pts (95% CI {(c.accuracy_diff_ci95[0] * 100).toFixed(1)} to {(c.accuracy_diff_ci95[1] * 100).toFixed(1)}),
+        McNemar p = {c.mcnemar.p.toExponential(1)}. <span className="text-dim">Rule fixed in advance: better or worse only if the CI excludes 0.</span>
+      </div>
+      <div className="mt-2 text-[11px] text-dim">{ev.note}</div>
+    </div>
+  );
+}
+
+function Results({ ev, testSet }) {
   if (!ev) return null;
   if (ev.status === "no_run") return <div className="text-dim">{ev.message}</div>;
+  if (ev.status === "scored_binary") return <BinaryResults ev={ev} />;
   const agree = ev.agreement_with_teacher;
   const side = (
     <div className="mt-2 space-y-1 text-[11px] text-dim">
@@ -101,8 +144,10 @@ function Results({ ev }) {
     return (
       <div>
         <div className="border border-amber/60 px-2 py-2">
-          <div className="font-bold text-amber">NO HUMAN TEST LABELS YET</div>
-          <div className="text-[11px]">{ev.message} Before/after scores appear when teammates return their hand labels.</div>
+          <div className="font-bold text-amber">{testSet === "teacher" ? "NO HUMAN TEST SET FOR THIS TICKER" : "NO HUMAN TEST LABELS YET"}</div>
+          <div className="text-[11px]">{testSet === "teacher"
+            ? "Only agreement with our 9B model is shown below. Agreement is not accuracy."
+            : `${ev.message} Before/after scores appear when teammates return their hand labels.`}</div>
         </div>
         {side}
       </div>
@@ -155,8 +200,11 @@ function Results({ ev }) {
   );
 }
 
-export function SpecialistPanel({ ticker, onTrained }) {
+export function SpecialistPanel({ ticker: dashTicker, onTrained }) {
   const [info, setInfo] = useState(null);
+  const [pick, setPick] = useState(null); // SPC has its own ticker (CRYPTO is not a dashboard ticker)
+  const ticker = pick || dashTicker;
+  useEffect(() => { setPick(null); }, [dashTicker]);
   const [st, setSt] = useState(null);
   const [ev, setEv] = useState(null);
   const [err, setErr] = useState(null);
@@ -165,6 +213,8 @@ export function SpecialistPanel({ ticker, onTrained }) {
   const esRef = useRef(null);
   const needPw = !!health?.train_password_required;
   const supported = info?.supported?.includes(ticker);
+  const meta = info?.tickers?.[ticker] || {};
+  const testSet = meta.test_set;
 
   const loadEval = () => api(`specialist/eval?ticker=${ticker}`).then(setEv).catch((e) => setErr(e.message));
   // Poll status every 2 s (works locally and on the public site, where Oscar pushes progress to Vercel).
@@ -176,7 +226,7 @@ export function SpecialistPanel({ ticker, onTrained }) {
         setSt(d);
         if (d.phase === "done" || d.phase === "failed") {
           clearInterval(esRef.current);
-          if (d.phase === "done") { loadEval(); onTrained?.(); }
+          if (d.phase === "done") { if (!d.quick) { loadEval(); onTrained?.(); } }
         }
       } catch { /* transient network error: keep polling */ }
     };
@@ -189,44 +239,58 @@ export function SpecialistPanel({ ticker, onTrained }) {
     api("specialist/info").then(setInfo).catch(() => setInfo(null));
     api(`specialist/status?ticker=${ticker}`).then((d) => {
       setSt(d);
-      if (d.running) follow(); else if (d.phase === "done") loadEval();
+      if (d.running) follow(); else if (d.phase === "done" && !d.quick) loadEval();
     }).catch(() => {});
     api("health").then(setHealth).catch(() => setHealth(null));
     return () => clearInterval(esRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker]);
 
-  const train = async () => {
+  const train = async (quick = false) => {
     setErr(null); setEv(null);
     try {
       if (needPw && !pw) throw new Error("Enter the train password first.");
-      await api("specialist/train", { method: "POST", body: JSON.stringify({ ticker }),
+      await api("specialist/train", { method: "POST", body: JSON.stringify({ ticker, quick }),
         headers: { "content-type": "application/json", ...(needPw ? { "x-train-password": pw } : {}) } });
-      setSt({ phase: needPw ? "queued" : "starting", step: 0, total_steps: null, losses: [] });
+      setSt({ phase: needPw ? "queued" : "starting", step: 0, total_steps: null, losses: [], quick });
       follow();
     } catch (e) { setErr(e.message); }
   };
 
   const running = st && !["done", "failed", "none"].includes(st.phase);
   const frac = st?.total_steps ? st.step / st.total_steps : 0;
-  const right = supported ? (
+  const right = (
     <span className="flex items-center gap-2">
+      {info?.supported && (
+        <select value={ticker} onChange={(e) => setPick(e.target.value)} disabled={running} aria-label="Specialist ticker"
+          className="border border-line bg-ground px-1 text-[11px] text-ink outline-none focus:border-amber">
+          {!info.supported.includes(dashTicker) && <option value={dashTicker}>{dashTicker}</option>}
+          {info.supported.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      )}
+      {supported && <>
       {needPw && !running && (
         <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="train password"
           aria-label="Train password" onKeyDown={(e) => e.key === "Enter" && train()}
           className="w-32 border border-line bg-ground px-1 text-[11px] normal-case text-ink outline-none focus:border-amber" />
       )}
-      <button onClick={train} disabled={running} className="border border-amber px-2 text-amber hover:bg-amber hover:text-ground disabled:opacity-40">{running ? "TRAINING" : "TRAIN"}</button>
+      <button onClick={() => train(true)} disabled={running} title="QUICK DEMO RUN, not scored: about 30 s"
+        className="border border-line px-2 text-dim hover:border-amber hover:text-amber disabled:opacity-40">QUICK DEMO</button>
+      <button onClick={() => train(false)} disabled={running} className="border border-amber px-2 text-amber hover:bg-amber hover:text-ground disabled:opacity-40">{running ? "TRAINING" : "TRAIN"}</button>
+      </>}
     </span>
-  ) : null;
+  );
   return (
     <Panel code="SPC" title="stock-specific news analyst" className="h-full" right={right}>
       <div className="mb-2 text-[11px] text-dim">
-        Fine-tunes our 2B model on {ticker} headlines (labeled by our 9B model), then checks it against headlines our
-        teammates labeled by hand. It reads news; it is not a trading signal.
+        {testSet === "author_tags"
+          ? "Fine-tunes our 2B model on crypto StockTwits posts (author-tagged Bullish or Bearish), then scores it on 4,000 held-out tagged posts. It reads posts; it is not a trading signal."
+          : testSet === "teacher"
+            ? `Fine-tunes our 2B model on ${ticker} headlines (labeled by our 9B model). No hand-labeled test set exists for ${ticker}, so the panel shows agreement with the 9B model, not accuracy. It reads news; it is not a trading signal.`
+            : `Fine-tunes our 2B model on ${ticker} headlines (labeled by our 9B model), then checks it against headlines our teammates labeled by hand. It reads news; it is not a trading signal.`}
       </div>
       {info && !supported && (
-        <div className="text-dim">Specialists need a hand-labeled test set; available for {info.supported.join(", ")}.</div>
+        <div className="text-dim">No specialist data for {ticker}. Pick one of {info.supported.join(", ")} above.</div>
       )}
       {err && <div className="text-down">ERR {err}</div>}
       {supported && (
@@ -243,9 +307,10 @@ export function SpecialistPanel({ ticker, onTrained }) {
             </div>
             {st?.data && (
               <div className="mb-1 text-[10px] text-dim">
-                {st.data.ticker_examples} {ticker} headlines (9B labels, before Jul 2023) + {st.data.general_examples} general examples so it keeps its general skill.
+                {st.data.ticker_examples} {ticker === "CRYPTO" ? "crypto posts (author tags)" : `${ticker} headlines (9B labels, before Jul 2023)`} + {st.data.general_examples} general examples so it keeps its general skill.
               </div>
             )}
+            {st?.quick && <div className="mb-1 font-bold text-amber">QUICK DEMO RUN, not scored</div>}
             {st?.phase === "failed" && <div className="text-down">FAILED {st.error}</div>}
             {st && st.phase !== "none" && <LossChart probe={st.probe} tickerLoss={st.loss_ticker} total={st.total_steps || 1} probeSource={st.probe_source} />}
             {st?.probe?.length > 0 && (
@@ -255,8 +320,11 @@ export function SpecialistPanel({ ticker, onTrained }) {
             )}
           </div>
           <div className="min-w-[300px] flex-1">
-            <div className="mb-1 text-[11px] text-amber">BEFORE / AFTER on hand-labeled {ticker} headlines (Jul to Dec 2023)</div>
-            {ev ? <Results ev={ev} /> : <div className="text-[11px] text-dim">{running ? "Scores appear when training finishes." : "Press TRAIN to build a specialist."}</div>}
+            <div className="mb-1 text-[11px] text-amber">{testSet === "author_tags" ? "BEFORE / AFTER on 4,000 author-tagged crypto posts (Bullish vs Bearish)"
+              : testSet === "teacher" ? `BEFORE / AFTER on ${ticker} headlines (Jul to Dec 2023, 9B labels, not accuracy)`
+                : `BEFORE / AFTER on hand-labeled ${ticker} headlines (Jul to Dec 2023)`}</div>
+            {st?.quick && st.phase === "done" ? <QuickResult st={st} />
+              : ev ? <Results ev={ev} testSet={testSet} /> : <div className="text-[11px] text-dim">{running ? "Scores appear when training finishes." : "Press TRAIN to build a specialist."}</div>}
           </div>
         </div>
       )}

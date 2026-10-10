@@ -32,10 +32,41 @@ p.add_argument("--max_steps", type=int, default=None)
 p.add_argument("--general_only", action="store_true", help="timing test without teacher labels")
 p.add_argument("--seed", type=int, default=0)
 p.add_argument("--no_save", action="store_true", help="warmup: do not save the adapter")
+p.add_argument("--standby", action="store_true",
+               help="import libraries and load the model now, then wait for the real arguments as one JSON list on stdin "
+                    "(keeps the model resident so a quick demo run starts at once)")
+p.add_argument("--quick", action="store_true",
+               help="QUICK DEMO RUN, not scored: 64 ticker + 64 general examples, 64-row scoring pools, cached 'before' scores")
 args = p.parse_args()
+PRE = None
+if args.standby:
+    _t = time.time()
+    from peft import PeftModel, prepare_model_for_kbit_training
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+    def _load(a):
+        tok = AutoTokenizer.from_pretrained(a.init_adapter)
+        bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
+                                 bnb_4bit_compute_dtype=torch.bfloat16)
+        m = AutoModelForCausalLM.from_pretrained(a.base, quantization_config=bnb, dtype=torch.bfloat16, device_map={"": 0})
+        m = prepare_model_for_kbit_training(m, use_gradient_checkpointing=True,
+                                            gradient_checkpointing_kwargs={"use_reentrant": False})
+        return PeftModel.from_pretrained(m, a.init_adapter, is_trainable=True), tok
+    base_args = (args.base, args.init_adapter)
+    PRE = _load(args)
+    print(f"standby ready in {time.time() - _t:.1f}s", flush=True)
+    line = sys.stdin.readline()
+    if not line.strip():
+        sys.exit(0)
+    args = p.parse_args(json.loads(line))
+    if (args.base, args.init_adapter) != base_args:  # different model requested: do not reuse the preloaded one
+        PRE = None
+if args.quick:
+    args.max_ticker = min(args.max_ticker, 64)
+QUICK_POOL = 64
 os.makedirs(args.run_dir, exist_ok=True)
 T0 = time.time()
-state = {"ticker": args.ticker, "phase": "starting", "step": 0, "total_steps": None, "losses": [],
+state = {"ticker": args.ticker, "quick": args.quick, "phase": "starting", "step": 0, "total_steps": None, "losses": [],
          "loss_ticker": [], "loss_general": [], "probe": [],
          "elapsed_s": 0, "eta_s": None, "timings": {}, "error": None, "config": vars(args)}
 
@@ -50,9 +81,14 @@ def save_progress(**kw):
 
 try:
     save_progress(phase="loading data")
-    from datasets import load_dataset
-    gen = load_dataset("zeroshot/twitter-financial-news-sentiment")["train"].to_pandas()
-    gen = gen.rename(columns={"label": "y"})[["text", "y"]].assign(src=0)
+    gen_cache = os.path.join(args.data_dir, "_general_train.parquet")
+    if os.path.exists(gen_cache):  # same rows as the HF dataset's train split, saved once (skips datasets startup)
+        gen = pd.read_parquet(gen_cache)
+    else:
+        from datasets import load_dataset
+        gen = load_dataset("zeroshot/twitter-financial-news-sentiment")["train"].to_pandas()
+        gen = gen.rename(columns={"label": "y"})[["text", "y"]].assign(src=0)
+        gen.to_parquet(gen_cache)
     probe, gold, held = None, None, None
     if args.general_only:
         data = gen.sample(n=args.bs * (args.max_steps or 20), random_state=args.seed)
@@ -63,8 +99,9 @@ try:
         held_f = f"{args.data_dir}/{args.ticker}_heldout_teacher.parquet"
         if os.path.exists(held_f) and len(pd.read_parquet(held_f)):
             held = pd.read_parquet(held_f)
-            probe = held.sample(n=min(64, len(held)), random_state=args.seed)
-            state["probe_source"] = "Jul-Dec 2023 headlines, never trained on"
+            probe = held.sample(n=min(32 if args.quick else 64, len(held)), random_state=args.seed)
+            state["probe_source"] = ("held-out posts, never trained on" if args.ticker == "CRYPTO"
+                                     else "Jul-Dec 2023 headlines, never trained on")
         else:  # no held-out pool (DDOG): carve the probe out of the training pool
             probe = tk.sample(n=min(32, len(tk) // 10), random_state=args.seed)
             state["probe_source"] = "same pre-Jul 2023 pool as training, held out (weaker test)"
@@ -78,22 +115,30 @@ try:
     steps = -(-len(data) // args.bs)
     if args.max_steps:
         steps = min(steps, args.max_steps)
+    state["timings"]["data_s"] = round(time.time() - T0, 1)
     save_progress(phase="loading model", total_steps=steps,
                   data={"ticker_examples": n_ticker, "general_examples": len(data) - n_ticker})
 
-    from peft import PeftModel, prepare_model_for_kbit_training
-    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     t = time.time()
-    tok = AutoTokenizer.from_pretrained(args.init_adapter)
-    bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
-                             bnb_4bit_compute_dtype=torch.bfloat16)
-    model = AutoModelForCausalLM.from_pretrained(args.base, quantization_config=bnb, dtype=torch.bfloat16,
-                                                 device_map={"": 0})
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True,
-                                            gradient_checkpointing_kwargs={"use_reentrant": False})
-    model = PeftModel.from_pretrained(model, args.init_adapter, is_trainable=True)
+    if PRE is not None:  # standby process: libraries imported and model loaded before the click
+        model, tok = PRE
+        state["timings"]["import_s"] = state["timings"]["load_s"] = 0.0
+        state["preloaded"] = True
+    else:
+        from peft import PeftModel, prepare_model_for_kbit_training
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        state["timings"]["import_s"] = round(time.time() - t, 1)
+        t = time.time()
+        tok = AutoTokenizer.from_pretrained(args.init_adapter)
+        bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
+                                 bnb_4bit_compute_dtype=torch.bfloat16)
+        model = AutoModelForCausalLM.from_pretrained(args.base, quantization_config=bnb, dtype=torch.bfloat16,
+                                                     device_map={"": 0})
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True,
+                                                gradient_checkpointing_kwargs={"use_reentrant": False})
+        model = PeftModel.from_pretrained(model, args.init_adapter, is_trainable=True)
+        state["timings"]["load_s"] = round(time.time() - t, 1)
     model.train()
-    state["timings"]["load_s"] = round(time.time() - t, 1)
 
     end = "<|im_end|>"
 
@@ -107,7 +152,9 @@ try:
         pad = args.pad_len - len(ids)  # fixed shape: right-pad every example to pad_len
         return ids + [tok.pad_token_id] * pad, lab + [-100] * pad, [1] * len(ids) + [0] * pad
 
+    t = time.time()
     enc = [encode(r.text, int(r.y)) for r in data.itertuples()]
+    state["timings"]["encode_s"] = round(time.time() - t, 1)
     srcs = data.src.tolist()
     ce = torch.nn.CrossEntropyLoss(reduction="none")
 
@@ -160,6 +207,21 @@ try:
         for name, df in (("gold", gold), ("heldout", held)):
             if df is None:
                 continue
+            if tag == "general":  # "before" scores depend only on the fixed general adapter: compute once, reuse
+                cache = os.path.join(args.data_dir, f"{args.ticker}_general_preds_{name}.parquet")
+                if os.path.exists(cache):
+                    c = pd.read_parquet(cache)
+                    if len(c) == len(df) and (c.text.values == df.text.values).all():
+                        for col in c.columns.drop("text"):
+                            preds[name][col] = c[col].values
+                        continue
+                pr = predict(df.text.tolist())
+                cols = {"general_label": [NAMES[k] for k in pr.argmax(1)],
+                        **{f"general_{c}": pr[:, j] for j, c in enumerate(["p_bear", "p_bull", "p_neut"])}}
+                pd.DataFrame({"text": df.text.values, **cols}).to_parquet(cache)
+                for col, v in cols.items():
+                    preds[name][col] = v
+                continue
             pr = predict(df.text.tolist())
             preds[name][f"{tag}_label"] = [NAMES[k] for k in pr.argmax(1)]
             for j, c in enumerate(["p_bear", "p_bull", "p_neut"]):
@@ -172,8 +234,14 @@ try:
             preds["heldout"] = held[["date", "text", "label"]].rename(columns={"label": "teacher_label"}).reset_index(drop=True)
         save_progress(phase="scoring general model")
         t = time.time(); score_pools("general"); state["timings"]["score_general_s"] = round(time.time() - t, 1)
+        if args.quick:  # small fixed subsets (same rows every quick run); the cached "before" scores travel with them
+            for name in list(preds):
+                keep = preds[name].sample(n=min(QUICK_POOL, len(preds[name])), random_state=args.seed).index
+                preds[name] = preds[name].loc[keep].reset_index(drop=True)
+            gold = preds["gold"][["text"]]
+            held = preds["heldout"][["text"]] if "heldout" in preds else None
     if probe_enc:
-        state["probe"].append([0, probe_loss()])
+        t = time.time(); state["probe"].append([0, probe_loss()]); state["timings"]["probe0_s"] = round(time.time() - t, 1)
     opt = torch.optim.AdamW([q for q in model.parameters() if q.requires_grad], lr=args.lr, weight_decay=0.0)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / max(1, steps // 10)) * max(0.0, 1 - s / steps))
     save_progress(phase="training")
@@ -199,7 +267,7 @@ try:
         for key, flag in (("loss_ticker", 1), ("loss_general", 0)):
             v = [x for x, f in zip(ex, bsrc) if f == flag]
             state[key].append(round(sum(v) / len(v), 4) if v else None)
-        if probe_enc and ((s + 1) % 5 == 0 or s + 1 == steps):
+        if probe_enc and ((s + 1) % (4 if args.quick else 5) == 0 or s + 1 == steps):
             state["probe"].append([s + 1, probe_loss()])
         save_progress(step=s + 1, eta_s=round(steady * (steps - s - 1), 1))
     if args.general_only:  # warmup also compiles the fixed-shape inference kernels used for scoring
@@ -215,7 +283,8 @@ try:
         if "heldout" in preds:  # agreement with the 9B teacher: NOT accuracy (no human labels involved)
             h = preds["heldout"]
             state["agreement_with_teacher"] = {
-                "n": len(h), "pool": "Jul-Dec 2023 held-out headlines (9B labels)",
+                "n": len(h), "pool": ("held-out posts (author tags)" if args.ticker == "CRYPTO"
+                                      else "Jul-Dec 2023 held-out headlines (9B labels)"),
                 "general": round(float((h.general_label == h.teacher_label).mean()), 4),
                 "specialist": round(float((h.specialist_label == h.teacher_label).mean()), 4)}
         g = preds["gold"]
@@ -224,7 +293,8 @@ try:
     if not args.no_save:
         save_progress(phase="saving")
         out = os.path.join(args.run_dir, "adapter")
-        model.save_pretrained(out); tok.save_pretrained(out)
+        t = time.time(); model.save_pretrained(out); tok.save_pretrained(out)
+        state["timings"]["save_s"] = round(time.time() - t, 1)
     save_progress(phase="done", adapter=out)
     print(json.dumps({k: state[k] for k in ["phase", "step", "total_steps", "timings", "elapsed_s"]}, indent=1))
     print("losses:", state["losses"])

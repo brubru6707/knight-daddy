@@ -1,0 +1,202 @@
+{
+ "CELH": {
+  "fnspid_rows_tagged": 753,
+  "name_matched_unique": 283,
+  "pre_2023_07": 192,
+  "jul_dec_2023": 91,
+  "first": "2015-01-28",
+  "last": "2023-12-16"
+ },
+ "UPST": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "PTON": {
+  "fnspid_rows_tagged": 2105,
+  "name_matched_unique": 1072,
+  "pre_2023_07": 1008,
+  "jul_dec_2023": 64,
+  "first": "2019-08-27",
+  "last": "2023-12-16"
+ },
+ "SOFI": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "AFRM": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "ROKU": {
+  "fnspid_rows_tagged": 2702,
+  "name_matched_unique": 1437,
+  "pre_2023_07": 1246,
+  "jul_dec_2023": 191,
+  "first": "2017-09-27",
+  "last": "2023-12-16"
+ },
+ "ETSY": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "ENPH": {
+  "fnspid_rows_tagged": 2788,
+  "name_matched_unique": 1143,
+  "pre_2023_07": 979,
+  "jul_dec_2023": 164,
+  "first": "2012-03-30",
+  "last": "2023-12-16"
+ },
+ "HOOD": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "LCID": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "DKNG": {
+  "fnspid_rows_tagged": 1891,
+  "name_matched_unique": 845,
+  "pre_2023_07": 734,
+  "jul_dec_2023": 111,
+  "first": "2019-12-28",
+  "last": "2023-12-16"
+ },
+ "CHWY": {
+  "fnspid_rows_tagged": 1246,
+  "name_matched_unique": 499,
+  "pre_2023_07": 405,
+  "jul_dec_2023": 94,
+  "first": "2019-06-07",
+  "last": "2023-12-16"
+ },
+ "ZS": {
+  "fnspid_rows_tagged": 1365,
+  "name_matched_unique": 340,
+  "pre_2023_07": 255,
+  "jul_dec_2023": 85,
+  "first": "2018-03-05",
+  "last": "2023-12-15"
+ },
+ "OKTA": {
+  "fnspid_rows_tagged": 1365,
+  "name_matched_unique": 634,
+  "pre_2023_07": 557,
+  "jul_dec_2023": 77,
+  "first": "2017-03-13",
+  "last": "2023-12-13"
+ },
+ "PLUG": {
+  "fnspid_rows_tagged": 3854,
+  "name_matched_unique": 1769,
+  "pre_2023_07": 1677,
+  "jul_dec_2023": 92,
+  "first": "2009-10-08",
+  "last": "2023-12-14"
+ },
+ "FSLR": {
+  "fnspid_rows_tagged": 5426,
+  "name_matched_unique": 2272,
+  "pre_2023_07": 2166,
+  "jul_dec_2023": 106,
+  "first": "2010-02-17",
+  "last": "2023-12-16"
+ },
+ "MRNA": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "TTD": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "DOCU": {
+  "fnspid_rows_tagged": 1387,
+  "name_matched_unique": 649,
+  "pre_2023_07": 569,
+  "jul_dec_2023": 80,
+  "first": "2018-04-20",
+  "last": "2023-12-16"
+ },
+ "RIVN": {
+  "fnspid_rows_tagged": 0,
+  "name_matched_unique": 0,
+  "pre_2023_07": 0,
+  "jul_dec_2023": 0,
+  "first": null,
+  "last": null
+ },
+ "LULU": {
+  "fnspid_rows_tagged": 118,
+  "name_matched_unique": 44,
+  "pre_2023_07": 44,
+  "jul_dec_2023": 0,
+  "first": "2020-03-12",
+  "last": "2020-06-09"
+ },
+ "WING": {
+  "fnspid_rows_tagged": 844,
+  "name_matched_unique": 325,
+  "pre_2023_07": 259,
+  "jul_dec_2023": 66,
+  "first": "2015-06-02",
+  "last": "2023-12-12"
+ },
+ "SMCI": {
+  "fnspid_rows_tagged": 814,
+  "name_matched_unique": 313,
+  "pre_2023_07": 215,
+  "jul_dec_2023": 98,
+  "first": "2013-08-02",
+  "last": "2023-12-16"
+ },
+ "IRBT": {
+  "fnspid_rows_tagged": 1454,
+  "name_matched_unique": 806,
+  "pre_2023_07": 806,
+  "jul_dec_2023": 0,
+  "first": "2010-01-06",
+  "last": "2020-06-03"
+ },
+ "BYND": {
+  "fnspid_rows_tagged": 1703,
+  "name_matched_unique": 965,
+  "pre_2023_07": 910,
+  "jul_dec_2023": 55,
+  "first": "2019-05-15",
+  "last": "2023-12-16"
+ }
+}

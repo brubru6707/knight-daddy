@@ -56,7 +56,11 @@ with sync_playwright() as p:
     nws.locator("text=/NVDA SPECIALIST, \\d+ changed/").wait_for(timeout=120_000)
     nws.locator("text=/^BULL \\d+$/").wait_for(timeout=120_000)  # feed finished loading specialist tags
     nws.locator("li").first.wait_for(timeout=120_000)  # a refetch can briefly empty the list right after training
-    tags = nws.locator("li").count()
+    for _ in range(60):  # the feed refetches once after training; poll instead of counting mid-refetch
+        tags = nws.locator("li").count()
+        if tags > 0:
+            break
+        time.sleep(1)
     check("headline feed switches to specialist tags", tags > 0,
           f"{nws.locator('text=/NVDA SPECIALIST/').inner_text()}, {tags} headlines")
     pg.wait_for_timeout(800)
