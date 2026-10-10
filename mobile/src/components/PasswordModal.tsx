@@ -1,0 +1,45 @@
+import { useState } from "react";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { C } from "@/lib/theme";
+
+interface Props { visible: boolean; error?: string | null; onSubmit: (pw: string) => void; onCancel: () => void }
+
+// Asked once per app session. The value goes to session state (memory only), nowhere else.
+export function PasswordModal({ visible, error, onSubmit, onCancel }: Props) {
+  const [pw, setPw] = useState("");
+  const submit = () => { if (pw) { onSubmit(pw); setPw(""); } };
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.backdrop}>
+        <View style={s.box}>
+          <Text style={s.title}>Train password</Text>
+          <Text style={s.dim}>Needed to start fine-tuning. Kept in memory only for this session.</Text>
+          <TextInput value={pw} onChangeText={setPw} secureTextEntry autoFocus autoCapitalize="none" autoCorrect={false}
+            placeholder="password" placeholderTextColor={C.dim} style={s.input} onSubmitEditing={submit}
+            textContentType="none" autoComplete="off" />
+          {error ? <Text style={s.err}>{error}</Text> : null}
+          <View style={s.row}>
+            <Pressable onPress={() => { setPw(""); onCancel(); }} style={[s.btn, s.ghost]}><Text style={s.dimBtn}>Skip</Text></Pressable>
+            <Pressable onPress={submit} style={[s.btn, s.primary, !pw && { opacity: 0.4 }]} disabled={!pw}>
+              <Text style={s.primaryText}>Start</Text></Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const s = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", padding: 24 },
+  box: { backgroundColor: C.panel, borderRadius: 16, borderWidth: 1, borderColor: C.line, padding: 20, gap: 12 },
+  title: { color: C.ink, fontSize: 18, fontWeight: "700" },
+  dim: { color: C.dim, fontSize: 13 },
+  err: { color: C.down, fontSize: 13 },
+  input: { borderWidth: 1, borderColor: C.line, borderRadius: 10, color: C.ink, fontSize: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.ground },
+  row: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
+  btn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  ghost: { borderWidth: 1, borderColor: C.line },
+  primary: { backgroundColor: C.amber },
+  dimBtn: { color: C.dim, fontWeight: "600" },
+  primaryText: { color: C.ground, fontWeight: "700" },
+});
