@@ -1,0 +1,173 @@
+{
+ "ticker": "NVDA",
+ "run": "run-20261010-054141",
+ "n_test_rows": 120,
+ "changed_on_test_rows": 5,
+ "agreement_with_teacher": {
+  "n": 725,
+  "pool": "Jul-Dec 2023 held-out headlines (9B labels)",
+  "general": 0.9241,
+  "specialist": 0.931
+ },
+ "note": "Stock-specific news analyst: reads headlines. Not a trading signal.",
+ "status": "scored",
+ "label_source": "Claude-labeled, not human-labeled",
+ "labels_file": "labeling/answerkey/NVDA_answerkey.csv",
+ "label_info": {
+  "blank": 0,
+  "skip": 0,
+  "issues": []
+ },
+ "n_scored": 120,
+ "human_class_counts": {
+  "Neutral": 70,
+  "Bullish": 35,
+  "Bearish": 15
+ },
+ "models": {
+  "general": {
+   "name": "General 2B (before)",
+   "n": 120,
+   "accuracy": 0.7333333333333333,
+   "accuracy_ci95": [
+    0.65,
+    0.8083333333333333
+   ],
+   "macro_f1": 0.60992645927567,
+   "macro_f1_ci95": [
+    0.49165227938198924,
+    0.7133027307274327
+   ],
+   "per_class_f1": {
+    "Bearish": {
+     "f1": 0.34782608695652173,
+     "n": 15
+    },
+    "Bullish": {
+     "f1": 0.6666666666666666,
+     "n": 35
+    },
+    "Neutral": {
+     "f1": 0.8152866242038217,
+     "n": 70
+    }
+   }
+  },
+  "specialist": {
+   "name": "Specialist 2B (after)",
+   "n": 120,
+   "accuracy": 0.7583333333333333,
+   "accuracy_ci95": [
+    0.6833333333333333,
+    0.8333333333333334
+   ],
+   "macro_f1": 0.6522135107309733,
+   "macro_f1_ci95": [
+    0.5372814249663734,
+    0.7594658485880008
+   ],
+   "per_class_f1": {
+    "Bearish": {
+     "f1": 0.43478260869565216,
+     "n": 15
+    },
+    "Bullish": {
+     "f1": 0.6885245901639344,
+     "n": 35
+    },
+    "Neutral": {
+     "f1": 0.8333333333333334,
+     "n": 70
+    }
+   }
+  },
+  "teacher": {
+   "name": "9B teacher",
+   "n": 120,
+   "accuracy": 0.8,
+   "accuracy_ci95": [
+    0.725,
+    0.8666666666666667
+   ],
+   "macro_f1": 0.6994010182689427,
+   "macro_f1_ci95": [
+    0.5823587223339172,
+    0.804538676793311
+   ],
+   "per_class_f1": {
+    "Bearish": {
+     "f1": 0.47619047619047616,
+     "n": 15
+    },
+    "Bullish": {
+     "f1": 0.7666666666666667,
+     "n": 35
+    },
+    "Neutral": {
+     "f1": 0.8553459119496856,
+     "n": 70
+    }
+   }
+  }
+ },
+ "comparison": {
+  "accuracy_diff": 0.025000000000000022,
+  "accuracy_diff_ci95": [
+   -0.008333333333333304,
+   0.06666666666666665
+  ],
+  "mcnemar": {
+   "specialist_right_general_wrong": 4,
+   "general_right_specialist_wrong": 1,
+   "p": 0.375
+  },
+  "teacher_vs_general_mcnemar": {
+   "teacher_only": 8,
+   "general_only": 0,
+   "p": 0.0078125
+  },
+  "verdict": "no clear difference"
+ },
+ "disagreements": [
+  {
+   "id": "NVDA-014",
+   "text": "Wall Street Analysts Think Nvidia (NVDA) Is a Good Investment: Is It?",
+   "human": "Bullish",
+   "general_label": "Neutral",
+   "specialist_label": "Bullish",
+   "teacher_label": "Bullish"
+  },
+  {
+   "id": "NVDA-041",
+   "text": "3 Reasons Why Investors Should Continue Betting on NVIDIA Stock",
+   "human": "Bullish",
+   "general_label": "Bullish",
+   "specialist_label": "Neutral",
+   "teacher_label": "Bullish"
+  },
+  {
+   "id": "NVDA-084",
+   "text": "MORNING BID ASIA-Nvidia takes the stage as equity rally pauses",
+   "human": "Neutral",
+   "general_label": "Bearish",
+   "specialist_label": "Neutral",
+   "teacher_label": "Neutral"
+  },
+  {
+   "id": "NVDA-103",
+   "text": "Don\u2019t Let the Nvidia Stock Hype Distract You From the Looming Market Crash",
+   "human": "Bearish",
+   "general_label": "Neutral",
+   "specialist_label": "Bearish",
+   "teacher_label": "Bearish"
+  },
+  {
+   "id": "NVDA-115",
+   "text": "Unusual Call Option Trade in NVIDIA (NVDA) Worth $3,107.18K",
+   "human": "Bullish",
+   "general_label": "Neutral",
+   "specialist_label": "Bullish",
+   "teacher_label": "Bullish"
+  }
+ ]
+}

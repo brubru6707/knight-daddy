@@ -1,6 +1,8 @@
 """Score general 2B vs specialist vs 9B teacher against teammates' hand labels (the only ground truth).
 
-  python eval_specialist.py NVDA [run_dir] [labels_csv] [out_dir]
+  python eval_specialist.py NVDA [run_dir] [labels_csv] [out_dir] [label_source]
+label_source (default "human") is recorded in the output JSON; pass e.g. "Claude-labeled, not human-labeled"
+when scoring against a non-human answer key.
 Reads <run_dir>/preds_gold.parquet (written by train_specialist.py) and
 ~/poc1/specialist/labeling/<T>_labeled.csv. Writes ~/poc1/results/specialist_<T>_<run>.json.
 Without a labeled CSV it returns status "no_human_labels" and no scores.
@@ -102,7 +104,7 @@ def score_crypto(gold):
                            "mcnemar": {"specialist_right_general_wrong": s_only, "general_right_specialist_wrong": g_only, "p": p}}}
 
 
-def evaluate(ticker, run_dir, labels_csv=None, out_dir=RESULTS):
+def evaluate(ticker, run_dir, labels_csv=None, out_dir=RESULTS, label_source="human"):
     run_dir = Path(run_dir)
     gold = pd.read_parquet(run_dir / "preds_gold.parquet").rename(columns={"teacher_label": "teacher_label"})
     prog = json.loads((run_dir / "progress.json").read_text())
@@ -122,7 +124,7 @@ def evaluate(ticker, run_dir, labels_csv=None, out_dir=RESULTS):
         return {**base, "status": "too_few_labels", "labels_file": str(labels_csv), "label_info": info,
                 "n_scored": len(df), "message": f"Only {len(df)} usable human labels; need at least 20 to score."}
     models, comparison = score(df)
-    res = {**base, "status": "scored", "labels_file": str(labels_csv), "label_info": info,
+    res = {**base, "status": "scored", "label_source": label_source, "labels_file": str(labels_csv), "label_info": info,
            "n_scored": int(len(df)), "human_class_counts": df.human.value_counts().to_dict(),
            "models": models, "comparison": comparison,
            "disagreements": df[df.general_label != df.specialist_label][
@@ -138,5 +140,6 @@ if __name__ == "__main__":
     run = sys.argv[2] if len(sys.argv) > 2 else max(
         (p for p in Path(os.path.expanduser(f"~/scratch/poc1/terminal/specialists/{t}")).glob("run-*")
          if (p / "preds_gold.parquet").exists()), key=lambda p: p.stat().st_mtime)
-    r = evaluate(t, run, sys.argv[3] if len(sys.argv) > 3 else None, sys.argv[4] if len(sys.argv) > 4 else RESULTS)
+    r = evaluate(t, run, sys.argv[3] if len(sys.argv) > 3 else None, sys.argv[4] if len(sys.argv) > 4 else RESULTS,
+                 sys.argv[5] if len(sys.argv) > 5 else "human")
     print(json.dumps({k: v for k, v in r.items() if k != "disagreements"}, indent=1))

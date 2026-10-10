@@ -1,0 +1,136 @@
+{
+ "ticker": "DDOG",
+ "run": "run-20261009-183354",
+ "n_test_rows": 100,
+ "changed_on_test_rows": 1,
+ "agreement_with_teacher": null,
+ "note": "Stock-specific news analyst: reads headlines. Not a trading signal.",
+ "status": "scored",
+ "label_source": "Claude-labeled, not human-labeled",
+ "labels_file": "labeling/answerkey/DDOG_answerkey.csv",
+ "label_info": {
+  "blank": 0,
+  "skip": 0,
+  "issues": []
+ },
+ "n_scored": 100,
+ "human_class_counts": {
+  "Bullish": 47,
+  "Neutral": 44,
+  "Bearish": 9
+ },
+ "models": {
+  "general": {
+   "name": "General 2B (before)",
+   "n": 100,
+   "accuracy": 0.9,
+   "accuracy_ci95": [
+    0.84,
+    0.95
+   ],
+   "macro_f1": 0.8971989397521313,
+   "macro_f1_ci95": [
+    0.8135732531161028,
+    0.9565896813270763
+   ],
+   "per_class_f1": {
+    "Bearish": {
+     "f1": 0.8888888888888888,
+     "n": 9
+    },
+    "Bullish": {
+     "f1": 0.9090909090909091,
+     "n": 47
+    },
+    "Neutral": {
+     "f1": 0.8936170212765957,
+     "n": 44
+    }
+   }
+  },
+  "specialist": {
+   "name": "Specialist 2B (after)",
+   "n": 100,
+   "accuracy": 0.91,
+   "accuracy_ci95": [
+    0.85,
+    0.96
+   ],
+   "macro_f1": 0.9044876699824145,
+   "macro_f1_ci95": [
+    0.8198663012374875,
+    0.9633003824547223
+   ],
+   "per_class_f1": {
+    "Bearish": {
+     "f1": 0.8888888888888888,
+     "n": 9
+    },
+    "Bullish": {
+     "f1": 0.9213483146067416,
+     "n": 47
+    },
+    "Neutral": {
+     "f1": 0.9032258064516129,
+     "n": 44
+    }
+   }
+  },
+  "teacher": {
+   "name": "9B teacher",
+   "n": 100,
+   "accuracy": 0.92,
+   "accuracy_ci95": [
+    0.86,
+    0.97
+   ],
+   "macro_f1": 0.9272534046400809,
+   "macro_f1_ci95": [
+    0.8606781376697672,
+    0.9716383632238851
+   ],
+   "per_class_f1": {
+    "Bearish": {
+     "f1": 0.9473684210526315,
+     "n": 9
+    },
+    "Bullish": {
+     "f1": 0.9213483146067416,
+     "n": 47
+    },
+    "Neutral": {
+     "f1": 0.9130434782608695,
+     "n": 44
+    }
+   }
+  }
+ },
+ "comparison": {
+  "accuracy_diff": 0.010000000000000009,
+  "accuracy_diff_ci95": [
+   0.0,
+   0.030000000000000027
+  ],
+  "mcnemar": {
+   "specialist_right_general_wrong": 1,
+   "general_right_specialist_wrong": 0,
+   "p": 1.0
+  },
+  "teacher_vs_general_mcnemar": {
+   "teacher_only": 2,
+   "general_only": 0,
+   "p": 0.5
+  },
+  "verdict": "no clear difference"
+ },
+ "disagreements": [
+  {
+   "id": "DDOG-074",
+   "text": "Are You Looking for a Top Momentum Pick? Why Datadog (DDOG) is a Great Choice",
+   "human": "Bullish",
+   "general_label": "Neutral",
+   "specialist_label": "Bullish",
+   "teacher_label": "Neutral"
+  }
+ ]
+}
