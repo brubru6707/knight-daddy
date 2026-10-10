@@ -1,24 +1,47 @@
 @import "tailwindcss";
 
-@theme {
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --color-ground: #07090b;
-  --color-panel: #0e1114;
-  --color-line: #222830;
-  --color-ink: #e6e3d8;
-  --color-dim: #8b9099;
-  --color-amber: #ffb000;
-  --color-up: #3ddc84;
-  --color-down: #ff5c5c;
-  --color-flat: #9aa3ad;
+/* Light is the default (matches the prototype); html.dark switches every token. */
+:root {
+  --kd-ground: #f7f6f1;
+  --kd-card: #eeece5;
+  --kd-line: #e2dfd6;
+  --kd-ink: #1c1c1a;
+  --kd-dim: #77746c;
+  --kd-amber: #9a5d0d;
+  --kd-chart: #b07219;
+  --kd-up: #2e8b48;
+  --kd-down: #b02a2a;
+  --kd-flat: #6c7079;
+  color-scheme: light;
+}
+html.dark {
+  --kd-ground: #0f1113;
+  --kd-card: #181b1f;
+  --kd-line: #262b31;
+  --kd-ink: #e8e6df;
+  --kd-dim: #8d9097;
+  --kd-amber: #f0a92a;
+  --kd-chart: #f0a92a;
+  --kd-up: #45c46e;
+  --kd-down: #f0646a;
+  --kd-flat: #9aa0a8;
+  color-scheme: dark;
 }
 
-html, body, #root { height: 100%; }
-body { background: var(--color-ground); color: var(--color-ink); font-family: var(--font-mono); font-size: 12px; }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #2a3038; }
+@theme inline {
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-ground: var(--kd-ground);
+  --color-panel: var(--kd-ground);
+  --color-card: var(--kd-card);
+  --color-line: var(--kd-line);
+  --color-ink: var(--kd-ink);
+  --color-dim: var(--kd-dim);
+  --color-amber: var(--kd-amber);
+  --color-up: var(--kd-up);
+  --color-down: var(--kd-down);
+  --color-flat: var(--kd-flat);
+}
 
-/* react-grid-layout on the dark terminal theme */
-.react-grid-item.react-grid-placeholder { background: var(--color-amber); opacity: 0.15; border-radius: 0; }
-.react-grid-item > .react-resizable-handle { z-index: 5; }
-.react-grid-item > .react-resizable-handle::after { border-color: var(--color-amber) !important; opacity: 0.7; }
+html, body, #root { min-height: 100%; }
+body { background: var(--kd-ground); color: var(--kd-ink); font-family: var(--font-mono); font-size: 14px; -webkit-font-smoothing: antialiased; }
+::selection { background: color-mix(in srgb, var(--kd-amber) 25%, transparent); }

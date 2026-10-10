@@ -1,0 +1,227 @@
+{
+ "source": "results/claude_labeled (scored with specialist/eval_specialist.py)",
+ "tickers": {
+  "NVDA": {
+   "ticker": "NVDA",
+   "run": "run-20261010-054141",
+   "status": "scored",
+   "label_source": "Claude-labeled, not human-labeled",
+   "n_scored": 120,
+   "models": {
+    "general": {
+     "name": "General 2B (before)",
+     "n": 120,
+     "accuracy": 0.7333333333333333,
+     "accuracy_ci95": [
+      0.65,
+      0.8083333333333333
+     ],
+     "macro_f1": 0.60992645927567,
+     "macro_f1_ci95": [
+      0.49165227938198924,
+      0.7133027307274327
+     ],
+     "per_class_f1": {
+      "Bearish": {
+       "f1": 0.34782608695652173,
+       "n": 15
+      },
+      "Bullish": {
+       "f1": 0.6666666666666666,
+       "n": 35
+      },
+      "Neutral": {
+       "f1": 0.8152866242038217,
+       "n": 70
+      }
+     }
+    },
+    "specialist": {
+     "name": "Specialist 2B (after)",
+     "n": 120,
+     "accuracy": 0.7583333333333333,
+     "accuracy_ci95": [
+      0.6833333333333333,
+      0.8333333333333334
+     ],
+     "macro_f1": 0.6522135107309733,
+     "macro_f1_ci95": [
+      0.5372814249663734,
+      0.7594658485880008
+     ],
+     "per_class_f1": {
+      "Bearish": {
+       "f1": 0.43478260869565216,
+       "n": 15
+      },
+      "Bullish": {
+       "f1": 0.6885245901639344,
+       "n": 35
+      },
+      "Neutral": {
+       "f1": 0.8333333333333334,
+       "n": 70
+      }
+     }
+    },
+    "teacher": {
+     "name": "9B teacher",
+     "n": 120,
+     "accuracy": 0.8,
+     "accuracy_ci95": [
+      0.725,
+      0.8666666666666667
+     ],
+     "macro_f1": 0.6994010182689427,
+     "macro_f1_ci95": [
+      0.5823587223339172,
+      0.804538676793311
+     ],
+     "per_class_f1": {
+      "Bearish": {
+       "f1": 0.47619047619047616,
+       "n": 15
+      },
+      "Bullish": {
+       "f1": 0.7666666666666667,
+       "n": 35
+      },
+      "Neutral": {
+       "f1": 0.8553459119496856,
+       "n": 70
+      }
+     }
+    }
+   },
+   "comparison": {
+    "accuracy_diff": 0.025000000000000022,
+    "accuracy_diff_ci95": [
+     -0.008333333333333304,
+     0.06666666666666665
+    ],
+    "mcnemar": {
+     "specialist_right_general_wrong": 4,
+     "general_right_specialist_wrong": 1,
+     "p": 0.375
+    },
+    "teacher_vs_general_mcnemar": {
+     "teacher_only": 8,
+     "general_only": 0,
+     "p": 0.0078125
+    },
+    "verdict": "no clear difference"
+   }
+  },
+  "DDOG": {
+   "ticker": "DDOG",
+   "run": "run-20261009-183354",
+   "status": "scored",
+   "label_source": "Claude-labeled, not human-labeled",
+   "n_scored": 100,
+   "models": {
+    "general": {
+     "name": "General 2B (before)",
+     "n": 100,
+     "accuracy": 0.9,
+     "accuracy_ci95": [
+      0.84,
+      0.95
+     ],
+     "macro_f1": 0.8971989397521313,
+     "macro_f1_ci95": [
+      0.8135732531161028,
+      0.9565896813270763
+     ],
+     "per_class_f1": {
+      "Bearish": {
+       "f1": 0.8888888888888888,
+       "n": 9
+      },
+      "Bullish": {
+       "f1": 0.9090909090909091,
+       "n": 47
+      },
+      "Neutral": {
+       "f1": 0.8936170212765957,
+       "n": 44
+      }
+     }
+    },
+    "specialist": {
+     "name": "Specialist 2B (after)",
+     "n": 100,
+     "accuracy": 0.91,
+     "accuracy_ci95": [
+      0.85,
+      0.96
+     ],
+     "macro_f1": 0.9044876699824145,
+     "macro_f1_ci95": [
+      0.8198663012374875,
+      0.9633003824547223
+     ],
+     "per_class_f1": {
+      "Bearish": {
+       "f1": 0.8888888888888888,
+       "n": 9
+      },
+      "Bullish": {
+       "f1": 0.9213483146067416,
+       "n": 47
+      },
+      "Neutral": {
+       "f1": 0.9032258064516129,
+       "n": 44
+      }
+     }
+    },
+    "teacher": {
+     "name": "9B teacher",
+     "n": 100,
+     "accuracy": 0.92,
+     "accuracy_ci95": [
+      0.86,
+      0.97
+     ],
+     "macro_f1": 0.9272534046400809,
+     "macro_f1_ci95": [
+      0.8606781376697672,
+      0.9716383632238851
+     ],
+     "per_class_f1": {
+      "Bearish": {
+       "f1": 0.9473684210526315,
+       "n": 9
+      },
+      "Bullish": {
+       "f1": 0.9213483146067416,
+       "n": 47
+      },
+      "Neutral": {
+       "f1": 0.9130434782608695,
+       "n": 44
+      }
+     }
+    }
+   },
+   "comparison": {
+    "accuracy_diff": 0.010000000000000009,
+    "accuracy_diff_ci95": [
+     0.0,
+     0.030000000000000027
+    ],
+    "mcnemar": {
+     "specialist_right_general_wrong": 1,
+     "general_right_specialist_wrong": 0,
+     "p": 1.0
+    },
+    "teacher_vs_general_mcnemar": {
+     "teacher_only": 2,
+     "general_only": 0,
+     "p": 0.5
+    },
+    "verdict": "no clear difference"
+   }
+  }
+ }
+}

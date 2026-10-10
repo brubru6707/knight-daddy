@@ -1,90 +1,125 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
-// Shared helpers and the panel frame used by every Knight-Daddy panel.
+// Shared helpers for the Knight-Daddy UI. All data comes from /api (terminal/frontend/api/kw.js); nothing is simulated.
 export const api = async (path, opts) => {
   const r = await fetch(`/api/${path}`, opts);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.detail || `${r.status} ${r.statusText}`);
+  if (!r.ok) {
+    const e = new Error(j.detail || `${r.status} ${r.statusText}`);
+    e.status = r.status;
+    throw e;
+  }
   return j;
 };
-export const pct = (x, d = 1) => (x === null || x === undefined ? "n/a" : `${x >= 0 ? "+" : ""}${(x * 100).toFixed(d)}%`);
-export const money = (x) => "$" + Math.round(x).toLocaleString();
-export const tone = (x) => (x > 0 ? "text-up" : x < 0 ? "text-down" : "text-flat");
-export const TAG = { Bullish: "text-up border-up/50", Bearish: "text-down border-down/50", Neutral: "text-flat border-flat/40" };
 
-// Load data for a ticker-dependent panel; returns {data, err, loading}.
-export function useApi(path, deps) {
-  const [s, set] = useState({ data: null, err: null, loading: false });
+export const pct = (x, d = 1) => (x === null || x === undefined || Number.isNaN(x) ? "n/a" : `${x >= 0 ? "+" : ""}${(x * 100).toFixed(d)}%`);
+export const money = (x) => (x === null || x === undefined ? "n/a" : "$" + Math.round(x).toLocaleString("en-US"));
+export const usd = (x) => (x === null || x === undefined ? "n/a" : "$" + x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+export const toneClass = (x) => (x > 0 ? "text-up" : x < 0 ? "text-down" : "text-flat");
+export const TAG = { Bullish: "text-up", Bearish: "text-down", Neutral: "text-flat" };
+export const DOT = { Bullish: "bg-up", Bearish: "bg-down", Neutral: "bg-flat" };
+export const scoreLabel = (x, thr = 0.2) => (x > thr ? "Bullish" : x < -thr ? "Bearish" : "Neutral");
+
+// Static reference data (names and peers), not market data.
+export const NAMES = {
+  NVDA: ["NVIDIA Corporation", "NASDAQ"], DDOG: ["Datadog, Inc.", "NASDAQ"], AAPL: ["Apple Inc.", "NASDAQ"],
+  TSLA: ["Tesla, Inc.", "NASDAQ"], CELH: ["Celsius Holdings, Inc.", "NASDAQ"], SMCI: ["Super Micro Computer, Inc.", "NASDAQ"],
+  AMD: ["Advanced Micro Devices, Inc.", "NASDAQ"], INTC: ["Intel Corporation", "NASDAQ"], TSM: ["Taiwan Semiconductor", "NYSE"],
+  MSFT: ["Microsoft Corporation", "NASDAQ"], GOOGL: ["Alphabet Inc.", "NASDAQ"], AMZN: ["Amazon.com, Inc.", "NASDAQ"],
+  RIVN: ["Rivian Automotive, Inc.", "NASDAQ"], LCID: ["Lucid Group, Inc.", "NASDAQ"], F: ["Ford Motor Company", "NYSE"],
+  SNOW: ["Snowflake Inc.", "NYSE"], MDB: ["MongoDB, Inc.", "NASDAQ"], DT: ["Dynatrace, Inc.", "NYSE"],
+  MNST: ["Monster Beverage Corporation", "NASDAQ"], KDP: ["Keurig Dr Pepper Inc.", "NASDAQ"], PEP: ["PepsiCo, Inc.", "NASDAQ"],
+  DELL: ["Dell Technologies Inc.", "NYSE"], HPE: ["Hewlett Packard Enterprise", "NYSE"], QCOM: ["Qualcomm Incorporated", "NASDAQ"],
+};
+export const PEERS = {
+  NVDA: ["AMD", "INTC", "TSM"], AAPL: ["MSFT", "GOOGL", "AMZN"], TSLA: ["RIVN", "LCID", "F"], DDOG: ["SNOW", "MDB", "DT"],
+  CELH: ["MNST", "KDP", "PEP"], SMCI: ["DELL", "HPE", "NVDA"], AMD: ["NVDA", "INTC", "QCOM"], MSFT: ["AAPL", "GOOGL", "AMZN"],
+};
+
+export function relTime(iso) {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso.slice(0, 10);
+  const s = (Date.now() - t) / 1000;
+  if (s < 0) return new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  if (s < 86400 * 14) return `${Math.round(s / 86400)}d ago`;
+  return new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+export const fmtDay = (d, opts = { weekday: "short", month: "short", day: "numeric", year: "numeric" }) =>
+  new Date(`${d}T12:00:00`).toLocaleDateString("en-US", opts);
+
+// Load data for a path; null path = skip. Returns {data, err, status, loading}.
+export function useApi(path, deps = []) {
+  const [s, set] = useState({ data: null, err: null, status: null, loading: !!path });
   useEffect(() => {
-    if (!path) return;
+    if (!path) { set({ data: null, err: null, status: null, loading: false }); return; }
     let live = true;
-    set({ data: null, err: null, loading: true });
-    api(path).then((data) => live && set({ data, err: null, loading: false }))
-      .catch((e) => live && set({ data: null, err: e.message, loading: false }));
+    set({ data: null, err: null, status: null, loading: true });
+    api(path).then((data) => live && set({ data, err: null, status: 200, loading: false }))
+      .catch((e) => live && set({ data: null, err: e.message, status: e.status || null, loading: false }));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [path, ...deps]);
   return s;
 }
 
-// Panel frame. `collapsed` shows only the header plus `summary` (a glanceable one-liner); the chevron toggles it.
-export function Panel({ code, title, right, summary, children, className = "", collapsed = false, onToggle }) {
-  return (
-    <section className={`flex min-h-0 flex-col border border-line bg-panel ${className}`}>
-      <header className={`kw-drag flex cursor-move items-center gap-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${collapsed ? "" : "border-b border-line"}`}>
-        {onToggle && (
-          <button onClick={onToggle} aria-expanded={!collapsed} aria-label={`${collapsed ? "Expand" : "Collapse"} ${title}`}
-            className="w-3 text-dim hover:text-amber">{collapsed ? "▸" : "▾"}</button>
-        )}
-        <span className="bg-amber px-1 font-bold text-ground">{code}</span>
-        <span className="font-semibold text-amber">{title}</span>
-        {collapsed && summary && <span className="ml-2 flex min-w-0 items-center gap-2 truncate normal-case tracking-normal">{summary}</span>}
-        <span className="ml-auto normal-case tracking-normal text-dim">{right}</span>
-      </header>
-      {!collapsed && <div className="min-h-0 flex-1 overflow-auto px-1.5 py-1">{children}</div>}
-    </section>
-  );
+// Element width, for SVG charts that fill their container.
+// Uses a callback ref so it also works when the element mounts after data loads.
+export function useWidth() {
+  const [el, setEl] = useState(null);
+  const [w, setW] = useState(0);
+  useLayoutEffect(() => {
+    if (!el) return;
+    setW(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, w];
 }
-
-// One-word color-coded signal: green Bullish / red Bearish / gray Neutral (any other tone via `tone`).
-const SIG = { Bullish: ["bg-up", "text-up", "BULLISH"], Bearish: ["bg-down", "text-down", "BEARISH"], Neutral: ["bg-flat", "text-flat", "NEUTRAL"] };
-export const Signal = ({ label, word, tone: t, title }) => {
-  const [dot, txt, w] = SIG[label] || [t === "amber" ? "bg-amber" : "bg-dim", t === "amber" ? "text-amber" : "text-dim", ""];
-  return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap font-semibold ${txt}`} title={title}>
-      <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />{word || w}
-    </span>
-  );
-};
-export const scoreLabel = (x, thr = 0.2) => (x > thr ? "Bullish" : x < -thr ? "Bearish" : "Neutral");
-
-// Tiny inline line chart; `zero` draws a baseline at 0. Values may contain nulls (skipped).
-export function Sparkline({ values, w = 90, h = 18, color = "#ffb000", zero = false, title }) {
-  const v = values.map((x, i) => [i, x]).filter(([, x]) => x !== null && x !== undefined);
-  if (v.length < 2) return null;
-  const ys = v.map(([, x]) => x), lo = Math.min(...ys, zero ? 0 : Infinity), hi = Math.max(...ys, zero ? 0 : -Infinity);
-  const X = (i) => (i / (values.length - 1)) * w, Y = (x) => h - 1 - ((x - lo) / (hi - lo || 1)) * (h - 2);
-  return (
-    <svg width={w} height={h} className="inline-block align-middle" role="img" aria-label={title}>
-      {title && <title>{title}</title>}
-      {zero && <line x1={0} x2={w} y1={Y(0)} y2={Y(0)} stroke="#2a3038" />}
-      <path d={v.map(([i, x], k) => `${k ? "L" : "M"}${X(i).toFixed(1)},${Y(x).toFixed(1)}`).join(" ")} fill="none" stroke={color} strokeWidth="1.25" />
-    </svg>
-  );
-}
-
-// Stacked bull / neutral / bear share bar, with counts on hover.
-export const MixBar = ({ c, w = 70 }) => {
-  const b = c.Bullish || 0, n = c.Neutral || 0, r = c.Bearish || 0, t = b + n + r || 1;
-  return (
-    <span className="inline-flex h-1.5 overflow-hidden align-middle" style={{ width: w }} title={`${b} bullish / ${n} neutral / ${r} bearish`}>
-      <span className="bg-up" style={{ width: `${(b / t) * 100}%` }} /><span className="bg-flat/50" style={{ width: `${(n / t) * 100}%` }} />
-      <span className="bg-down" style={{ width: `${(r / t) * 100}%` }} />
-    </span>
-  );
-};
 
 export const Status = ({ s, what }) =>
-  s.loading ? <div className="text-dim">loading {what}<span className="animate-pulse">_</span></div>
-  : s.err ? <div className="text-down">ERR {s.err}</div> : null;
+  s.loading ? <div className="text-sm text-dim">Loading {what}<span className="animate-pulse">_</span></div>
+  : s.err ? <div className="text-sm text-dim">{what[0].toUpperCase() + what.slice(1)}: n/a <span className="text-xs">({s.err})</span></div> : null;
 
+export const Dot = ({ label, className = "" }) => <span className={`inline-block h-1.5 w-1.5 rounded-full ${DOT[label] || "bg-dim"} ${className}`} />;
+
+export const SectionTitle = ({ children, right }) => (
+  <div className="mb-3 flex items-baseline justify-between gap-3">
+    <h2 className="text-[15px] font-semibold text-ink">{children}</h2>
+    {right && <div className="text-xs text-dim">{right}</div>}
+  </div>
+);
+
+// Overall tone from bull/bear/neutral counts.
+export function toneOf(c = {}) {
+  const b = c.Bullish || 0, r = c.Bearish || 0, n = c.Neutral || 0, t = b + r + n;
+  if (!t) return null;
+  const net = (b - r) / t;
+  if (net > 0.5) return ["Bullish", "Bullish", net];
+  if (net > 0.2) return ["Moderately bullish", "Bullish", net];
+  if (net < -0.5) return ["Bearish", "Bearish", net];
+  if (net < -0.2) return ["Moderately bearish", "Bearish", net];
+  return ["Mostly neutral", "Neutral", net];
+}
+
+// Turn a Gemini paragraph into at most `max` short bullets. Drops the counts sentence (shown in the breakdown) and any
+// line with trading-advice words, whatever the model wrote.
+const ADVICE = /\b(buy|buys|buying|sell|sells|selling|hold|holds|holding)\b/i;
+export function bullets(text = "", max = 4, maxLen = 90) {
+  const out = [];
+  const sentences = text.replace(/([a-z0-9%)\]][.!?])\s+(?=[A-Z"])/g, "$1\n").split("\n").map((s) => s.trim()).filter(Boolean);
+  for (const s of sentences) {
+    if (/classified|sentiment model/i.test(s)) continue;
+    const body = s.replace(/^.*?\b(focused on|centered on|centred on|highlighted|discussed|included|covered)\s+/i, "").replace(/[.!?]$/, "");
+    for (let p of body.split(/,|;/).map((x) => x.trim().replace(/^(and|or)\s+/i, "")).filter((x) => x.length > 3)) {
+      if (ADVICE.test(p)) continue;
+      p = p[0].toUpperCase() + p.slice(1);
+      out.push(p.length > maxLen ? p.slice(0, maxLen - 1).trimEnd() + "…" : p);
+      if (out.length >= max) return out;
+    }
+  }
+  return out;
+}

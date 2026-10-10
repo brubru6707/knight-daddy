@@ -1,46 +1,50 @@
-"""Headless UI smoke test: load the terminal, wait for every panel, run the backtest, screenshot.
-Usage: python scripts/ui_smoke_test.py [base_url] [ticker] [out.png]"""
+"""Headless UI smoke test of the Knight-Daddy layout: price, headlines, AI column, competitors, advanced research,
+exact copy and copy rules. Usage: python scripts/ui_smoke_test.py [base_url] [ticker] [out.png]"""
 import sys
 from playwright.sync_api import sync_playwright
+from _kd import check, copy_rules, finish, load, watch_errors
 
 url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
 ticker = sys.argv[2] if len(sys.argv) > 2 else "NVDA"
 out = sys.argv[3] if len(sys.argv) > 3 else "screenshot.png"
-errors = []
+
 with sync_playwright() as p:
     b = p.chromium.launch()
-    pg = b.new_page(viewport={"width": 1600, "height": 1800})  # tall enough to reach every panel header
-    pg.on("console", lambda m: m.type == "error" and errors.append(m.text))
-    pg.on("pageerror", lambda e: errors.append(str(e)))
-    pg.goto(url)
-    pg.fill("input[aria-label=Ticker]", ticker)
-    pg.click("text=GO")
-    pg.wait_for_selector("text=/1D [+-]/", timeout=60_000)                 # price panel
-    pg.wait_for_selector("text=/^BULL [0-9]+$/", timeout=150_000)         # headline feed (model may load)
-    pg.wait_for_selector("text=KEY FINDING", timeout=60_000)               # sentiment panel
-    pg.click("button[aria-label='Expand model benchmark']")              # BM starts collapsed
-    pg.wait_for_selector("text=FinBERT (zero-shot)", timeout=60_000)       # benchmark panel
-    pg.click("button:has-text('RUN')")
-    pg.wait_for_selector("text=HONEST READ", timeout=60_000)               # backtest panel
-    pg.wait_for_timeout(1500)
-    print("canvases:", pg.locator("canvas").count())
-    print("headline tags:", pg.locator("li").count())
-    print("honest read:", pg.locator("text=HONEST READ").locator("..").inner_text())
+    pg = b.new_page(viewport={"width": 1440, "height": 1000})
+    watch_errors(pg)
+    load(pg, url, ticker)
+    pg.locator("text=/^[+-]\\$[0-9,.]+ \\([+-][0-9.]+%\\)/").wait_for(timeout=60_000)
+    check("price and period change", pg.locator("[data-testid=price]").inner_text().startswith("$"), pg.locator("[data-testid=price]").inner_text())
+    pg.locator("[aria-label=Period] >> text=1Y").click()
+    pg.locator("text=/(Up|Down) over 1 year/").wait_for(timeout=30_000)
+    check("period buttons switch the chart", True)
+    pg.locator("[data-testid=headline]").first.wait_for(timeout=150_000)
+    check("3 headlines shown first", pg.locator("[data-testid=headline]").count() == 3)
+    tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
+    check("headlines carry a Bullish/Bearish/Neutral tag", tags == 3, f"{tags}/3")
+    pg.locator("text=/^View all \\d+$/").click()
+    check("View all expands the list", pg.locator("[data-testid=headline]").count() > 3, str(pg.locator("[data-testid=headline]").count()))
+    pg.locator("text=Show fewer headlines").click()
+    pg.locator("[data-testid=tone]").wait_for(timeout=90_000)
+    n = pg.locator("[data-testid=briefing-bullets] li").count()
+    check("AI column: tone line plus 1 to 4 bullets", 1 <= n <= 4, pg.locator("[data-testid=tone]").inner_text() + f", {n} bullets")
+    check("AI column: sentiment breakdown with counts", pg.locator("[data-testid=breakdown] li").count() == 3)
+    check("competitors row has 3 peers", pg.locator("section[aria-label=Competitors] button").count() == 3)
+    check("advanced research collapsed by default", pg.locator("[data-testid=sentiment-caption]").count() == 0)
+    pg.locator("text=Advanced research").click()
+    pg.locator("[data-testid=sentiment-caption]").wait_for(timeout=60_000)
+    check("sentiment caption", pg.locator("[data-testid=sentiment-caption]").inner_text() ==
+          "Sentiment tracks the previous day's move, not the next one. It lags price.")
+    pg.locator("[data-testid=backtest-caption]").wait_for(timeout=60_000)
+    check("backtest caption", pg.locator("[data-testid=backtest-caption]").inner_text() == "Trading on sentiment lost to buy-and-hold.")
+    check("model card copy", pg.locator("[data-testid=model-copy]").inner_text() ==
+          "Qwen3.5-2B QLoRA. 91.9% accuracy, 0.895 macro F1 on 2,388 held-out financial tweets. FinBERT fine-tuned on the same data: 88.9%.")
+    pg.locator("[data-testid=specialist-table]").wait_for(timeout=60_000)
+    check("specialist before/after with verdict", pg.locator("[data-testid=specialist-table] >> text=No clear difference").count() >= 1)
+    check("specialist labeled Claude-labeled", pg.locator("[data-testid=claude-badge]").count() == 1)
+    check("footer copy", pg.locator("footer").inner_text() == "News sentiment, not investment advice.")
+    copy_rules(pg)
+    pg.wait_for_timeout(800)
     pg.screenshot(path=out, full_page=True)
-    # layout: drag the benchmark panel header to the top, reload, check the position persisted
-    hdr = pg.locator("header:has-text('model benchmark')")
-    y0 = hdr.bounding_box()["y"]
-    box = hdr.bounding_box()
-    pg.mouse.move(box["x"] + 300, box["y"] + 8); pg.mouse.down()
-    for k in range(1, 21):
-        pg.mouse.move(box["x"] + 300, box["y"] + 8 - k * (box["y"] - 60) / 20)
-    pg.mouse.up(); pg.wait_for_timeout(800)
-    y1 = hdr.bounding_box()["y"]
-    pg.reload(); pg.wait_for_selector("header:has-text('model benchmark')"); pg.wait_for_timeout(800)
-    y2 = pg.locator("header:has-text('model benchmark')").bounding_box()["y"]
-    print(f"benchmark header y: before {y0:.0f}, after drag {y1:.0f}, after reload {y2:.0f}",
-          "LAYOUT OK" if y1 < y0 - 100 and abs(y2 - y1) < 5 else "LAYOUT FAIL")
-    pg.screenshot(path=out.replace(".png", "_dragged.png"))
-    pg.evaluate("localStorage.removeItem('kw.layouts.v4')")
     b.close()
-print("console errors:", errors or "none")
+sys.exit(finish())
