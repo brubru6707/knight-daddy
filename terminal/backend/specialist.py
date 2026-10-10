@@ -223,14 +223,37 @@ def status(ticker: str):
 
 @router.get("/eval")
 def eval_run(ticker: str):
-    """Before/after scores vs the teammates' hand labels; 'no_human_labels' until the CSV exists."""
+    """Before/after scores vs the teammates' hand labels; falls back to the Claude-labeled answer key until the CSV exists."""
     t = ticker.strip().upper()
     run = _latest_run(t, need_preds=True)
     if not run:
         return {"ticker": t, "status": "no_run", "message": "No finished specialist run yet. Press TRAIN."}
     sys.path.insert(0, str(POC / "specialist"))
     from eval_specialist import evaluate
-    return evaluate(t, run)
+    res = evaluate(t, run)
+    if res.get("status") == "no_human_labels":
+        return _claude_labeled(t) or res
+    return res
+
+
+def _claude_labeled(t):
+    """Precomputed scores vs the Claude-written answer key (results/claude_labeled/). The spot check count says how many
+    rows a human has reviewed, so the display never claims more human review than happened."""
+    files = sorted((POC / "results" / "claude_labeled").glob(f"specialist_{t}_run-*.json"))
+    if not files:
+        return None
+    res = json.loads(files[-1].read_text())
+    spot = POC / "specialist" / "labeling" / "answerkey" / "spotcheck.csv"
+    filled, agree, total = 0, 0, 0
+    if spot.exists():
+        import csv
+        rows = list(csv.DictReader(spot.open()))
+        done = [r for r in rows if r.get("human_label", "").strip()]
+        filled, total = len(done), len(rows)
+        agree = sum(r["human_label"].strip().lower() == r["claude_label"].strip().lower() for r in done)
+    res["label_source"] = "Claude-labeled, not human-labeled"
+    res["spot_check"] = {"filled": filled, "agree": agree, "total": total}
+    return res
 
 
 @router.get("/stream")

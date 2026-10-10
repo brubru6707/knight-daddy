@@ -30,7 +30,7 @@ sys.path.insert(0, str(POC / "backtest"))
 import backtest as bt  # noqa: E402  (our existing backtest engine)
 import news  # noqa: E402  (Finnhub first, yfinance fallback)
 
-app = FastAPI(title="KNIGHTWATCH")
+app = FastAPI(title="Knight-Daddy")
 from specialist import router as specialist_router, start_warmup, stop_training  # noqa: E402
 app.include_router(specialist_router)
 
@@ -307,4 +307,7 @@ if DIST.exists():
 
     @app.get("/{path:path}")
     def spa(path: str):
+        f = (DIST / path).resolve()  # top-level files such as favicon.svg; everything else is the SPA
+        if path and f.is_file() and f.is_relative_to(DIST.resolve()):
+            return FileResponse(f)
         return FileResponse(DIST / "index.html")

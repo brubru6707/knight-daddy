@@ -18,6 +18,7 @@ with sync_playwright() as p:
     pg.wait_for_selector("text=/1D [+-]/", timeout=60_000)                 # price panel
     pg.wait_for_selector("text=/^BULL [0-9]+$/", timeout=150_000)         # headline feed (model may load)
     pg.wait_for_selector("text=KEY FINDING", timeout=60_000)               # sentiment panel
+    pg.click("button[aria-label='Expand model benchmark']")              # BM starts collapsed
     pg.wait_for_selector("text=FinBERT (zero-shot)", timeout=60_000)       # benchmark panel
     pg.click("button:has-text('RUN')")
     pg.wait_for_selector("text=HONEST READ", timeout=60_000)               # backtest panel
@@ -40,6 +41,6 @@ with sync_playwright() as p:
     print(f"benchmark header y: before {y0:.0f}, after drag {y1:.0f}, after reload {y2:.0f}",
           "LAYOUT OK" if y1 < y0 - 100 and abs(y2 - y1) < 5 else "LAYOUT FAIL")
     pg.screenshot(path=out.replace(".png", "_dragged.png"))
-    pg.evaluate("localStorage.removeItem('kw.layouts.v1')")
+    pg.evaluate("localStorage.removeItem('kw.layouts.v4')")
     b.close()
 print("console errors:", errors or "none")

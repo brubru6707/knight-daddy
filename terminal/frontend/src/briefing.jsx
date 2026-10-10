@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { api, Panel } from "./ui.jsx";
+import { api, Panel, Signal, MixBar, scoreLabel } from "./ui.jsx";
 
 // Stretch 9 + 10: Gemini briefing of today's model-tagged headlines, with ElevenLabs read-aloud.
-export function BriefingPanel({ ticker }) {
+export function BriefingPanel({ ticker, fold }) {
   const [b, setB] = useState(null);
+  const [more, setMore] = useState(false);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
   const [audio, setAudio] = useState({ state: "idle", msg: null }); // idle | loading | playing
@@ -49,9 +50,14 @@ export function BriefingPanel({ ticker }) {
       <button onClick={() => load(true)} disabled={loading} className="hover:text-ink disabled:opacity-40">refresh</button>
     </span>
   );
+  const net = ok && b.n ? (b.counts.Bullish - b.counts.Bearish) / b.n : 0;
+  const glance = ok && <>
+    <Signal label={scoreLabel(net)} title={`net (bull - bear) / headlines = ${net.toFixed(2)}`} />
+    <MixBar c={b.counts} /><span className="text-dim">{b.n} headlines · {b.window}</span>
+  </>;
   return (
-    <Panel code="BRF" title="AI news briefing" className="h-full" right={right}>
-      {loading && <div className="text-dim">writing briefing from today's tagged headlines<span className="animate-pulse">_</span></div>}
+    <Panel code="BRF" title="AI news briefing" className="h-full" right={right} {...fold} summary={glance}>
+      {loading && <div className="text-dim">writing briefing<span className="animate-pulse">_</span></div>}
       {err && <div className="text-down">ERR {err}</div>}
       {b && b.status !== "ok" && (
         <div className="text-dim">
@@ -59,17 +65,14 @@ export function BriefingPanel({ ticker }) {
         </div>
       )}
       {ok && (
-        <div className="flex flex-col gap-1">
-          <p className="max-w-[110ch] text-[12.5px] leading-relaxed text-ink">{b.text}</p>
-          <div className="flex flex-wrap gap-3 text-[10px] text-dim">
-            <span>{b.n} headlines, {b.window}</span>
-            <span>tags: <span className="text-up">{b.counts.Bullish} bull</span> / <span className="text-down">{b.counts.Bearish} bear</span> / <span className="text-flat">{b.counts.Neutral} neut</span></span>
-            <span>news: {b.provider}</span>
-            <span>written by {b.model}{b.guard !== "passed" ? `, ${b.guard}` : ""}</span>
+        <div className="flex flex-col gap-0.5" title="AI summary of the headlines in the feed only. It describes news; it does not predict prices or give advice.">
+          <div className="flex flex-wrap items-center gap-2 text-[10px]">
+            {glance}
+            <span className="text-up">{b.counts.Bullish} bull</span><span className="text-down">{b.counts.Bearish} bear</span><span className="text-flat">{b.counts.Neutral} neut</span>
+            <span className="text-dim">news: {b.provider} · by {b.model}{b.guard !== "passed" ? `, ${b.guard}` : ""}</span>
           </div>
-          <div className="text-[10px] text-dim">
-            AI summary of the headlines in the feed only. It describes news; it does not predict prices or give advice.
-          </div>
+          <p className={`max-w-[120ch] text-[11.5px] leading-snug text-ink ${more ? "" : "line-clamp-2"}`}>{b.text}</p>
+          <button onClick={() => setMore(!more)} className="w-fit text-[10px] text-dim hover:text-amber">{more ? "less" : "more"}</button>
           {audio.msg && <div className="text-[11px] text-down">Read aloud unavailable: {audio.msg}</div>}
         </div>
       )}

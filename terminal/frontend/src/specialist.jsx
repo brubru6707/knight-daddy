@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, Panel } from "./ui.jsx";
+import { api, Panel, Signal } from "./ui.jsx";
 
 const PHASES = {
   queued: "queued, waiting for the Oscar GPU", "waiting for GPU": "waiting for the Oscar GPU", starting: "starting", "loading data": "loading data", "loading model": "loading model",
@@ -9,6 +9,55 @@ const PHASES = {
 const C = { probe: "#ffb000", ticker: "#3987e5" }; // amber accent + categorical slot 1 (dark step)
 const fmtPct = (x) => (x === null || x === undefined ? "n/a" : `${(x * 100).toFixed(1)}%`);
 const ci = (a) => (a ? `${(a[0] * 100).toFixed(0)} to ${(a[1] * 100).toFixed(0)}` : "");
+const pts = (x) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}`;
+
+// Who labeled the test set. Precomputed Claude-labeled results carry label_source; teammates' CSVs do not.
+const isClaude = (ev) => /claude/i.test(ev?.label_source || "");
+const sourceWord = (ev) => (isClaude(ev) ? "Claude labels" : "human labels");
+export function LabelBadge({ ev }) {
+  if (!isClaude(ev)) return <span className="border border-up/50 px-1 text-[10px] text-up">HUMAN-LABELED</span>;
+  const sc = ev.spot_check || {};
+  return (
+    <span className="border border-amber/60 px-1 text-[10px] text-amber"
+      title={`${ev.label_source}. Answer key written by Claude from headline text only. Human spot check: ${sc.filled || 0} of ${sc.total || 0} rows reviewed${sc.filled ? `, ${sc.agree} agree` : ""}.`}>
+      CLAUDE-LABELED · not human-labeled · spot check {sc.filled || 0}/{sc.total || 0}{sc.filled ? ` (${sc.agree} agree)` : ""}
+    </span>
+  );
+}
+
+// Verdict rule fixed in advance: better or worse only if the 95% CI of the accuracy change excludes 0.
+export const Verdict = ({ c }) => c.verdict === "no clear difference"
+  ? <Signal label="Neutral" word="No clear difference (CI includes 0)." title="Rule fixed in advance: better or worse only if the 95% CI excludes 0." />
+  : <Signal label={c.verdict === "better" ? "Bullish" : "Bearish"} word={`Specialist ${c.verdict} (CI excludes 0).`} />;
+
+// Before/after for every hand-scored ticker in one glance: general 2B vs specialist, accuracy and macro F1.
+function Summary({ evs }) {
+  const scored = Object.entries(evs).filter(([, e]) => e?.status === "scored");
+  if (!scored.length) return null;
+  return (
+    <div className="mb-1.5">
+      <div className="mb-0.5 flex flex-wrap items-center gap-2 text-[10px]">
+        <span className="text-amber">BEFORE → AFTER</span><span className="text-dim">general 2B → specialist, Jul to Dec 2023 test headlines</span>
+        <LabelBadge ev={scored[0][1]} />
+      </div>
+      <table className="w-full text-right text-[11px]">
+        <thead className="text-[10px] text-dim"><tr>
+          <th className="text-left font-normal">ticker</th><th className="font-normal">n</th><th className="font-normal">accuracy</th>
+          <th className="font-normal">&#916; acc [95% CI]</th><th className="font-normal">macro F1</th><th className="pl-3 text-left font-normal">verdict</th>
+        </tr></thead>
+        <tbody>{scored.map(([t, e]) => { const g = e.models.general, s = e.models.specialist, c = e.comparison; return (
+          <tr key={t} className="border-t border-line/60">
+            <td className="text-left font-bold">{t}</td><td className="text-dim">{e.n_scored}</td>
+            <td>{fmtPct(g.accuracy)} <span className="text-dim">→</span> <b>{fmtPct(s.accuracy)}</b></td>
+            <td className={c.accuracy_diff_ci95[0] > 0 ? "text-up" : c.accuracy_diff_ci95[1] < 0 ? "text-down" : ""}>
+              {pts(c.accuracy_diff)} <span className="text-dim">[{pts(c.accuracy_diff_ci95[0])}, {pts(c.accuracy_diff_ci95[1])}]</span></td>
+            <td>{g.macro_f1.toFixed(3)} <span className="text-dim">→</span> <b>{s.macro_f1.toFixed(3)}</b></td>
+            <td className="pl-3 text-left"><Verdict c={c} /></td>
+          </tr>); })}</tbody>
+      </table>
+    </div>
+  );
+}
 
 function smooth(arr, w = 5) {
   return arr.map((_, i) => {
@@ -132,12 +181,12 @@ function Results({ ev, testSet }) {
   if (ev.status === "scored_binary") return <BinaryResults ev={ev} />;
   const agree = ev.agreement_with_teacher;
   const side = (
-    <div className="mt-2 space-y-1 text-[11px] text-dim">
+    <div className="mt-1 flex flex-wrap gap-x-3 text-[10px] text-dim">
       {agree && (
-        <div>Agreement with the 9B teacher (not accuracy): general {fmtPct(agree.general)}, specialist {fmtPct(agree.specialist)},
-          on {agree.n} held-out headlines.</div>
+        <span title={`Agreement with the 9B teacher on ${agree.n} held-out headlines. Agreement is not accuracy.`}>
+          9B agreement {fmtPct(agree.general)} → {fmtPct(agree.specialist)}</span>
       )}
-      <div>Tags changed on the {ev.n_test_rows} test headlines: {ev.changed_on_test_rows}.</div>
+      <span>{ev.changed_on_test_rows}/{ev.n_test_rows} test tags changed</span>
     </div>
   );
   if (ev.status !== "scored") {
@@ -159,8 +208,8 @@ function Results({ ev, testSet }) {
     <div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[460px] text-right text-[11px]">
-          <thead className="text-dim"><tr>
-            <th className="text-left font-normal">model (n={ev.n_scored} human labels)</th>
+          <thead className="text-[10px] text-dim"><tr>
+            <th className="text-left font-normal">model (n={ev.n_scored} {sourceWord(ev)})</th>
             <th className="font-normal">accuracy [95% CI]</th><th className="font-normal">macro F1 [95% CI]</th>
             <th className="font-normal">F1 bear</th><th className="font-normal">F1 bull</th><th className="font-normal">F1 neut</th>
           </tr></thead>
@@ -177,31 +226,35 @@ function Results({ ev, testSet }) {
           })}</tbody>
         </table>
       </div>
-      <div className="mt-2 border-l-2 border-amber pl-2 text-[11px]">
-        <span className="text-amber">VERDICT </span>
-        {c.verdict === "no clear difference" ? "No clear difference between the specialist and the general model."
-          : `The specialist is ${c.verdict} than the general model.`}{" "}
-        Accuracy change {(c.accuracy_diff * 100).toFixed(1)} pts (95% CI {(c.accuracy_diff_ci95[0] * 100).toFixed(1)} to {(c.accuracy_diff_ci95[1] * 100).toFixed(1)}),
-        McNemar p = {c.mcnemar.p.toFixed(3)} (specialist fixed {c.mcnemar.specialist_right_general_wrong}, broke {c.mcnemar.general_right_specialist_wrong}).
-        <span className="text-dim"> Rule fixed in advance: better or worse only if the CI excludes 0.</span>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 border-l-2 border-amber pl-2 text-[11px]">
+        <span className="text-amber">VERDICT</span><Verdict c={c} />
+        <span>&#916; acc {pts(c.accuracy_diff)} pts <span className="text-dim">[{pts(c.accuracy_diff_ci95[0])}, {pts(c.accuracy_diff_ci95[1])}]</span></span>
+        <span className="text-dim" title="Exact McNemar test on paired correctness">McNemar p={c.mcnemar.p.toFixed(3)} · fixed {c.mcnemar.specialist_right_general_wrong} / broke {c.mcnemar.general_right_specialist_wrong}</span>
       </div>
       {ev.disagreements?.length > 0 && (
-        <ul className="mt-2 text-[11px]">
-          <li className="text-dim">Where the two models disagree (human label in amber):</li>
-          {ev.disagreements.slice(0, 6).map((d) => (
+        <details className="mt-1 text-[11px]">
+          <summary className="cursor-pointer text-[10px] text-dim hover:text-amber">{ev.disagreements.length} headlines where the models disagree ({sourceWord(ev).replace(" labels", "")} label in amber)</summary>
+          <ul>{ev.disagreements.map((d) => (
             <li key={d.id} className="border-b border-line/60 py-0.5">
-              <span className="text-dim">{d.general_label.slice(0, 4).toUpperCase()} to {d.specialist_label.slice(0, 4).toUpperCase()}</span>{" "}
+              <span className="text-dim">{d.general_label.slice(0, 4).toUpperCase()} → {d.specialist_label.slice(0, 4).toUpperCase()}</span>{" "}
               <span className="text-amber">[{d.human.slice(0, 4).toUpperCase()}]</span> {d.text}
-            </li>))}
-        </ul>
+            </li>))}</ul>
+        </details>
       )}
       {side}
     </div>
   );
 }
 
-export function SpecialistPanel({ ticker: dashTicker, onTrained }) {
+export function SpecialistPanel({ ticker: dashTicker, onTrained, fold }) {
   const [info, setInfo] = useState(null);
+  const [evs, setEvs] = useState({}); // results for every hand-scored ticker, for the summary table
+  const [evsVersion, setEvsVersion] = useState(0);
+  useEffect(() => {
+    const hand = Object.entries(info?.tickers || {}).filter(([, m]) => m.test_set === "hand").map(([t]) => t);
+    Promise.all(hand.map((t) => api(`specialist/eval?ticker=${t}`).then((e) => [t, e]).catch(() => [t, null])))
+      .then((r) => setEvs(Object.fromEntries(r)));
+  }, [info, evsVersion]);
   const [pick, setPick] = useState(null); // SPC has its own ticker (CRYPTO is not a dashboard ticker)
   const ticker = pick || dashTicker;
   useEffect(() => { setPick(null); }, [dashTicker]);
@@ -226,7 +279,7 @@ export function SpecialistPanel({ ticker: dashTicker, onTrained }) {
         setSt(d);
         if (d.phase === "done" || d.phase === "failed") {
           clearInterval(esRef.current);
-          if (d.phase === "done") { if (!d.quick) { loadEval(); onTrained?.(); } }
+          if (d.phase === "done") { if (!d.quick) { loadEval(); setEvsVersion((v) => v + 1); onTrained?.(); } }
         }
       } catch { /* transient network error: keep polling */ }
     };
@@ -280,14 +333,20 @@ export function SpecialistPanel({ ticker: dashTicker, onTrained }) {
       </>}
     </span>
   );
+  const scored = Object.entries(evs).filter(([, e]) => e?.status === "scored");
+  const glance = scored.map(([t, e]) => (
+    <span key={t} className="inline-flex items-center gap-1"><b>{t}</b>
+      <span className="text-dim">{fmtPct(e.models.general.accuracy)}→{fmtPct(e.models.specialist.accuracy)}</span><Verdict c={e.comparison} /></span>));
   return (
-    <Panel code="SPC" title="stock-specific news analyst" className="h-full" right={right}>
-      <div className="mb-2 text-[11px] text-dim">
-        {testSet === "author_tags"
+    <Panel code="SPC" title="stock-specific news analyst" className="h-full" right={right} {...fold} summary={glance}>
+      <Summary evs={evs} />
+      <div className="mb-1 text-[10px] text-dim"
+        title={testSet === "author_tags"
           ? "Fine-tunes our 2B model on crypto StockTwits posts (author-tagged Bullish or Bearish), then scores it on 4,000 held-out tagged posts. It reads posts; it is not a trading signal."
           : testSet === "teacher"
             ? `Fine-tunes our 2B model on ${ticker} headlines (labeled by our 9B model). No hand-labeled test set exists for ${ticker}, so the panel shows agreement with the 9B model, not accuracy. It reads news; it is not a trading signal.`
-            : `Fine-tunes our 2B model on ${ticker} headlines (labeled by our 9B model), then checks it against headlines our teammates labeled by hand. It reads news; it is not a trading signal.`}
+            : `Fine-tunes our 2B model on ${ticker} headlines (labeled by our 9B model), then scores it on a held-out labeled test set${isClaude(ev) ? " (Claude-labeled, not human-labeled)" : ""}. It reads news; it is not a trading signal.`}>
+        {ticker} · train: {testSet === "author_tags" ? "author-tagged crypto posts" : "9B-labeled headlines"} · test: {testSet === "author_tags" ? "4,000 author tags" : testSet === "teacher" ? "9B agreement only" : ev ? sourceWord(ev) : "labeled headlines"} · not a trading signal
       </div>
       {info && !supported && (
         <div className="text-dim">No specialist data for {ticker}. Pick one of {info.supported.join(", ")} above.</div>
@@ -306,23 +365,24 @@ export function SpecialistPanel({ ticker: dashTicker, onTrained }) {
               <div className="h-full bg-amber transition-all" style={{ width: `${st?.phase === "done" ? 100 : frac * 100}%` }} />
             </div>
             {st?.data && (
-              <div className="mb-1 text-[10px] text-dim">
-                {st.data.ticker_examples} {ticker === "CRYPTO" ? "crypto posts (author tags)" : `${ticker} headlines (9B labels, before Jul 2023)`} + {st.data.general_examples} general examples so it keeps its general skill.
+              <div className="mb-1 text-[10px] text-dim" title="General examples are mixed in so the specialist keeps its general skill.">
+                {st.data.ticker_examples} {ticker === "CRYPTO" ? "crypto posts (author tags)" : `${ticker} (9B labels, pre-Jul 2023)`} + {st.data.general_examples} general
               </div>
             )}
             {st?.quick && <div className="mb-1 font-bold text-amber">QUICK DEMO RUN, not scored</div>}
             {st?.phase === "failed" && <div className="text-down">FAILED {st.error}</div>}
-            {st && st.phase !== "none" && <LossChart probe={st.probe} tickerLoss={st.loss_ticker} total={st.total_steps || 1} probeSource={st.probe_source} />}
-            {st?.probe?.length > 0 && (
-              <div className="mt-1 text-[10px] text-dim">
-                Loss starts low because training begins from our already-trained general model. The held-out line is the honest one.
-              </div>
+            {st && st.phase !== "none" && (
+              <details open={!!running}>
+                <summary className="cursor-pointer text-[10px] text-dim hover:text-amber"
+                  title="Loss starts low because training begins from our already-trained general model. The held-out line is the honest one.">training curve</summary>
+                <LossChart probe={st.probe} tickerLoss={st.loss_ticker} total={st.total_steps || 1} probeSource={st.probe_source} />
+              </details>
             )}
           </div>
           <div className="min-w-[300px] flex-1">
-            <div className="mb-1 text-[11px] text-amber">{testSet === "author_tags" ? "BEFORE / AFTER on 4,000 author-tagged crypto posts (Bullish vs Bearish)"
-              : testSet === "teacher" ? `BEFORE / AFTER on ${ticker} headlines (Jul to Dec 2023, 9B labels, not accuracy)`
-                : `BEFORE / AFTER on hand-labeled ${ticker} headlines (Jul to Dec 2023)`}</div>
+            <div className="mb-0.5 text-[10px] text-amber">{testSet === "author_tags" ? "CRYPTO DETAIL · 4,000 author-tagged posts (bull vs bear)"
+              : testSet === "teacher" ? `${ticker} DETAIL · 9B labels, not accuracy`
+                : `${ticker} DETAIL · ${ev ? sourceWord(ev) : "labeled headlines"}, Jul to Dec 2023`}</div>
             {st?.quick && st.phase === "done" ? <QuickResult st={st} />
               : ev ? <Results ev={ev} testSet={testSet} /> : <div className="text-[11px] text-dim">{running ? "Scores appear when training finishes." : "Press TRAIN to build a specialist."}</div>}
           </div>
