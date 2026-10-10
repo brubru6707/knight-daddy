@@ -2,7 +2,9 @@
 
 Guardrails: the prompt forbids outside facts, price predictions and advice; the output is checked against
 advice/prediction patterns, regenerated once if it fails, and otherwise replaced by a plain non-AI summary.
-Briefings are cached by headline set; audio is only generated for briefings this server produced.
+Briefings are cached by headline set and regenerated only when that set changes, at most once per
+BRIEFING_MIN_MINUTES per ticker (default 60). If Gemini fails (e.g. quota), the ticker's last good briefing is served.
+Audio is only generated for briefings this server produced.
 """
 import hashlib, json, os, re
 from datetime import datetime, timedelta, timezone
@@ -89,13 +91,26 @@ def generate(ticker, items, refresh=False):
     lines = "\n".join(f"- [{i['label']}] {i['title']} ({i.get('source', '')})" for i in chosen)
     prompt = (f"Ticker: {ticker}\nWindow: {window}\nTag counts from our sentiment model: {counts['Bullish']} bullish, "
               f"{counts['Bearish']} bearish, {counts['Neutral']} neutral ({len(chosen)} headlines).\nHeadlines:\n{lines}")
-    bid = hashlib.sha1(("v2" + key("GEMINI_MODEL") + prompt).encode()).hexdigest()[:16]  # v2: drops truncated v1 cache
+    # Same headlines in any order = same briefing (v3: order-independent, ignores the window wording).
+    hset = sorted(f"{i['label']}|{i['title']}" for i in chosen)
+    bid = hashlib.sha1(("v3" + key("GEMINI_MODEL") + ticker + "\n".join(hset)).encode()).hexdigest()[:16]
     f = CACHE / f"{bid}.json"
+    last = CACHE / f"last_{ticker}.json"
     if f.exists() and not refresh:
         return {**json.loads(f.read_text()), "cached": True}
+    min_age = timedelta(minutes=float(key("BRIEFING_MIN_MINUTES") or 60))
+    if last.exists() and not refresh:
+        prev = json.loads(last.read_text())
+        if datetime.now(timezone.utc) - datetime.fromisoformat(prev["generated_at"]) < min_age:
+            return {**prev, "cached": True}
     def bad(text, finish):  # advice/prediction, empty, or cut off before the model finished
         return BANNED.search(text) or not text or finish != "STOP"
-    model, text, finish = _gemini(prompt)
+    try:
+        model, text, finish = _gemini(prompt)
+    except RuntimeError:
+        if last.exists():  # quota or outage: keep showing the last good briefing for this ticker
+            return {**json.loads(last.read_text()), "cached": True, "stale": True}
+        raise
     guard = "passed"
     if bad(text, finish):
         model, text, finish = _gemini(prompt, strict=True)
@@ -107,6 +122,7 @@ def generate(ticker, items, refresh=False):
            "generated_at": datetime.now(timezone.utc).isoformat(),
            "headlines": [{"title": i["title"], "label": i["label"], "source": i.get("source", "")} for i in chosen]}
     f.write_text(json.dumps(res))
+    last.write_text(json.dumps(res))
     return {**res, "cached": False}
 
 

@@ -119,6 +119,9 @@ async function briefingAudio(req, res) {
 async function mirror(res, key, extra) {
   const snap = await getJSON(`kw:get:${key}`);
   if (snap) await syncToTiger(key, snap);
+  if (snap && key.startsWith("briefing?") && (snap.status >= 400 || !snap.body?.status)) // upstream (Gemini) failure
+    return send(res, 200, { status: "unavailable", ticker: new URLSearchParams(key.split("?")[1]).get("ticker"),
+                            message: "AI summary temporarily unavailable." });
   if (!snap) {
     const meta = await getJSON("kw:meta");
     return send(res, 404, { detail: `Not available on the public site yet (${key}). Tracked tickers: ${(meta?.tickers || []).join(", ") || "none pushed yet"}.` });

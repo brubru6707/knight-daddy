@@ -49,8 +49,8 @@ export function AiColumn({ ticker }) {
       </div>
 
       {loading && <div className="mt-5 text-sm text-dim">Reading the latest headlines<span className="animate-pulse">_</span></div>}
-      {err && <div className="mt-5 text-sm text-dim">Briefing: n/a <span className="text-xs">({err})</span></div>}
-      {b && !ok && <div className="mt-5 text-sm text-dim">Briefing: n/a. {b.status === "no_key" ? "No Gemini key is set on this server." : b.message}</div>}
+      {err && <div className="mt-5 text-sm text-dim">Summary: n/a right now.</div>}
+      {b && !ok && <div className="mt-5 text-sm text-dim" data-testid="briefing-unavailable">Briefing: n/a. {b.status === "no_key" ? "No Gemini key is set on this server." : b.message}</div>}
 
       {ok && (
         <>
@@ -93,14 +93,13 @@ export function AiColumn({ ticker }) {
 // Daily headline sentiment stored in Tiger Data (/api/history). Hidden when the site has no history store.
 function History({ ticker }) {
   const s = useApi(`history?ticker=${ticker}&days=30`, [ticker]);
-  if (s.status === 503 || s.status === 404 || (!s.data && !s.loading && !s.err)) return null; // no history store on this API
+  if (s.err || (!s.data && !s.loading)) return null; // hidden on any history-store error, never shows connection details
   const days = s.data?.days || [];
   const max = Math.max(1, ...days.map((d) => d.Bullish + d.Bearish + d.Neutral));
   return (
     <div className="mt-8 border-t border-line pt-6" data-testid="history">
       <h3 className="text-sm font-semibold text-ink">Sentiment history</h3>
       {s.loading && <div className="mt-3 text-xs text-dim">Loading history<span className="animate-pulse">_</span></div>}
-      {s.err && <div className="mt-3 text-xs text-dim">History: n/a ({s.err})</div>}
       {s.data && (days.length === 0 ? <div className="mt-3 text-xs text-dim">History: n/a (no stored headlines yet)</div> : (
         <div className="mt-3 flex h-16 items-end gap-[3px]" aria-label="Daily headline sentiment">
           {days.map((d) => (

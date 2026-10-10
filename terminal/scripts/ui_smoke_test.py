@@ -25,10 +25,15 @@ with sync_playwright() as p:
     pg.locator("text=/^View all \\d+$/").click()
     check("View all expands the list", pg.locator("[data-testid=headline]").count() > 3, str(pg.locator("[data-testid=headline]").count()))
     pg.locator("text=Show fewer headlines").click()
-    pg.locator("[data-testid=tone]").wait_for(timeout=90_000)
-    n = pg.locator("[data-testid=briefing-bullets] li").count()
-    check("AI column: tone line plus 1 to 4 bullets", 1 <= n <= 4, pg.locator("[data-testid=tone]").inner_text() + f", {n} bullets")
-    check("AI column: sentiment breakdown with counts", pg.locator("[data-testid=breakdown] li").count() == 3)
+    pg.locator("[data-testid=tone]").or_(pg.locator("[data-testid=briefing-unavailable]")).wait_for(timeout=90_000)
+    if pg.locator("[data-testid=tone]").count():
+        n = pg.locator("[data-testid=briefing-bullets] li").count()
+        check("AI column: tone line plus 1 to 4 bullets", 1 <= n <= 4, pg.locator("[data-testid=tone]").inner_text() + f", {n} bullets")
+        check("AI column: sentiment breakdown with counts", pg.locator("[data-testid=breakdown] li").count() == 3)
+    else:  # Gemini down upstream: a plain n/a line, never the raw error
+        check("AI column: summary unavailable shows plain n/a", True, pg.locator("[data-testid=briefing-unavailable]").inner_text())
+    raw = [w for w in ("HTTP 4", "HTTP 5", "certificate", "quota", "server error") if w in pg.inner_text("body")]
+    check("no raw error text on the page", not raw, ", ".join(raw))
     check("competitors row has 3 peers", pg.locator("section[aria-label=Competitors] button").count() == 3)
     check("advanced research collapsed by default", pg.locator("[data-testid=sentiment-caption]").count() == 0)
     pg.locator("text=Advanced research").click()
