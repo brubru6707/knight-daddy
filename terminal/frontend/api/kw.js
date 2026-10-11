@@ -276,9 +276,105 @@ async function liveFallback(key) {
       filter_note: "Tags appear after Oscar's next update", p_bearish: null, p_neutral: null, p_bullish: null, confidence_n: 0 }];
   }
   if (path === "specialist/status") return [200, { ticker: t, phase: "none" }]; // never fine-tuned: same as the backend says
-  if (path === "briefing" && (await getJSON("kw:wanted"))?.[t])
-    return [200, { status: "pending", ticker: t, message: `The ${t} summary appears after Oscar's next update.` }];
+  if (path === "briefing") return siteBriefing(t, q.get("mode") === "advanced" ? "advanced" : "normal", key);
   return null;
+}
+
+// Briefing written here (Gemini) for a ticker Oscar hasn't covered: same rules as terminal/backend/briefing.py, from
+// the live Yahoo headlines, which are not tagged yet, so no tag counts. Stored like a pushed snapshot for 3 hours
+// (read-aloud works on it); Oscar's own briefing replaces it once the worker covers the ticker.
+const BRIEF_SYSTEM = `You write the news briefing for ONE stock on a research dashboard. It must be about this ticker's own
+headlines, not the market in general.
+Rules, all mandatory:
+- Use ONLY the numbered headlines provided. Do not add facts, numbers, names, dates or context that are not in them.
+- Be specific: name the concrete topics the headlines are about (products, deals, events, people, lawsuits, filings,
+  partners, rivals) and which outlets reported them when it helps. No generic market talk.
+- The headlines have not been tagged by our sentiment model yet: do not give tag counts or call the coverage bullish or bearish.
+- If several headlines are not really about this company, say how many and leave them out of the summary.
+- If there is genuinely little to say, write less. Never pad.
+- If headlines report analyst price targets or rating changes, say only that analysts updated their views and name the firms;
+  never repeat a target, a rating or a dollar level for the stock.
+- Never predict prices or returns, never say what the stock will do, no investment or trading advice of any kind.
+- Do not use the words buy, sell, hold, holdings or portfolio (or buying, selling, holding, buys, sells, holds) at all.
+- Plain text, no markdown headings, no bold, no em dashes.`;
+const BRIEF_FORMAT = {
+  normal: 'Format: at most 4 bullets, one per line, each starting with "- " and at most 15 words. Lead with the most covered topic.',
+  advanced: "Format: 2 to 4 short paragraphs separated by a blank line, at most 260 words in total. Paragraph one: the main story or stories and who reported them. Then the other distinct topics.",
+};
+const BRIEF_BANNED = /\b(you should|investors should|we recommend|recommend(ed|s)? (buying|selling)|good time to|consider (buying|selling)|(is|are) (likely|poised|set|expected) to (rise|fall|climb|drop|gain|surge|rally)|will (likely )?(rise|fall|climb|drop|gain|surge|rally|outperform|underperform)|price will|price targets?|target prices?|buy|buys|buying|sell|sells|selling|hold|holds|holding|holdings|portfolios?|bullish|bearish)\b/i;
+const BRIEF_DAILY_CAP = 200;
+async function siteBriefing(t, mode, key) {
+  const none = (message) => [200, { status: "unavailable", ticker: t, mode, message }];
+  if (!process.env.GEMINI_API_KEY) return none(`The ${t} summary appears after Oscar's next update.`);
+  const items = (await yahooNews(t).catch(() => [])).slice(0, 25);
+  if (!items.length) return null;
+  const day = `kw:briefq:${new Date().toISOString().slice(0, 10)}`, used = (await getJSON(day)) || 0;
+  if (used >= BRIEF_DAILY_CAP) return none("AI summary limit for today reached.");
+  await setJSON(day, used + 1, { ex: 2 * 86400 });
+  const lines = items.map((h, i) => `${i + 1}. ${h.title} (${h.source || "source n/a"}, ${String(h.time || "").slice(0, 10)})`).join("\n");
+  const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  const ask = async (extra = "") => {
+    const r = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: `${BRIEF_SYSTEM}\n${BRIEF_FORMAT[mode]}${extra}` }] },
+        contents: [{ role: "user", parts: [{ text: `Ticker: ${t}\nHeadlines:\n${lines}` }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2048, ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}) } }),
+    });
+    if (!r.ok) return null;
+    const c = (await r.json()).candidates?.[0];
+    const text = (c?.content?.parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("").trim().replace(/\s*[\u2014\u2013]\s*/g, ", ");
+    return text && c.finishReason === "STOP" ? text : null;
+  };
+  let text = await ask().catch(() => null), guard = "passed";
+  if (text && BRIEF_BANNED.test(text)) {
+    text = await ask(`\nYour previous draft used a forbidden phrase ("${text.match(BRIEF_BANNED)[0]}"). Rewrite without it.`).catch(() => null);
+    guard = "regenerated once";
+  }
+  if (!text || BRIEF_BANNED.test(text)) return none("AI summary temporarily unavailable.");
+  const body = { status: "ok", id: hashId(`site${mode}${t}${lines}`), ticker: t, mode, text, window: "latest headlines", n: items.length,
+    counts: null, model, guard, generated_at: new Date().toISOString(), provider: "Yahoo Finance", untagged: true,
+    headlines: items.map((h) => ({ title: h.title, label: null, source: h.source })) };
+  await setJSON(`kw:get:${key}`, { status: 200, body, pushed_at: body.generated_at, site: true }, { ex: 3 * 3600 });
+  return [200, body];
+}
+
+// Sentiment vs. price for any stock: the general model's daily tags as stored in Tiger (every pushed live snapshot)
+// against the daily close. Headlines from a weekend or holiday count toward the next trading day. Grows a day at a time;
+// correlations only once there are LIVE_MIN_DAYS days with tagged headlines. DDOG and NVDA keep the FNSPID version.
+const LIVE_MIN_DAYS = 20;
+async function liveSentiment(t) {
+  if (!tigerOn || !SYM.test(t)) return null;
+  const h = await history(t, 365, "general").catch(() => null);
+  const days = (h?.days || []).filter((d) => d.Bullish + d.Bearish + d.Neutral > 0);
+  if (!days.length) return [404, { detail: `No tagged ${t} headlines stored yet; the chart starts once Oscar tags them.` }];
+  const snap = (await getJSON(`kw:get:${canonical("prices", { ticker: t, period: "1y" })}`))?.body;
+  const px = snap?.bars?.length ? snap : await yahooPrices(t, "1y");
+  if (!px?.bars?.length) return null;
+  const first = days[0].day, bars = px.bars.filter((b) => b.time >= first);
+  if (!bars.length) return [404, { detail: `No ${t} trading days since the first tagged headline (${first}) yet.` }];
+  const acc = new Map(bars.map((b) => [b.time, { b: 0, r: 0, n: 0 }]));
+  let k = 0;
+  for (const d of days) {
+    while (k < bars.length && bars[k].time < d.day) k++;
+    if (k >= bars.length) break; // after the last close: counts once the next session closes
+    const a = acc.get(bars[k].time); a.b += d.Bullish; a.r += d.Bearish; a.n += d.Bullish + d.Bearish + d.Neutral;
+  }
+  const rows = bars.map((b) => { const a = acc.get(b.time); return { time: b.time, close: b.close, score: a.n ? (a.b - a.r) / a.n : null, n: a.n }; });
+  const tagged = rows.filter((r) => r.n).length;
+  let corr_by_lag = null;
+  if (tagged >= LIVE_MIN_DAYS) {
+    const ret = rows.map((r, i) => (i ? r.close / rows[i - 1].close - 1 : null));
+    const corr = (xs, ys) => {
+      const p = xs.map((x, i) => [x, ys[i]]).filter(([x, y]) => x !== null && y !== null && isFinite(y));
+      if (p.length < 5) return null;
+      const mx = p.reduce((s, [x]) => s + x, 0) / p.length, my = p.reduce((s, [, y]) => s + y, 0) / p.length;
+      const c = p.reduce((s, [x, y]) => s + (x - mx) * (y - my), 0), vx = p.reduce((s, [x]) => s + (x - mx) ** 2, 0), vy = p.reduce((s, [, y]) => s + (y - my) ** 2, 0);
+      return vx && vy ? c / Math.sqrt(vx * vy) : null;
+    };
+    corr_by_lag = Object.fromEntries([-3, -2, -1, 0, 1, 2, 3].map((lag) => [lag, corr(rows.map((r) => r.score), rows.map((_, i) => ret[i + lag] ?? null))]));
+  }
+  return [200, { ticker: t, source: "live", start: rows[0].time, end: rows.at(-1).time, rows, tagged_days: tagged, min_days: LIVE_MIN_DAYS,
+    corr_by_lag, corr_prev_session: corr_by_lag?.["-1"] ?? null, corr_next_open_to_open: corr_by_lag?.["1"] ?? null }];
 }
 const jobKey = (id) => `kw:job:${id}`;
 
@@ -388,11 +484,13 @@ async function mirror(res, key, extra) {
   if (snap && key.startsWith("briefing?") && (snap.status >= 400 || !snap.body?.status)) // upstream (Gemini) failure
     return send(res, 200, { status: "unavailable", ticker: new URLSearchParams(key.split("?")[1]).get("ticker"),
                             message: "AI summary temporarily unavailable." });
-  if (!snap && key.startsWith("briefing?mode=advanced")) // the longer briefing appears once the worker pushes it
-    return send(res, 200, { status: "not_published", mode: "advanced", message: "Longer briefing not published yet." });
   if (!snap) {
     const fb = await liveFallback(key);
     if (fb) return send(res, fb[0], fb[1]);
+  }
+  if (!snap && key.startsWith("briefing?mode=advanced")) // the longer briefing appears once the worker pushes it
+    return send(res, 200, { status: "not_published", mode: "advanced", message: "Longer briefing not published yet." });
+  if (!snap) {
     const meta = await getJSON("kw:meta");
     return send(res, 404, { detail: `Not available on the public site yet (${key}). Tracked tickers: ${(meta?.tickers || []).join(", ") || "none pushed yet"}.` });
   }
@@ -544,6 +642,14 @@ export default async function handler(req, res) {
         keys: { FINNHUB_API_KEY: !!process.env.FINNHUB_API_KEY, GEMINI_API_KEY: !!process.env.GEMINI_API_KEY, ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY },
         history_store: tigerOn ? "tiger" : null,
       }));
+    }
+    if (route === "sentiment" && method === "GET") {
+      const key = canonical(route, req.query), snap = await getJSON(`kw:get:${key}`);
+      if (!(snap && (snap.status || 200) < 400)) {
+        const live = await liveSentiment(String(req.query.ticker || "").toUpperCase());
+        if (live) return send(res, live[0], live[1]);
+      }
+      return mirror(res, key);
     }
     if (method === "GET") return mirror(res, canonical(route, req.query));
     return send(res, 405, { detail: "method not allowed" });

@@ -6,8 +6,8 @@ const Stat = ({ k, v, cls = "text-ink" }) => (
   <div><div className="text-xs text-dim">{k}</div><div className={`mt-1 text-[17px] ${cls}`}>{v}</div></div>);
 
 export function SentimentVsPrice({ ticker, health }) {
-  const hist = health?.historical_tickers;
-  const s = useApi(health !== undefined && (!hist || hist.includes(ticker)) ? `sentiment?ticker=${ticker}` : null);
+  // FNSPID history for the cached tickers; every other stock gets the live version (Tiger daily tags vs. close)
+  const s = useApi(health !== undefined ? `sentiment?ticker=${ticker}` : null);
   const [ref, w] = useWidth();
   const d = s.data;
   const H = 170, B = 22;
@@ -30,29 +30,34 @@ export function SentimentVsPrice({ ticker, health }) {
           <text key={k} x={X(i)} y={H - 6} fontSize="11" textAnchor={k === 0 ? "start" : k === 2 ? "end" : "middle"} style={{ fill: "var(--kd-dim)" }}>{rows[i].time}</text>); })}
       </svg>
     );
-    const lags = Object.entries(d.corr_by_lag).map(([k, v]) => [Number(k), v]);
-    const prev = d.corr_by_lag["-1"], next = d.corr_by_lag["1"];
-    const past = Math.max(0, ...lags.filter(([k]) => k < 0).map(([, v]) => Math.abs(v)));
-    const fut = Math.max(0, ...lags.filter(([k]) => k > 0).map(([, v]) => Math.abs(v)));
-    finding = { lags: past > fut, prev, next };
+    if (d.corr_by_lag) {
+      const lags = Object.entries(d.corr_by_lag).filter(([, v]) => v !== null).map(([k, v]) => [Number(k), v]);
+      const prev = d.corr_by_lag["-1"], next = d.corr_by_lag["1"];
+      const past = Math.max(0, ...lags.filter(([k]) => k < 0).map(([, v]) => Math.abs(v)));
+      const fut = Math.max(0, ...lags.filter(([k]) => k > 0).map(([, v]) => Math.abs(v)));
+      finding = { lags: past > fut, prev, next };
+    }
   }
   return (
     <div>
       <H3>Sentiment vs. price</H3>
-      {hist && !hist.includes(ticker) && <p className="mt-2 text-sm text-dim">n/a: historical headlines are cached for {hist.join(", ")} only.</p>}
       <Status s={s} what="sentiment history" />
       {d && (
         <>
-          <p className="mt-2 text-sm text-dim">Daily headline sentiment against {ticker}'s close, {d.start} to {d.end} (FNSPID).</p>
+          <p className="mt-2 text-sm text-dim">{d.source === "live"
+            ? `Daily tags from our general model against ${ticker}'s close, ${d.start} to ${d.end}. ${d.tagged_days} trading ${d.tagged_days === 1 ? "day" : "days"} with tagged headlines so far.`
+            : `Daily headline sentiment against ${ticker}'s close, ${d.start} to ${d.end} (FNSPID).`}</p>
           <div ref={ref} className="mt-4 w-full">{chart}</div>
           <div className="mt-2 flex gap-4 text-xs text-dim">
             <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-amber" />Price</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 bg-up opacity-60" />Bullish day</span>
             <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 bg-down opacity-60" />Bearish day</span>
           </div>
-          <p className="mt-4 text-sm text-ink" data-testid="sentiment-caption">
-            {finding.lags ? "Sentiment tracks the previous day's move, not the next one. It lags price." : "Sentiment correlates more with the next day's move than the previous one over this window."}</p>
-          <p className="mt-1 text-xs text-dim">Correlation with the previous day's return {finding.prev?.toFixed(2) ?? "n/a"}, with the next day's {finding.next?.toFixed(2) ?? "n/a"}.</p>
+          {finding ? <>
+            <p className="mt-4 text-sm text-ink" data-testid="sentiment-caption">
+              {finding.lags ? "Sentiment tracks the previous day's move, not the next one. It lags price." : "Sentiment correlates more with the next day's move than the previous one over this window."}</p>
+            <p className="mt-1 text-xs text-dim">Correlation with the previous day's return {finding.prev?.toFixed(2) ?? "n/a"}, with the next day's {finding.next?.toFixed(2) ?? "n/a"}.</p>
+          </> : <p className="mt-4 text-xs text-dim" data-testid="sentiment-caption">The correlation with price appears after {d.min_days} trading days with tagged headlines ({d.tagged_days} so far).</p>}
         </>
       )}
     </div>
