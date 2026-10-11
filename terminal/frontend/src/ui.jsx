@@ -33,8 +33,29 @@ export const CATEGORIES = [
   { name: "Software and cloud", tickers: ["MSFT", "DDOG"] },
   { name: "Consumer tech and retail", tickers: ["AAPL", "AMZN"] },
   { name: "Cars", tickers: ["TSLA"] },
-  { name: "Crypto (prices only)", tickers: CRYPTO },
+  { name: "Crypto", tickers: CRYPTO },
 ];
+// Train password: asked once, then kept in this browser's localStorage and reused silently. Cleared when the server
+// rejects it (401) or the user picks "Forget password" in settings. Never sent anywhere but the train/reset endpoints.
+const PW_KEY = "kd.trainpw";
+const pwListeners = new Set();
+export const getPw = () => { try { return localStorage.getItem(PW_KEY) || ""; } catch { return ""; } };
+export const setPw = (v) => { try { v ? localStorage.setItem(PW_KEY, v) : localStorage.removeItem(PW_KEY); } catch { /* storage unavailable */ } pwListeners.forEach((f) => f(v || "")); };
+export function useSavedPw() {
+  const [pw, set] = useState(getPw);
+  useEffect(() => { pwListeners.add(set); return () => pwListeners.delete(set); }, []);
+  return pw;
+}
+// POST to a password-protected endpoint with the saved password; a 401 forgets it so the caller can ask again.
+export async function withPw(path, body, pw = getPw()) {
+  try {
+    return await api(path, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", "x-train-password": pw } });
+  } catch (e) {
+    if (e.status === 401) setPw("");
+    throw e;
+  }
+}
+
 export const readLocal = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 export const writeLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 

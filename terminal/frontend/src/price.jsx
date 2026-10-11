@@ -83,14 +83,14 @@ const PERIODS = [
   { k: "ALL", api: "2y", label: "past 2 years", span: "2 years", title: "All history the API serves: 2 years" },
 ];
 
-// Crypto trades every day: a week is 7 daily bars and a month 30, not 6 and 22.
-const DAYS_7 = { "1W": 7, "1M": 30 };
+// Crypto: Coinbase daily candles (2 years, fetched once) trading every day, so ranges are counted in calendar days.
+const CRYPTO_DAYS = { "1W": 7, "1M": 30, "3M": 90, "1Y": 365, "ALL": null };
 
 export function PriceBlock({ ticker, crypto = false, children }) {
   const [pk, setPk] = useState("1M");
   const base = PERIODS.find((p) => p.k === pk);
-  const per = crypto && DAYS_7[pk] ? { ...base, n: DAYS_7[pk] } : base;
-  const s = useApi(per.api ? `prices?ticker=${ticker}&period=${per.api}` : null, [ticker]);
+  const per = crypto && base.api ? { ...base, n: CRYPTO_DAYS[pk] } : base;
+  const s = useApi(!per.api ? null : crypto ? `crypto/candles?ticker=${ticker}&days=730` : `prices?ticker=${ticker}&period=${per.api}`, [ticker]);
   const bars = useMemo(() => (s.data ? (per.n ? s.data.bars.slice(-per.n) : s.data.bars) : []), [s.data, per.n]);
   const [hover, setHover] = useState(null);
   const [name, exch] = NAMES[ticker] || [ticker, null];
@@ -124,7 +124,7 @@ export function PriceBlock({ ticker, crypto = false, children }) {
               className={`border px-2 py-1 text-xs sm:px-3 ${p.k === pk ? "border-rule font-semibold text-ink" : "border-transparent text-dim hover:text-ink"} ${p.api ? "" : "opacity-60"}`}>{p.k}</button>
           ))}
         </div>
-        {chg !== null && hover === null && <span className={`text-xs ${up ? "text-up" : "text-down"}`}>{up ? "Up" : "Down"} over {per.span}</span>}
+        {chg !== null && hover === null && <span className={`text-xs ${up ? "text-up" : "text-down"}`}>{up ? "Up" : "Down"} over {per.span}{crypto ? " · Coinbase" : ""}</span>}
       </div>
       {children}
     </section>

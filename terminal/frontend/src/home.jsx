@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { CATEGORIES, CRYPTO, dominant, HOME, headlinesPath, isCrypto, NAMES, pct, Pill, short, toneClass, usd, useApi } from "./ui.jsx";
 
-// One tappable row: name on the left; live price and today's change on the right, plus the dominant headline tone for
-// stocks. Crypto rows show price only (no model output). The number is the PRICE (we have no accounts or holdings).
-// A row with no data at all is hidden.
+// One tappable row: name on the left; live price and today's change on the right, plus the dominant headline tone.
+// Crypto: Coinbase price and 24h change; the tone pill appears only once the worker pushes model tags for that coin.
+// The number is the PRICE (we have no accounts or holdings). A row with no data at all is hidden.
 function Row({ ticker, onOpen, onHide }) {
   const crypto = isCrypto(ticker);
-  const p = useApi(`prices?ticker=${ticker}&period=3mo`);
-  const h = useApi(crypto ? null : headlinesPath(ticker));
+  const p = useApi(crypto ? `crypto/quote?ticker=${ticker}` : `prices?ticker=${ticker}&period=3mo`);
+  const h = useApi(crypto ? `crypto/news?ticker=${ticker}` : headlinesPath(ticker));
   const dead = crypto ? !!p.err : !!(p.err && h.err);
   if (dead) { onHide?.(ticker); return null; }
   const tone = h.data ? dominant(h.data.items) : null;
+  const change = p.data ? (crypto ? p.data.change_24h : p.data.change_1d) : null;
+  const showPill = crypto ? !!(h.data?.tagged && tone) : !h.loading;
   return (
     <li>
       <button onClick={() => onOpen(ticker)} data-testid="home-row" data-ticker={ticker}
@@ -23,9 +25,9 @@ function Row({ ticker, onOpen, onHide }) {
         <span className="flex shrink-0 flex-col items-end gap-1">
           <span className="text-[15px] font-semibold text-ink" data-testid="row-price">{p.data ? usd(p.data.last) : p.loading ? "…" : "n/a"}</span>
           <span className="flex items-center gap-2">
-            {!crypto && !h.loading && <Pill label={tone} />}
-            <span className={`w-16 text-right text-xs ${p.data ? toneClass(p.data.change_1d) : "text-dim"}`} data-testid="row-change">
-              {p.data ? pct(p.data.change_1d, 2) : p.loading ? "" : "n/a"}</span>
+            {showPill && <Pill label={tone} />}
+            <span className={`w-16 text-right text-xs ${p.data ? toneClass(change) : "text-dim"}`} data-testid="row-change">
+              {p.data ? pct(change, 2) : p.loading ? "" : "n/a"}</span>
           </span>
         </span>
       </button>
@@ -62,7 +64,7 @@ export function Home({ onOpen, list, onEdit, onReplay }) {
         note="Price and today's change, with the dominant tone of recent headlines."
         right={list.length === 0 ? <button onClick={onEdit} className="text-xs text-amber hover:underline">Build your list</button> : null} />
       <Section title="Crypto" label="Crypto" tickers={CRYPTO} onOpen={onOpen} empty="Crypto prices: n/a right now."
-        note="Prices and headlines only. No sentiment model runs on crypto." />
+        note="Coinbase price and 24h change." />
       <button onClick={onReplay} className="mt-10 block w-full border border-line px-4 py-3 text-left hover:bg-card" data-testid="replay-link">
         <span className="font-serif text-[17px] text-ink">Replay</span>
         <span className="mt-0.5 block text-xs text-dim">Re-run the model on a past day's headlines and see what it would have said.</span>

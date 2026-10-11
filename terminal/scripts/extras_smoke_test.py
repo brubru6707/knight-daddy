@@ -46,19 +46,70 @@ with sync_playwright() as p:
         check("crypto rows are BTC, ETH, SOL only", set(rows) <= set(CRYPTO), ", ".join(rows))
         prices = sec.locator("[data-testid=row-price]").all_inner_texts()
         check("crypto rows show a price or n/a", all(re.fullmatch(r"\$[0-9,]+\.\d\d|n/a", x) for x in prices), ", ".join(prices))
-        check("crypto rows carry no sentiment pill", sec.locator("[data-testid=pill]").count() == 0)
+        tagged = {t: pg.request.get(f"{url}/api/crypto/news?ticker={t}").json().get("tagged", False)
+                  if pg.request.get(f"{url}/api/crypto/news?ticker={t}").ok else False for t in rows}
+        check("crypto pill only when the worker pushed tags (hidden, not n/a)",
+              sec.locator("[data-testid=pill]").count() == sum(tagged.values()) and "n/a" not in " ".join(sec.locator("[data-testid=pill]").all_inner_texts()))
         sec.locator("[data-testid=home-row]").first.click()
         cd = pg.locator("[data-testid=crypto-detail]"); cd.wait_for(timeout=30_000)
         pg.locator("[data-testid=headline]").first.or_(pg.locator("text=No headlines found.")).or_(pg.locator("text=/Headlines: n\\/a/")).first.wait_for(timeout=60_000)
         check("crypto detail: price and headlines only",
               all(pg.locator(x).count() == 0 for x in ("[data-testid=confidence]", "section[aria-label=Briefing]", "section[aria-label=Fine-tune]", "section[aria-label='Advanced research']")))
-        check("crypto headlines carry no model tags",
-              pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count() == 0)
+        tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
+        cap = pg.locator("[data-testid=crypto-caption]")
+        check("crypto tags appear only with the 'not yet validated on crypto' caption",
+              (tags == 0 and cap.count() == 0) or (tags > 0 and cap.inner_text() == "Tagged by our general news model, not yet validated on crypto."))
+        pg.locator("text=/Coinbase/").first.wait_for(timeout=30_000)
+        check("crypto chart from Coinbase", pg.locator("[aria-label='Price chart']").count() == 1)
+        check("no confidence n/a on crypto", pg.locator("[data-testid=confidence-na]").count() == 0)
         copy_rules(pg, "(crypto)")
         pg.screenshot(path=f"{out}_crypto.png", full_page=True)
         pg.locator("[data-testid=back]").click(); pg.locator("section[aria-label=Stocks]").wait_for(timeout=15_000)
     else:
         check("crypto section shows n/a when no prices are published", True, sec.locator("[data-testid=section-na]").inner_text())
+
+    # ---- settings ----
+    pg.locator("[data-testid=settings]").click()
+    panel = pg.locator("[data-testid=settings-panel]"); panel.wait_for(timeout=10_000)
+    try:  # wait for the per-stock active models to arrive (they stay n/a only if the API cannot answer)
+        pg.wait_for_function("[...document.querySelectorAll('[data-testid=settings-models] li')].every(li => !li.innerText.endsWith('n/a'))", timeout=15_000)
+    except Exception:
+        pass
+    models = panel.locator("[data-testid=settings-models] li").all_inner_texts()
+    check("settings: active model per stock", len(models) == 6 and all(re.search(r"(general|specialist|n/a)$", m) for m in models), "; ".join(m.replace("\n", " ") for m in models))
+    check("settings: reset all stocks button", panel.locator("text=Reset all stocks to general model").count() == 1)
+    check("settings: password not saved yet", panel.locator("[data-testid=pw-state]").inner_text().startswith("Not saved"))
+    panel.locator("text=Change train password").click()
+    panel.locator("input[aria-label='New train password']").fill("placeholder-not-real"); panel.locator("button:has-text('Save')").click()
+    check("settings: change train password saves it on this device", panel.locator("[data-testid=pw-state]").inner_text().startswith("Saved"))
+    panel.locator("text=Forget password").click()
+    check("settings: forget password clears it", panel.locator("[data-testid=pw-state]").inner_text().startswith("Not saved")
+          and pg.evaluate("localStorage.getItem('kd.trainpw')") is None)
+    pg.keyboard.press("Escape")
+
+    # ---- password once (train endpoint intercepted: nothing reaches the real site, no job is created) ----
+    seen = []
+    def fake_train(route):
+        pw = route.request.headers.get("x-train-password", "")
+        seen.append(pw)
+        ok = pw == "pw-test-A" and len(seen) < 3
+        route.fulfill(status=200 if ok else 401, json={"ticker": "NVDA", "job": "test"} if ok else {"detail": "Wrong train password."})
+    pg.route("**/api/specialist/train", fake_train)
+    pg.route("**/api/specialist/status?*", lambda r: r.fulfill(json={"phase": "done", "step": 75, "total_steps": 75, "elapsed_s": 48}))
+    pg.route("**/api/health", lambda r: r.fulfill(json={"mode": "vercel", "worker_online": True, "train_password_required": True, "keys": {}}))
+    pg.route("**/api/specialist/info", lambda r: r.fulfill(json={"supported": ["NVDA"]}))
+    pg.goto(f"{url}/?t=NVDA"); ft = pg.locator("section[aria-label=Fine-tune]")
+    ft.locator("button:has-text('Fine-tune to this stock')").click()
+    ft.locator("input[aria-label='Train password']").fill("pw-test-A"); ft.locator("button:has-text('Start')").click()
+    pg.wait_for_timeout(1500)
+    check("password asked the first time, then saved", pg.evaluate("localStorage.getItem('kd.trainpw')") == "pw-test-A")
+    pg.reload(); ft.locator("button:has-text('Fine-tune to this stock')").click(); pg.wait_for_timeout(1500)
+    check("saved password reused silently", ft.locator("input[aria-label='Train password']").count() == 0 and seen[-1] == "pw-test-A", f"{len(seen)} calls")
+    ft.locator("button:has-text('Fine-tune to this stock')").click(); pg.wait_for_timeout(1500)  # server now rejects it
+    check("a rejected password is forgotten and asked again",
+          ft.locator("input[aria-label='Train password']").count() == 1 and pg.evaluate("localStorage.getItem('kd.trainpw')") is None)
+    pg.unroute("**/api/specialist/train"); pg.unroute("**/api/specialist/status?*"); pg.unroute("**/api/health"); pg.unroute("**/api/specialist/info")
+    pg.goto(url)
 
     # ---- replay ----
     pg.locator("[data-testid=nav-replay]").click()
@@ -90,5 +141,6 @@ with sync_playwright() as p:
     copy_rules(pg, "(replay)")
     pg.screenshot(path=f"{out}_replay.png", full_page=True)
     b.close()
-errors[:] = [e for e in errors if "404" not in e] if not pairs else errors  # /api/replay/available 404s until Oscar publishes
+# /api/replay/available 404s until Oscar publishes; the intercepted wrong-password check logs a deliberate 401
+errors[:] = [e for e in errors if "401" not in e and (pairs or "404" not in e)]
 sys.exit(finish())

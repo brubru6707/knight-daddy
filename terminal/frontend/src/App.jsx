@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdvancedResearch } from "./advanced.jsx";
-import { Briefing, ConfidenceBar } from "./ai.jsx";
+import { Briefing, ConfidenceBar, ProbBar } from "./ai.jsx";
 import { FineTune } from "./finetune.jsx";
 import { Home, Onboarding } from "./home.jsx";
-import { Competitors, Headlines } from "./news.jsx";
+import { Competitors, CryptoNews, Headlines } from "./news.jsx";
 import { PriceBlock } from "./price.jsx";
 import { Replay } from "./replay.jsx";
+import { Settings } from "./settings.jsx";
 import { api, CRYPTO, HOME, isCrypto, NAMES, readLocal, writeLocal } from "./ui.jsx";
 
 // Screens: home list (/), ticker detail (/?t=NVDA), replay (/replay?t=NVDA&d=2023-08-01). The URL carries the state
@@ -20,7 +21,7 @@ const routeFromUrl = () => {
 const urlOf = (r) => (r.page === "replay" ? `/replay${r.t ? `?t=${r.t}${r.d ? `&d=${r.d}` : ""}` : ""}` : r.page === "detail" ? `/?t=${encodeURIComponent(r.t)}` : "/");
 const SUPPORTED = [...HOME, ...CRYPTO];
 
-function Header({ onHome, onPick, onReplay, dark, setDark }) {
+function Header({ onHome, onPick, onReplay, dark, setDark, current, onModelChange }) {
   const [q, setQ] = useState("");
   const input = useRef(null);
   useEffect(() => {
@@ -31,7 +32,7 @@ function Header({ onHome, onPick, onReplay, dark, setDark }) {
   const submit = (e) => { e.preventDefault(); const t = q.trim().toUpperCase(); if (t) { onPick(t); setQ(""); input.current?.blur(); } };
   return (
     <header className="sticky top-0 z-20 border-b border-rule bg-ground">
-      <div className="mx-auto grid h-14 max-w-[720px] grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 px-4 sm:h-16 sm:gap-3 sm:px-6">
+      <div className="mx-auto grid h-14 max-w-[720px] grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-1.5 px-4 sm:h-16 sm:gap-3 sm:px-6">
         <button onClick={onHome} className="flex items-center gap-2 text-[15px] font-semibold text-amber" title="Knight-Daddy home">
           <img src="/favicon.svg" alt="" className="h-5 w-5" /><span className="hidden sm:inline">Knight-Daddy</span></button>
         <form onSubmit={submit} className="relative">
@@ -43,25 +44,26 @@ function Header({ onHome, onPick, onReplay, dark, setDark }) {
         <button onClick={onReplay} className="px-1 text-sm text-dim hover:text-ink" data-testid="nav-replay">Replay</button>
         <button onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
           className="h-9 w-9 text-dim hover:text-ink">{dark ? "☀" : "☾"}</button>
+        <Settings current={current} onChanged={onModelChange} />
       </div>
     </header>
   );
 }
 
-// Crypto: price and untagged headlines only. No model output, no fine-tune.
+// Crypto: Coinbase price chart and crypto headlines (tags only once the worker pushes them). No fine-tune.
 function CryptoDetail({ ticker, onBack }) {
   return (
     <div className="mx-auto max-w-[720px] px-4 pb-12 pt-4 sm:px-6 sm:pt-6" data-testid="crypto-detail">
       <button onClick={onBack} className="-ml-1 mb-5 flex items-center gap-1.5 px-1 py-2 text-sm text-dim hover:text-ink" data-testid="back">
         <span aria-hidden>‹</span> Back to stocks</button>
       <PriceBlock key={ticker} ticker={ticker} crypto />
-      <Headlines key={`h-${ticker}`} ticker={ticker} model="none" />
+      <CryptoNews key={`n-${ticker}`} ticker={ticker} Bar={ProbBar} />
       <footer className="mt-16 border-t border-rule pt-4 text-xs text-dim">News sentiment, not investment advice.</footer>
     </div>
   );
 }
 
-function Detail({ ticker, onBack, onPick }) {
+function Detail({ ticker, onBack, onPick, modelVersion }) {
   const [health, setHealth] = useState(null);
   const [info, setInfo] = useState(null);
   const [active, setActive] = useState("general");
@@ -70,7 +72,7 @@ function Detail({ ticker, onBack, onPick }) {
     api("health").then(setHealth).catch(() => setHealth(null));
     api("specialist/info").then(setInfo).catch(() => setInfo(null));
     api(`specialist/active?ticker=${ticker}`).then((d) => setActive(d.active === "specialist" ? "specialist" : "general")).catch(() => setActive("general"));
-  }, [ticker, specVersion]);
+  }, [ticker, specVersion, modelVersion]);
   return (
     <div className="mx-auto max-w-[720px] px-4 pb-12 pt-4 sm:px-6 sm:pt-6">
       <button onClick={onBack} className="-ml-1 mb-5 flex items-center gap-1.5 px-1 py-2 text-sm text-dim hover:text-ink" data-testid="back">
@@ -93,6 +95,7 @@ export default function App() {
   const [list, setList] = useState(() => readLocal("kd.list", []).filter((t) => SUPPORTED.includes(t)));
   const [onboarded, setOnboarded] = useState(() => readLocal("kd.onboarded", false));
   const [editing, setEditing] = useState(false);
+  const [modelVersion, setModelVersion] = useState(0); // bumped when settings reset a model
   const [dark, setDarkState] = useState(() => document.documentElement.classList.contains("dark"));
   const setDark = (d) => {
     setDarkState(d);
@@ -123,13 +126,14 @@ export default function App() {
   let page;
   if (route.page === "replay") page = <Replay ticker={route.t} date={route.d} onBack={() => go(home)} onPick={(t, d) => go({ page: "replay", t, d }, true)} />;
   else if (route.page === "detail") page = isCrypto(route.t) ? <CryptoDetail ticker={route.t} onBack={back} />
-    : <Detail ticker={route.t} onBack={back} onPick={(t) => go({ page: "detail", t })} />;
+    : <Detail ticker={route.t} onBack={back} onPick={(t) => go({ page: "detail", t })} modelVersion={modelVersion} />;
   else if (!onboarded || editing) page = <Onboarding initial={list} onDone={finishOnboarding} onSkip={() => finishOnboarding(editing ? list : [])} />;
   else page = <Home onOpen={open} list={list} onEdit={() => setEditing(true)} onReplay={() => go({ page: "replay" })} />;
 
   return (
     <div className="min-h-screen">
-      <Header onHome={() => go(home)} onPick={open} onReplay={() => go({ page: "replay" })} dark={dark} setDark={setDark} />
+      <Header onHome={() => go(home)} onPick={open} onReplay={() => go({ page: "replay" })} dark={dark} setDark={setDark}
+        current={route.page === "detail" ? route.t : null} onModelChange={() => setModelVersion((v) => v + 1)} />
       {page}
     </div>
   );

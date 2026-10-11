@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "./ui.jsx";
+import { api, setPw as savePw, useSavedPw, withPw } from "./ui.jsx";
 
 const PHASES = {
   queued: "Queued, waiting for the Oscar GPU", "waiting for GPU": "Waiting for the Oscar GPU", starting: "Starting",
@@ -10,10 +10,11 @@ const clock = (s) => (s === null || s === undefined ? null : s >= 60 ? `${Math.f
 
 // Fine-tune a ticker specialist through the password-protected train endpoint. Every run starts from a fresh copy of the
 // general model on Oscar (never from an earlier specialist). Progress and elapsed time come from /api/specialist/status,
-// polled every 2 s. The train password lives in React state only (never stored).
+// polled every 2 s. The train password is asked once, then saved in this browser and reused; a 401 asks again.
 export function FineTune({ ticker, health, info, active, onActive, onTrained }) {
   const [st, setSt] = useState(null);
   const [err, setErr] = useState(null);
+  const saved = useSavedPw();
   const [pw, setPw] = useState("");
   const [ask, setAsk] = useState(null); // "train" | "quick" | "reset" while the password box is open
   const timer = useRef(null);
@@ -45,23 +46,24 @@ export function FineTune({ ticker, health, info, active, onActive, onTrained }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker]);
 
-  const headers = () => ({ "content-type": "application/json", ...(needPw ? { "x-train-password": pw } : {}) });
-  const run = async (what) => {
+  const run = async (what, typed = "") => {
     setErr(null);
-    if (needPw && !pw) { setAsk(what); return; }
+    const key = typed || saved;
+    if (needPw && !key) { setAsk(what); return; }
     try {
       if (what === "reset") {
-        const r = await api("specialist/reset", { method: "POST", body: JSON.stringify({ ticker }), headers: headers() });
+        const r = await withPw("specialist/reset", { ticker }, key);
         onActive?.(r.active);
       } else {
         const quick = what === "quick";
-        await api("specialist/train", { method: "POST", body: JSON.stringify({ ticker, quick }), headers: headers() });
+        await withPw("specialist/train", { ticker, quick }, key);
         setSt({ phase: needPw ? "queued" : "starting", step: 0, total_steps: null, quick });
         follow();
       }
-      setAsk(null);
+      if (typed) savePw(typed); // accepted: remember it on this device
+      setAsk(null); setPw("");
     } catch (e) {
-      if (e.status === 401) { setPw(""); setAsk(what); }
+      if (e.status === 401) { setPw(""); setAsk(what); setErr("Wrong train password. Enter it again."); return; }
       setErr(e.message);
     }
   };
@@ -91,7 +93,7 @@ export function FineTune({ ticker, health, info, active, onActive, onTrained }) 
         )}
       </div>
       {ask && !running && (
-        <form className="mt-3 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (pw) run(ask); }}>
+        <form className="mt-3 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (pw) run(ask, pw); }}>
           <input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Train password" aria-label="Train password"
             className="w-56 border border-line bg-ground px-3 py-1.5 text-sm text-ink outline-none focus:border-amber" />
           <button className="bg-amber px-3 py-1.5 text-sm font-semibold text-ground disabled:opacity-40" disabled={!pw}>

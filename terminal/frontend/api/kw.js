@@ -38,6 +38,58 @@ function routeOf(req) {
 }
 
 const send = (res, code, body) => res.status(code).json(body);
+
+// ---------- crypto (display rows): Coinbase Exchange public API, no key ----------
+const COINS = { "BTC-USD": ["Bitcoin", "BTC"], "ETH-USD": ["Ethereum", "Ether", "ETH"], "SOL-USD": ["Solana", "SOL"] };
+const CB = "https://api.exchange.coinbase.com/products";
+async function cb(path) {
+  const r = await fetch(`${CB}/${path}`, { headers: { "user-agent": "knight-daddy" } });
+  if (!r.ok) throw new Error(`Coinbase HTTP ${r.status}`);
+  return r.json();
+}
+const cache = (res, s) => res.setHeader("cache-control", `public, s-maxage=${s}, stale-while-revalidate=${s * 4}`);
+
+// Price and 24h change (last vs the price 24 hours ago).
+async function cryptoQuote(t) {
+  const st = await cb(`${t}/stats`);
+  const last = Number(st.last), open = Number(st.open);
+  return { ticker: t, source: "Coinbase", last, open_24h: open, change_24h: open ? last / open - 1 : null, high_24h: Number(st.high), low_24h: Number(st.low) };
+}
+
+// Daily candles, oldest first, in the same {time, open, high, low, close, volume} shape as /api/prices.
+// Coinbase returns at most 300 candles per call, so longer spans are fetched in pieces.
+async function cryptoCandles(t, days) {
+  const end = Math.floor(Date.now() / 1000), out = new Map();
+  for (let to = end; to > end - days * 86400; to -= 300 * 86400) {
+    const from = Math.max(end - days * 86400, to - 300 * 86400);
+    const rows = await cb(`${t}/candles?granularity=86400&start=${new Date(from * 1000).toISOString()}&end=${new Date(to * 1000).toISOString()}`);
+    for (const [ts, low, high, open, close, volume] of rows) out.set(ts, { time: new Date(ts * 1000).toISOString().slice(0, 10), open, high, low, close, volume });
+  }
+  const bars = [...out.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b);
+  if (!bars.length) throw new Error("no candles");
+  return { ticker: t, source: "Coinbase", days, bars, last: bars.at(-1).close, change_period: bars.at(-1).close / bars[0].close - 1 };
+}
+
+// Crypto headlines: the worker's model-tagged snapshot when Oscar pushes one, else Finnhub's crypto news (only if
+// FINNHUB_API_KEY is set here), else the worker's untagged snapshot. Always filtered to headlines naming the coin.
+async function cryptoNews(t) {
+  const snap = async (model) => (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model })}`))?.body;
+  const tagged = await snap("general");
+  if (tagged?.items?.length) return { ...tagged, tagged: tagged.items.some((i) => i.label) };
+  if (process.env.FINNHUB_API_KEY) {
+    const r = await fetch("https://finnhub.io/api/v1/news?category=crypto", { headers: { "X-Finnhub-Token": process.env.FINNHUB_API_KEY } });
+    if (r.ok) {
+      const pat = new RegExp(`\\b(${COINS[t].join("|")})\\b`, "i");
+      const all = await r.json();
+      const items = all.filter((n) => n.headline && pat.test(n.headline)).sort((a, b) => b.datetime - a.datetime)
+        .map((n) => ({ title: n.headline.trim(), source: n.source || "", url: n.url || "", time: new Date(n.datetime * 1000).toISOString() }));
+      return { ticker: t, provider: "Finnhub", filter_note: `${items.length} of ${all.length} Finnhub crypto headlines name ${COINS[t][0]}; showing only those`, items, tagged: false };
+    }
+  }
+  const plain = await snap("none");
+  if (plain?.items) return { ...plain, tagged: false };
+  return null;
+}
 const jobKey = (id) => `kw:job:${id}`;
 
 async function activeJob() {
@@ -237,6 +289,24 @@ export default async function handler(req, res) {
       return mirror(res, "specialist/info", () => ({ busy: !!job, busy_with: job ? "train" : null }));
     }
     if (route === "specialist/stream") return send(res, 410, { detail: "Use /api/specialist/status (polling) on the public site." });
+    if (route.startsWith("crypto/") && method === "GET") {
+      const t = String(req.query.ticker || "").toUpperCase();
+      if (!COINS[t]) return send(res, 400, { detail: `Crypto rows: ${Object.keys(COINS).join(", ")}.` });
+      try {
+        if (route === "crypto/quote") { cache(res, 30); return send(res, 200, await cryptoQuote(t)); }
+        if (route === "crypto/candles") {
+          const days = Math.min(730, Math.max(7, parseInt(req.query.days, 10) || 90));
+          cache(res, 300); return send(res, 200, await cryptoCandles(t, days));
+        }
+        if (route === "crypto/news") {
+          const n = await cryptoNews(t);
+          return n ? (cache(res, 120), send(res, 200, n)) : send(res, 404, { detail: "No crypto headlines published yet." });
+        }
+      } catch (e) {
+        return send(res, 502, { detail: "Crypto data source unavailable right now." });
+      }
+      return send(res, 404, { detail: "unknown crypto route" });
+    }
     if (route === "briefing/audio" && method === "GET") return briefingAudio(req, res);
     if (route === "history" && method === "GET") {
       if (!tigerOn) return send(res, 503, { detail: "History store not connected (no TIGER_DB_URL)." });

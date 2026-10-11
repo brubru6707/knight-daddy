@@ -67,9 +67,10 @@ def urls_for(client, t):
 
 
 def crypto_urls(t):
-    # crypto is display only: prices and headlines with model=none (no tags, no probabilities, no briefing)
-    return [f"prices?ticker={t}&period={per}" for per in ("3mo", "6mo", "1y", "2y")] + \
-           [f"headlines?ticker={t}&source=live&limit=40&model=none"]
+    # crypto: prices come from Coinbase via the site itself; the worker pushes headlines untagged (model=none) and
+    # tagged by the general news model (model=general: per-headline labels plus p_bearish/p_neutral/p_bullish).
+    # The apps caption the tags "not yet validated on crypto". No briefing, no fine-tune.
+    return [f"headlines?ticker={t}&source=live&limit=40&model={m}" for m in ("none", "general")]
 
 
 def replay_groups(client):
