@@ -1,0 +1,240 @@
+# Round 3 (2026-10-11 UTC, Amendment 2 feeds). Labels from headline text only. X = excluded, reason after '#'.
+rss-UToday-6190b0c3c0 N
+rss-UToday-97c6b602c4 U
+rss-UToday-7ae1d6d46c N
+rss-UToday-9ab7b2d688 N
+rss-UToday-9b5f7487a8 U
+rss-UToday-1d0d6d2232 N
+rss-UToday-c2a17047e1 U
+rss-UToday-7fd20ac376 U
+rss-UToday-2edd341958 N
+rss-UToday-755a946f38 D
+rss-UToday-c563c93592 U
+rss-UToday-536767ecc9 U
+rss-UToday-795748e504 U
+rss-UToday-455f74edcc U
+rss-UToday-3ed1230e31 N
+rss-UToday-9f080e56c3 N
+rss-UToday-372f8bc679 N
+rss-UToday-ec863eed5a U
+rss-UToday-501e3300af N
+rss-UToday-5308fad555 U
+rss-UToday-0aa0873375 U
+rss-UToday-c6a4e491e1 U
+rss-UToday-02578c6fe4 N
+rss-UToday-3afd481287 U
+rss-UToday-96fe5ca5bf U
+rss-UToday-51e4ecbfce U
+rss-UToday-c34028075e N
+rss-UToday-2c4e687a1f N
+rss-UToday-21012d77d0 D
+rss-UToday-bc8870629e N
+rss-UToday-0c9c6470ae D
+rss-UToday-6e3edd1be0 D
+rss-UToday-d068fe66e4 U
+rss-UToday-07f7fadce2 U
+rss-UToday-2b6cdee390 N
+rss-UToday-857b762e50 N
+rss-UToday-4acb0f463c U
+rss-UToday-e9b2039e58 N
+rss-UToday-fe453c520e U
+rss-UToday-95e62f00a3 U
+rss-UToday-4966c9d47c D
+rss-UToday-74bd1a97f7 U
+rss-UToday-99d6ddfd8a X # dup of fh-8590812 (bunker mode)
+rss-UToday-f2a79c88bf N
+rss-UToday-bd6327e482 X # dup of fh-8590596 (US govt moves seized crypto)
+rss-UToday-642ae6425d D
+rss-TheBlock-ed1c798f78 X # dup of rss-Decrypt-954be1d3a3 (Vitalik on AI threat)
+rss-UToday-9bc7ef1b8c U
+rss-UToday-22063e0efe X # dup of fh-8590156 (Samsung)
+rss-TheBlock-30c5b02cb6 X # dup of fh-8590046 (Standard Chartered)
+rss-UToday-4f0ad43aaa X # dup of fh-8590045 (NEAR top 20)
+rss-UToday-88fbca762d D
+rss-TheBlock-dd8524ebc3 X # dup of fh-8590812 (bunker mode)
+rss-CryptoPotato-b43dcc1b22 N
+rss-UToday-79b5cb61d4 N
+rss-UToday-0cf8401889 D
+rss-CryptoPotato-47957576d6 X # press release (product launch)
+rss-CryptoPotato-418b6b22d0 X # sponsored (company data release)
+rss-UToday-27cbd3b286 N
+rss-CryptoPotato-dccd3c4dc3 X # off-topic (product review)
+rss-UToday-0f2a887a63 N
+rss-UToday-ce04e9cda9 N
+rss-CryptoPotato-f03cb225df U
+rss-UToday-b67081a5c3 U
+rss-TheBlock-d4f96a0c17 X # dup of fh-8591148 (Securitize)
+rss-TheBlock-37250443d5 D
+rss-UToday-3e55272bd1 D
+rss-UToday-1763c27f48 U
+rss-UToday-2009511554 D
+rss-CryptoPotato-e58e057146 X # dup of fh-8592104 (Oct 8 selloff)
+rss-TheBlock-8f3dac3fbf D
+rss-UToday-eb6b217694 X # dup of fh-8591148 (Securitize)
+rss-TheBlock-4f6fdf1a77 N
+rss-TheBlock-8e613deaf3 D
+rss-TheBlock-4d8d5b33ba X # off-topic (NFL, prediction markets)
+rss-UToday-9bf16ba872 N
+rss-CryptoPotato-8610dcb43b D
+rss-NewsBTC-7ab1416f64 X # dup of fh-8590816 (Hashi)
+rss-Bitcoinist-9274201af7 X # promotional (trading competition)
+rss-CryptoPotato-77dd6521e8 X # dup of fh-8590045 (NEAR top 20)
+rss-CryptoPotato-177d22751a N
+rss-TheBlock-a218f84dc6 U
+rss-NewsBTC-8a20d250c5 N
+rss-Bitcoinist-5bb4c352fe N
+rss-UToday-49a51b4e09 N
+rss-BitcoinMagazine-8f62393311 U
+rss-NewsBTC-7086762b9e X # dup of fh-8589936 (ETF outflows)
+rss-Bitcoinist-bdf81d0fc7 X # press release (Hyperscale Data)
+rss-CryptoPotato-062024d8c7 D
+rss-UToday-5ffb547856 D
+rss-NewsBTC-ea8f319d8d U
+rss-Bitcoinist-ec9268cb4a X # promotional (referral rewards)
+rss-NewsBTC-6c046a2cbc N
+rss-Bitcoinist-4fafba0f6f N
+rss-CryptoPotato-3fbe955231 X # dup of fh-8590156 (Samsung)
+rss-NewsBTC-4943a56b02 X # press release (miner update)
+rss-Bitcoinist-f23562acbd N
+rss-NewsBTC-1bbf7d0030 N
+rss-Bitcoinist-f7f8a0e174 U
+rss-NewsBTC-bb3fb652a3 X # press release (partnership)
+rss-Bitcoinist-d0a1ad0f93 N
+rss-UToday-e957083a7a D
+rss-CryptoPotato-44ac4a69e2 X # dup of fh-8589726 (Ripple financing)
+rss-CryptoNews-e608ce7872 X # dup of fh-8595563 (DWF v BitGo)
+rss-UToday-df3a9daae9 N
+rss-CryptoNews-c3c4fb4776 X # dup of fh-8593763 (Thailand ETFs)
+rss-CryptoNews-0c2f58adad X # dup of fh-8593450 (Cantor, Tether)
+rss-CryptoNews-406fdade38 X # dup of fh-8595119 (France stablecoin tax)
+rss-CryptoPotato-a1907aa8dc X # dup of fh-8590365 (ESMA stablecoins)
+rss-CryptoNews-8a4ec5bbb6 N
+rss-CryptoNews-000fc264b5 X # off-topic (US science budget, excluded in round 1)
+rss-CryptoNews-55cef488bd X # dup of fh-8593865 (Bitcoin rebounds, Iran)
+rss-CryptoNews-5b5efe41f0 X # dup of fh-8594902 (MARA transfer)
+rss-CryptoNews-ddf969e415 X # dup of fh-8594172 (Anthropic scanner)
+rss-UToday-1786c0cbc3 D
+rss-CryptoPotato-bc43fbd9e5 N
+rss-UToday-b38133b76c X # dup of fh-8594482 (ETH liquidations)
+rss-CryptoNews-ef1e76be40 X # dup of fh-8590365 (ESMA stablecoins)
+rss-CryptoPotato-bc3287055b N
+rss-UToday-ca56f2c8da N
+rss-CryptoNews-ede8c346d4 U
+rss-CryptoPotato-56281a2993 D
+rss-CryptoNews-aee17cdde5 U
+rss-CryptoNews-bcc8f782e2 X # dup of fh-8591148 (Securitize)
+rss-CryptoNews-72407279ed X # dup of fh-8594903 (Meanwhile)
+rss-CryptoNews-20512fac97 U
+rss-UToday-f932dea852 X # dup of fh-8594482 ($1B liquidations)
+rss-TheBlock-a2e6c24047 X # dup of fh-8594903 (Meanwhile)
+rss-NewsBTC-056352a359 X # press release (exchange collaboration)
+rss-CryptoNews-387ff01f2c D
+rss-UToday-5e005b616c U
+rss-TheBlock-660b8c462b X # dup of fh-8593763 (Thailand ETFs)
+rss-CryptoNews-38951685bd X # dup of fh-8595221 (ESMA tokenized collateral)
+rss-CryptoPotato-a016ac9569 X # dup of rss-UToday-df3a9daae9 (Hoskinson v Vitalik)
+rss-CryptoNews-006637a337 X # off-topic (marketing)
+rss-CryptoNews-bcedc3f3c0 X # dup of fh-8595234 (UK sanctions)
+rss-CryptoNews-1b57772570 X # dup of rss-UToday-df3a9daae9 (Hoskinson v Vitalik)
+rss-CryptoNews-090eb7082f X # dup of fh-8595564 (Zcash quantum)
+rss-CryptoNews-dc898a6156 X # dup of fh-8593450 (Cantor, Tether)
+rss-UToday-172b01a143 U
+rss-UToday-ddacd05357 D
+rss-UToday-53a9d0079c N
+rss-CryptoPotato-5f663d6cdf D
+rss-TheBlock-2dd5dc00e4 N
+rss-BitcoinMagazine-1a2ec4c4ad U
+rss-BitcoinMagazine-9fa8b62934 X # interview/podcast
+rss-UToday-dd43b26902 N
+rss-BitcoinMagazine-e4b1e328b6 N
+rss-BitcoinMagazine-65ee07ee45 X # interview/podcast
+rss-CryptoNews-9bebfa498c X # dup of fh-8594480 (Solana block times)
+rss-CryptoPotato-78ea160dfa D
+rss-CryptoPotato-fd5f0853c5 N
+rss-CryptoNews-82255eb04d X # off-topic (sports prediction markets)
+rss-TheBlock-4d533d0e63 X # dup of fh-8596309 (Mashinsky)
+rss-CryptoNews-f73fb1c73b U
+rss-TheBlock-f260e22fb1 X # dup of fh-8597234 (Iran seizure)
+rss-CryptoPotato-c01d4fbb06 X # roundup
+rss-TheBlock-2f26afb5e7 X # dup of fh-8596310 (Ledger)
+rss-UToday-3f1ea705f5 X # dup of fh-8596310 (Ledger)
+rss-UToday-beafecd2c4 U
+rss-CryptoNews-693a711fa7 D
+rss-UToday-91654838a5 D
+rss-UToday-fd16407cc2 U
+rss-CryptoNews-b37845f63c D
+rss-TheBlock-077b9cd3e8 X # dup of fh-8596413 (Blockchain.com)
+rss-CryptoNews-6548f2c90e N
+rss-BitcoinMagazine-62412d7291 X # dup of fh-8596310 (Ledger)
+rss-CryptoPotato-02e6736f52 U
+rss-BitcoinMagazine-6ce6ae1a76 X # dup of fh-8594488 (ETF outflows)
+rss-UToday-1379ec49d2 X # dup of fh-8596310 (Ledger)
+rss-CryptoNews-c6a68ec5b5 U
+rss-CryptoNews-a5c8e97eac U
+rss-CryptoPotato-ba6e0ec56c U
+rss-CryptoNews-e8b2b0cfdb D
+rss-UToday-53c1f6bb25 D
+rss-TheBlock-6a8cf43673 X # off-topic (Netflix series)
+rss-CryptoNews-764b5e5794 X # dup of fh-8591475 (exposed keys)
+rss-CryptoNews-32017735f1 N
+rss-BitcoinMagazine-c8cd21d0f9 X # off-topic (how-to guide)
+rss-CryptoNews-a1e14c548c U
+rss-BitcoinMagazine-dea04949b1 X # dup of fh-8597234 (Iran seizure)
+rss-CryptoPotato-e7d8cca4e7 X # dup of rss-UToday-1786c0cbc3 (Binance Brazil)
+rss-CryptoNews-bdfbcf180b U
+rss-UToday-25e4ed8cbd D
+rss-CryptoNews-dceff9c961 X # dup of fh-8597234 (Iran seizure)
+rss-CryptoNews-c90db3a987 X # dup of fh-8596309 (Mashinsky)
+rss-CryptoPotato-274adbfae1 X # dup of fh-8595234 (UK sanctions)
+rss-UToday-b660a223d5 D
+rss-BitcoinMagazine-450d5dd4c6 X # dup of fh-8594903 (Meanwhile)
+rss-CryptoSlate-e9c94f9989 X # dup of fh-8596309 (Mashinsky)
+rss-UToday-028187bf3d N
+rss-CryptoPotato-bcdf9a8e7d N
+rss-CryptoPotato-cf469796ea X # dup of fh-8596310 (Ledger)
+rss-CryptoNews-0e87b52f67 X # off-topic (CFTC sports contracts)
+rss-CryptoNews-dc8940c746 X # roundup
+rss-CryptoSlate-34f8cd4795 X # off-topic (Fed macro)
+rss-CryptoNews-2376fc2216 N
+rss-CryptoNews-975be1f419 U
+rss-CryptoPotato-8474b3281d U
+rss-CryptoPotato-f24bb55fb1 X # press release (award)
+rss-UToday-92af5ece63 D
+rss-CryptoNews-79c5dbff22 X # dup of fh-8594488 (ETF outflows)
+rss-CryptoNews-abffbebaca N
+rss-CryptoNews-90f836d602 N
+rss-CryptoPotato-61921bf976 U
+rss-CryptoNews-4fd259225f U
+rss-CryptoNews-7564e05f14 X # dup of rss-CryptoPotato-8474b3281d (Evernorth)
+rss-UToday-85f061ee63 N
+rss-UToday-c8d483e13c X # dup of fh-8596310 (Ledger)
+rss-UToday-6a87d60df4 X # dup of fh-8599058 (XRPL bug)
+rss-CryptoNews-4a6281a449 X # dup of rss-CryptoPotato-8474b3281d (Evernorth)
+rss-CryptoNews-1543a63495 N
+rss-CryptoNews-e5e3c08987 N
+rss-CryptoNews-28b2db8088 N
+rss-CryptoSlate-060caf98d8 N
+rss-UToday-277b410b54 X # dup of fh-8594488 (ETF outflows)
+rss-CryptoPotato-2edc39180a U
+rss-UToday-e5b329d425 U
+rss-CryptoSlate-1f084be79c N
+rss-UToday-a800d1420b X # dup of rss-CryptoPotato-8474b3281d (Evernorth)
+rss-UToday-d8335e266e D
+rss-UToday-9992202fc7 N
+rss-CryptoSlate-33c365c6b6 U
+rss-UToday-986a5509c4 N
+rss-CryptoPotato-c7a2e8f693 X # dup of fh-8600378 (flash crash anniversary)
+rss-UToday-77ce303a57 U
+rss-CryptoSlate-1e8d5b5a45 N
+rss-TheBlock-64fd54d700 D
+rss-CryptoSlate-21d169f16f X # off-topic (CFTC prediction markets)
+rss-CryptoPotato-fb14fb15b4 U
+rss-CryptoSlate-c7b9c9c13d N
+rss-CryptoSlate-d4804048d1 X # off-topic (AI fraud benchmark)
+rss-NewsBTC-3aa265d61c X # press release (conference appearance)
+rss-UToday-f73aa78111 X # roundup
+rss-TheBlock-c1f8a2c367 X # off-topic (Kalshi)
+rss-CryptoSlate-63aeb6897f N
+rss-CryptoPotato-6a1b8e6cd1 N
+rss-CryptoPotato-e354c42ada D
+rss-CryptoPotato-12b36ef94b N

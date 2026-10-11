@@ -1,113 +1,113 @@
 {
  "overall": {
-  "n": 800,
-  "text_matches_tag": 467,
-  "text_has_no_stance": 294,
-  "text_contradicts_tag": 39,
-  "match_rate": 0.584,
+  "n": 2000,
+  "text_matches_tag": 1220,
+  "text_has_no_stance": 692,
+  "text_contradicts_tag": 88,
+  "match_rate": 0.61,
   "match_ci95": [
-   0.549,
-   0.617
+   0.588,
+   0.631
   ],
-  "mismatch_rate": 0.416,
+  "mismatch_rate": 0.39,
   "mismatch_ci95": [
-   0.383,
-   0.451
+   0.369,
+   0.412
   ],
-  "contradict_rate": 0.049,
+  "contradict_rate": 0.044,
   "contradict_ci95": [
    0.036,
-   0.066
+   0.054
   ],
-  "no_stance_rate": 0.367,
+  "no_stance_rate": 0.346,
   "no_stance_ci95": [
-   0.335,
-   0.401
+   0.325,
+   0.367
   ],
-  "match_rate_among_posts_with_a_stance": 0.923,
+  "match_rate_among_posts_with_a_stance": 0.933,
   "match_ci95_among_posts_with_a_stance": [
-   0.896,
-   0.943
+   0.918,
+   0.945
   ]
  },
  "tag_Bullish": {
-  "n": 400,
-  "text_matches_tag": 216,
-  "text_has_no_stance": 161,
-  "text_contradicts_tag": 23,
-  "match_rate": 0.54,
+  "n": 1000,
+  "text_matches_tag": 566,
+  "text_has_no_stance": 384,
+  "text_contradicts_tag": 50,
+  "match_rate": 0.566,
   "match_ci95": [
-   0.491,
-   0.588
+   0.535,
+   0.596
   ],
-  "mismatch_rate": 0.46,
+  "mismatch_rate": 0.434,
   "mismatch_ci95": [
-   0.412,
-   0.509
+   0.404,
+   0.465
   ],
-  "contradict_rate": 0.058,
+  "contradict_rate": 0.05,
   "contradict_ci95": [
-   0.039,
-   0.085
+   0.038,
+   0.065
   ],
-  "no_stance_rate": 0.403,
+  "no_stance_rate": 0.384,
   "no_stance_ci95": [
-   0.356,
-   0.451
+   0.354,
+   0.415
   ],
-  "match_rate_among_posts_with_a_stance": 0.904,
+  "match_rate_among_posts_with_a_stance": 0.919,
   "match_ci95_among_posts_with_a_stance": [
-   0.86,
-   0.935
+   0.895,
+   0.938
   ]
  },
  "tag_Bearish": {
-  "n": 400,
-  "text_matches_tag": 251,
-  "text_has_no_stance": 133,
-  "text_contradicts_tag": 16,
-  "match_rate": 0.627,
+  "n": 1000,
+  "text_matches_tag": 654,
+  "text_has_no_stance": 308,
+  "text_contradicts_tag": 38,
+  "match_rate": 0.654,
   "match_ci95": [
-   0.579,
-   0.673
+   0.624,
+   0.683
   ],
-  "mismatch_rate": 0.373,
+  "mismatch_rate": 0.346,
   "mismatch_ci95": [
-   0.327,
-   0.421
+   0.317,
+   0.376
   ],
-  "contradict_rate": 0.04,
+  "contradict_rate": 0.038,
   "contradict_ci95": [
-   0.025,
-   0.064
+   0.028,
+   0.052
   ],
-  "no_stance_rate": 0.333,
+  "no_stance_rate": 0.308,
   "no_stance_ci95": [
-   0.288,
-   0.38
+   0.28,
+   0.337
   ],
-  "match_rate_among_posts_with_a_stance": 0.94,
+  "match_rate_among_posts_with_a_stance": 0.945,
   "match_ci95_among_posts_with_a_stance": [
-   0.905,
-   0.963
+   0.926,
+   0.96
   ]
  },
- "hand_vs_general2b_3way_agreement_on_sample": 0.491,
+ "hand_vs_general2b_3way_agreement_on_sample": 0.484,
  "hand_vs_general2b_crosstab": {
   "Bearish": {
-   "Bearish": 67,
-   "Bullish": 8,
-   "None": 9
+   "Bearish": 183,
+   "Bullish": 23,
+   "None": 20
   },
   "Bullish": {
-   "Bearish": 14,
-   "Bullish": 55,
-   "None": 14
+   "Bearish": 28,
+   "Bullish": 145,
+   "None": 32
   },
   "None": {
-   "Bearish": 193,
-   "Bullish": 169,
-   "None": 271
+   "Bearish": 493,
+   "Bullish": 436,
+   "None": 640
   }
  },
  "general2b_on_all_4000": {

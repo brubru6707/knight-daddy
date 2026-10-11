@@ -1,0 +1,41 @@
+{
+ "threshold_cosine": 0.8,
+ "train_near_dup_of_test_or_headlines_dropped": 1,
+ "train_examples": [
+  [
+   "ten dollars sod it... lets moon. 😁😁😁😁😁😁😁😁😁😁😁😁😁",
+   "lets kick on. 👆👆👆😁😁😁😁😁😁😁😁😁😁😁",
+   0.904
+  ]
+ ],
+ "probe_near_dup_of_test_or_headlines_dropped": 0,
+ "probe_examples": [],
+ "train_near_dup_of_probe_dropped": 0,
+ "headlines_near_dup_of_post_test": 0,
+ "post_test_internal_pairs_ge_thr": 0,
+ "headline_internal_pairs_ge_thr": 0,
+ "train_n": 1499,
+ "train_labels": {
+  "Bearish": 528,
+  "Neutral": 519,
+  "Bullish": 452
+ },
+ "heldout_n": 100,
+ "heldout_labels": {
+  "Bearish": 35,
+  "Neutral": 35,
+  "Bullish": 30
+ },
+ "gold_n": 400,
+ "gold_labels": {
+  "Bearish": 141,
+  "Neutral": 138,
+  "Bullish": 121
+ },
+ "headlines_n": 231,
+ "headlines_labels": {
+  "Neutral": 92,
+  "Bullish": 76,
+  "Bearish": 63
+ }
+}

@@ -1,0 +1,94 @@
+# Finnhub crypto headlines, round 1 (fetched 2026-10-10). One row per Finnhub id.
+# Label: U Bullish, D Bearish, N Neutral (from the headline text only). X = excluded, with reason after '#'.
+8589411 N
+8589727 U
+8589726 U
+8589936 D
+8590044 D
+8590047 D
+8590046 U
+8590045 U
+8590156 U
+8590364 X # dup of 8590156 (Samsung USDC)
+8590363 X # dup of 8590047 (Greece tax)
+8590362 X # dup of 8590046 (Standard Chartered Singapore)
+8590365 D
+8590368 N
+8590591 D
+8590590 D
+8590596 D
+8590815 X # dup of 8589936 (ETF outflows)
+8590814 N
+8590813 X # off-topic (mortgage credit product)
+8590812 D
+8590816 U
+8591038 N
+8591148 U
+8591149 N
+8591152 U
+8591475 D
+8591474 N
+8591473 D
+8591472 U
+8591471 X # dup of 8590365 (ESMA stablecoins)
+8591476 X # dup of 8590596 (seized bitcoin moves)
+8591786 X # dup of 8590596 (seized bitcoin moves)
+8591577 D
+8591685 D
+8592105 X # off-topic (NFL, prediction markets)
+8592104 D
+8591995 X # off-topic (Netflix series)
+8592207 X # off-topic (NFL, Kalshi)
+8592310 U
+8592411 N
+8593450 D
+8592945 U
+8593453 X # dup of 8593450 (Cantor, Tether)
+8593763 U
+8593865 U
+8594482 D
+8594481 U
+8594480 U
+8594173 X # off-topic (US science budget)
+8594172 N
+8594479 X # dup of 8590816 (Hashi $500M)
+8594478 X # dup of 8594488 (ETF outflows Oct 9)
+8594488 D
+8594903 U
+8594902 D
+8594901 N
+8595004 D
+8595234 D
+8595119 D
+8595233 X # dup of 8593763 (Thailand ETFs)
+8595118 X # dup of 8595234 (UK sanctions)
+8595232 X # dup of 8593865 (Bitcoin after Trump Iran)
+8595221 N
+8595565 U
+8595564 U
+8595563 N
+8595777 D
+8595879 U
+8596310 D
+8596309 N
+8596206 N
+8596307 N
+8596413 N
+8596517 X # dup of 8596310 (Ledger theft)
+8596618 N
+8596720 N
+8596925 D
+8597131 X # dup of 8596309 (Mashinsky)
+8597234 N
+8597743 X # off-topic (CFTC event contracts)
+8598144 X # off-topic (AI data center press release)
+8598550 U
+8599058 N
+8599057 D
+8599259 N
+8599360 X # dup of 8594903 (Meanwhile insurer)
+8599761 X # off-topic (EU AI risk)
+8600066 N
+8600277 U
+8600379 N
+8600378 N

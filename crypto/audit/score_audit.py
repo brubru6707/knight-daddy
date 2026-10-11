@@ -12,7 +12,7 @@ MAP = {"U": "Bullish", "D": "Bearish", "N": "None"}
 lab = pd.read_csv(f"{D}/blind_labels.txt", sep=" ", comment="#", names=["sid", "hand"])
 lab["hand"] = lab.hand.map(MAP)
 k = pd.read_csv(f"{D}/sample_key.csv").merge(lab, on="sid")
-assert len(k) == 800 and k.hand.notna().all()
+assert len(k) == 2000 and k.hand.notna().all()
 
 
 def wilson(x, n, z=1.96):

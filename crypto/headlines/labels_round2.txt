@@ -1,0 +1,95 @@
+# Round 2 (2026-10-11 UTC): Finnhub refetch + CoinDesk, Cointelegraph, Decrypt RSS, last 7 days. Labels from headline text only.
+# A story already in the set keeps its existing row; later copies are X (dup).
+rss-Decrypt-7b5d6e1e4f X # off-topic (AI model launch)
+rss-Decrypt-25a8d4ef22 X # dup of fh-8590812 (AI vs encryption, bunker mode)
+rss-Decrypt-00ca253170 X # off-topic (AI math)
+rss-Decrypt-501c46ba19 X # dup of fh-8590156 (Samsung USDC)
+rss-Decrypt-442c3e428c X # dup of fh-8590047 (Greece tax)
+rss-Decrypt-cc1e8c81cc X # off-topic (PlayStation)
+rss-Decrypt-ff684a964f N
+rss-Decrypt-2997498e84 X # dup of fh-8590812
+rss-Decrypt-a02aec04b6 X # off-topic (AI video games)
+rss-Decrypt-c8f17cacce X # dup of fh-8591148 (Securitize on Solana)
+rss-Cointelegraph-6cfaaa555d X # exact dup
+rss-Decrypt-5f0aa9acc8 N
+rss-Cointelegraph-d34e20583c X # exact dup
+rss-Decrypt-3ad39b0f99 D
+rss-Cointelegraph-42100598dc X # exact dup
+rss-Decrypt-bf4a973849 X # dup of fh-8590596 (seized bitcoin moves)
+rss-Decrypt-954be1d3a3 N
+rss-Decrypt-4d628768f1 X # dup of fh-8589936 (ETF outflows)
+rss-Decrypt-43d7baac98 N
+rss-Cointelegraph-87cecb860a X # exact dup
+rss-Decrypt-1ddc7048d9 X # dup of fh-8590814 (2010 bitcoin moves)
+rss-Cointelegraph-523cfc06d1 X # exact dup
+rss-Decrypt-f71face67a X # off-topic (NFL, Kalshi)
+rss-Cointelegraph-f7e76f3a8a X # exact dup
+rss-Decrypt-bed8e4682e U
+rss-Decrypt-4e67d3aeba X # off-topic (Gemini)
+rss-Decrypt-372e2f328f X # off-topic (AI startup)
+rss-Cointelegraph-a7baed191b X # exact dup
+rss-Cointelegraph-03ccb54213 X # dup of fh-8593450 (Cantor, Tether)
+rss-Cointelegraph-28228e98d6 X # exact dup
+rss-CoinDesk-edecc250b3 X # exact dup
+rss-CoinDesk-a0b0d7159c X # exact dup
+rss-CoinDesk-59b8ee19e9 X # exact dup
+rss-Cointelegraph-c117be7e01 X # exact dup
+rss-Cointelegraph-4ac1598ae4 X # exact dup
+rss-CoinDesk-26147a0471 X # exact dup
+rss-CoinDesk-15a7a2ff36 D
+rss-Cointelegraph-839f962bc6 X # exact dup
+rss-Decrypt-eef1159f64 N
+rss-CoinDesk-9b31912c1f X # exact dup
+rss-CoinDesk-8bfa0398e1 X # exact dup
+rss-CoinDesk-8cb416fb67 X # exact dup
+rss-Cointelegraph-40ff773c9d X # exact dup
+rss-Decrypt-d620613dd8 X # dup of fh-8594901 (dark web operator sentenced)
+rss-CoinDesk-86d0044589 X # exact dup
+rss-Cointelegraph-14b7f18dc5 X # exact dup
+rss-CoinDesk-cc735b0562 X # exact dup
+rss-Cointelegraph-da57e54675 X # exact dup
+rss-CoinDesk-65fa2a0ab6 X # exact dup
+rss-Cointelegraph-6f4d13d059 X # exact dup
+rss-CoinDesk-3468869948 X # exact dup
+rss-CoinDesk-4f607ce8ef X # exact dup
+rss-Decrypt-7c47a8a348 D
+rss-Decrypt-c49cf4d10e X # dup of fh-8595234 (UK sanctions)
+rss-CoinDesk-d250fd77b0 X # exact dup
+rss-Decrypt-076f49f990 D
+rss-Cointelegraph-508ac65895 X # exact dup
+rss-Cointelegraph-2825fec016 X # exact dup
+rss-CoinDesk-17530c9606 X # exact dup
+rss-CoinDesk-435037fd6b X # exact dup
+rss-Cointelegraph-4f49ff2881 X # exact dup
+rss-Decrypt-ce78bdda30 X # dup of fh-8596310 (Ledger theft)
+rss-Cointelegraph-fdcc1ade82 X # exact dup
+rss-Decrypt-666f6bb9ed X # dup of fh-8596309 (Mashinsky)
+rss-Decrypt-49b459ede3 X # dup of fh-8595563 (DWF v BitGo)
+rss-Cointelegraph-96e547b1bd X # exact dup
+rss-Decrypt-828a6c2812 U
+rss-Cointelegraph-610aa259b3 X # exact dup
+rss-Cointelegraph-5344b7d588 X # exact dup
+rss-Decrypt-7de80d11e1 N
+rss-Decrypt-4f94684e04 X # dup of fh-8596413 (Blockchain.com prediction markets)
+rss-CoinDesk-11cfc4490d X # exact dup
+rss-Decrypt-bc6eab7c73 X # dup of fh-8593450 (Cantor, Tether)
+rss-Cointelegraph-d89e230ad9 X # exact dup
+rss-Decrypt-64c57b6d51 X # off-topic (AI labs)
+rss-Cointelegraph-01764f9f1e X # exact dup
+rss-Cointelegraph-78d757246a X # exact dup
+rss-CoinDesk-0752e18b3c X # exact dup
+rss-CoinDesk-19f2df5a64 X # exact dup
+rss-CoinDesk-dbf9a913d7 X # exact dup
+rss-CoinDesk-f4d930f7eb X # exact dup
+rss-CoinDesk-08bd412d4a X # exact dup
+rss-Cointelegraph-0d5705e0ec X # exact dup
+rss-Cointelegraph-423d623893 X # exact dup
+rss-CoinDesk-db8104c06c X # dup of fh-8600066 (flash crash anniversary)
+rss-Cointelegraph-3f8fd04741 X # exact dup
+rss-CoinDesk-fcc2367bea X # exact dup
+rss-CoinDesk-51cb87d5b1 X # exact dup
+rss-Cointelegraph-043a2bf5f6 X # no content (generic daily roundup title)
+rss-Decrypt-a682e18a47 D
+rss-Decrypt-4ae4190d27 X # off-topic (AI chatbots)
+rss-Decrypt-7aa28add94 X # dup of fh-8594903 (Meanwhile insurer)
+rss-Decrypt-1bc95438f1 X # off-topic (CFTC prediction markets)
