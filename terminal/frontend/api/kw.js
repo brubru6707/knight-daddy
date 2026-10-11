@@ -651,8 +651,9 @@ export default async function handler(req, res) {
       }));
     }
     if (route === "sentiment" && method === "GET") {
-      const key = canonical(route, req.query), snap = await getJSON(`kw:get:${key}`);
-      if (!(snap && (snap.status || 200) < 400)) {
+      // the live version only for clients that ask (live=1): phone builds before it expect FNSPID's shape and crash on it
+      const key = canonical(route, { ticker: req.query.ticker }), snap = await getJSON(`kw:get:${key}`);
+      if (req.query.live === "1" && !(snap && (snap.status || 200) < 400)) {
         const live = await liveSentiment(String(req.query.ticker || "").toUpperCase());
         if (live) return send(res, live[0], live[1]);
       }

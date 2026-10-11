@@ -7,7 +7,7 @@ const Stat = ({ k, v, cls = "text-ink" }) => (
 
 export function SentimentVsPrice({ ticker, health }) {
   // FNSPID history for the cached tickers; every other stock gets the live version (Tiger daily tags vs. close)
-  const s = useApi(health !== undefined ? `sentiment?ticker=${ticker}` : null);
+  const s = useApi(health !== undefined ? `sentiment?ticker=${ticker}&live=1` : null);
   const [ref, w] = useWidth();
   const d = s.data;
   const H = 170, B = 22;
