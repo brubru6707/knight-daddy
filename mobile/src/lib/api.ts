@@ -90,6 +90,7 @@ export interface SpecEval {
 export interface SpecStatus {
   ticker?: string; phase: string; running?: boolean; step?: number; total_steps?: number | null;
   quick?: boolean; note?: string; error?: string; elapsed_s?: number; queued_s?: number;
+  losses?: number[]; probe?: [number, number][]; // per-step training loss; held-out loss every few steps
 }
 export type Model = "general" | "specialist" | "none"; // "none": crypto, untagged headlines only
 

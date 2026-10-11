@@ -317,6 +317,38 @@ const clock = (x?: number) => (x === undefined || x === null ? null : x >= 60 ? 
 
 // Fine-tune controls. Progress and elapsed time come from the train endpoint's status, polled every 2 s.
 // Every run starts from a fresh copy of the general model on Oscar, never from an earlier specialist.
+// Training loss as it happens (Advanced): each step's batch loss (faint), a smoothed line, and the held-out probe loss
+// (headlines never trained on, dashed), scaled to the full run so the line grows left to right.
+function LossChart({ status }: { status: SpecStatus }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
+  const [w, setW] = useState(0);
+  const raw = status.losses || [], probe = (status.probe || []).filter((p) => Array.isArray(p) && typeof p[1] === "number");
+  const total = Math.max(status.total_steps || 0, raw.length, 1);
+  const ema: number[] = []; raw.forEach((v, i) => ema.push(i ? ema[i - 1] * 0.8 + v * 0.2 : v));
+  const hi = Math.max(...raw, ...probe.map((p) => p[1]), 0.01) * 1.08, H = 60;
+  const X = (i: number) => (i / Math.max(1, total - 1)) * w, Y = (v: number) => 3 + (1 - v / hi) * (H - 6);
+  const line = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+  return (
+    <View style={{ marginTop: 10 }}>
+      <View style={st.rowBetween}>
+        <Text style={[st.small, { marginTop: 0, fontSize: 11 }]}>Training loss{raw.length ? ` ${ema[ema.length - 1].toFixed(3)}` : ""}{probe.length ? ` · held-out ${probe[probe.length - 1][1].toFixed(3)}` : ""}</Text>
+        <Text style={[st.small, { marginTop: 0, fontSize: 11 }]}>step {raw.length}/{status.total_steps || "n/a"}</Text>
+      </View>
+      <View style={{ borderWidth: 1, borderColor: C.line, marginTop: 4, height: H }} onLayout={(e) => setW(e.nativeEvent.layout.width - 2)}>
+        {w > 0 && raw.length > 1 ? (
+          <Svg width={w} height={H - 2}>
+            <Path d={line(raw.map((v, i) => [X(i), Y(v)]))} stroke={C.dim} strokeOpacity={0.35} strokeWidth={1} fill="none" />
+            <Path d={line(ema.map((v, i) => [X(i), Y(v)]))} stroke={C.amber} strokeWidth={2} fill="none" />
+            {probe.length > 1 && <Path d={line(probe.map(([s, v]) => [X(s), Y(v)]))} stroke={C.up} strokeWidth={1.5} strokeDasharray="4 3" fill="none" />}
+          </Svg>
+        ) : <Text style={[st.small, { textAlign: "center", marginTop: 20, fontSize: 11 }]}>Loss appears once training starts</Text>}
+      </View>
+      <Text style={[st.small, { fontSize: 11, marginTop: 4 }]}><Text style={{ color: C.amber }}>━ smoothed</Text>   <Text>━ each step</Text>{probe.length ? <Text style={{ color: C.up }}>   ┅ held-out headlines</Text> : null}</Text>
+    </View>
+  );
+}
+
 // Advanced mode shows everything (active model, status dot, steps, elapsed time, the long explanation); otherwise the
 // same button and box with plain wording, a simple progress state and a Done check.
 export function FineTuneCard({ ticker, active, advanced, onActive, onTrained }: {
@@ -439,6 +471,7 @@ export function FineTuneCard({ ticker, active, advanced, onActive, onTrained }: 
           </View>
           {status.phase === "failed" && status.error ? <Text style={[st.small, { color: C.down }]}>{status.error}</Text> : null}
           {status.phase === "queued" && status.note ? <Text style={st.small}>{status.note}</Text> : null}
+          {status.phase !== "queued" && <LossChart status={status} />}
         </View>
       )}
       <Text style={st.small}>
