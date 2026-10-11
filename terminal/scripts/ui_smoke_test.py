@@ -114,8 +114,7 @@ with sync_playwright() as p:
     check("no raw error text on the page", not raw, ", ".join(raw))
     check("competitors row has 3 peers", pg.locator("section[aria-label=Competitors] button").count() == 3)
     sv = pg.locator("section[aria-label='Sentiment vs. price']")
-    sv.locator("[data-testid=sentiment-caption]").or_(sv.locator("text=/n\\/a/")).first.wait_for(timeout=60_000)
-    check("sentiment vs. price shown directly on the detail page", sv.count() == 1, sv.inner_text()[:80])
+    check("Advanced off: no sentiment vs. price", sv.count() == 0)
     order = pg.eval_on_selector_all("main section[aria-label], div > section[aria-label]", "els => els.map(e => e.getAttribute('aria-label'))")
     check("no model-wide or specialist sections on the detail page",
           not any(x in order for x in ("Advanced research", "Model", "Backtest")) and pg.locator("[data-testid=specialist-table]").count() == 0
@@ -123,6 +122,8 @@ with sync_playwright() as p:
     # ---- Advanced mode (global switch in Settings) ----
     set_advanced(pg, True)
     check("Advanced on: Model info in the header", pg.locator("[data-testid=nav-model]").count() == 1)
+    sv.locator("[data-testid=sentiment-caption]").or_(sv.locator("text=/n\\/a/")).first.wait_for(timeout=60_000)
+    check("Advanced on: this stock's sentiment vs. price", sv.count() == 1, sv.inner_text()[:80])
     brief.locator("[data-testid=briefing-paragraphs]").or_(brief.locator("[data-testid=briefing-long-na]")).or_(brief.locator("[data-testid=briefing-unavailable]")).first.wait_for(timeout=60_000)
     if brief.locator("[data-testid=briefing-paragraphs]").count():
         paras = [x.inner_text() for x in brief.locator("[data-testid=briefing-paragraphs] p").all()]

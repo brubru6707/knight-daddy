@@ -86,7 +86,7 @@ function Detail({ ticker, onBack, onPick, modelVersion }) {
       <PriceBlock key={ticker} ticker={ticker} />
       <ConfidenceBar key={`c-${ticker}-${active}-${specVersion}`} ticker={ticker} model={active} />
       <Briefing key={`b-${ticker}`} ticker={ticker} adv={adv} />
-      <section className="kd-box mt-6 p-5" aria-label="Sentiment vs. price"><SentimentVsPrice key={`s-${ticker}`} ticker={ticker} health={health} /></section>
+      {adv && <section className="kd-box mt-6 p-5" aria-label="Sentiment vs. price"><SentimentVsPrice key={`s-${ticker}`} ticker={ticker} health={health} /></section>}
       <Headlines key={`h-${ticker}-${active}`} ticker={ticker} model={active} specVersion={specVersion} adv={adv} />
       <Competitors ticker={ticker} onPick={onPick} />
       <FineTune ticker={ticker} health={health} info={info} active={active} adv={adv}
