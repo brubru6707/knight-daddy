@@ -35,3 +35,16 @@ export function reasons(text = "", max = 4): string[] {
 }
 
 export const hasAdvice = (s: string) => ADVICE.test(s);
+
+// Briefings written as "- " bullet lines (v4 prompt) are shown as written, minus any line with advice words; older
+// one-paragraph briefings fall back to reasons(). Advanced briefings are paragraphs separated by blank lines.
+const ADVICE_LINE = /\b(buy|buys|buying|sell|sells|selling|hold|holds|holding|price targets?)\b/i;
+export function bulletsOf(text = ""): string[] {
+  const lines = text.split("\n").map((l) => l.trim()).filter((l) => /^[-*•]\s+/.test(l)).map((l) => l.replace(/^[-*•]\s+/, ""));
+  return lines.length ? lines.filter((l) => !ADVICE_LINE.test(l)).slice(0, 4) : reasons(text);
+}
+export function paragraphsOf(text = ""): string[] {
+  return text.split(/\n\s*\n/)
+    .map((p) => p.replace(/^[-*•]\s+/gm, "").replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+(?=[A-Z"])/).filter((x) => !ADVICE_LINE.test(x)).join(" "))
+    .filter(Boolean);
+}

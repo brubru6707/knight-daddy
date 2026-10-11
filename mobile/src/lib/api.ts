@@ -32,6 +32,7 @@ export interface Health {
   historical_tickers?: string[];
   worker_online?: boolean;
   train_password_required?: boolean;
+  keys?: Record<string, boolean>;
 }
 
 export interface Bar { time: string; open: number; high: number; low: number; close: number; volume: number }
@@ -51,7 +52,7 @@ export interface Headlines {
 }
 
 export interface Briefing {
-  id?: string; status: string; message?: string; text?: string; n?: number; counts?: Counts;
+  id?: string; status: string; mode?: "normal" | "advanced"; message?: string; text?: string; n?: number; counts?: Counts;
   window?: string; model?: string; generated_at?: string;
 }
 
@@ -108,14 +109,15 @@ export const paths = {
   health: () => "health",
   prices: (t: string, period: string) => `prices?ticker=${t}&period=${period}`,
   headlines: (t: string, model: Model = "general") => `headlines?ticker=${t}&source=live&limit=40&model=${model}`,
-  audio: (id: string, t: string) => `${API_BASE}/briefing/audio?id=${id}&ticker=${t}`,
+  audio: (id: string, t: string, mode?: string) => `${API_BASE}/briefing/audio?id=${id}&ticker=${t}${mode === "advanced" ? "&mode=advanced" : ""}`,
+  talkAudio: (id: string) => `${API_BASE}/talk/audio?id=${id}`,
   specActive: (t: string) => `specialist/active?ticker=${t}`,
   replayAvailable: () => "replay/available",
   cryptoQuote: (t: string) => `crypto/quote?ticker=${t}`,
   cryptoCandles: (t: string) => `crypto/candles?ticker=${t}&days=730`,
   cryptoNews: (t: string) => `crypto/news?ticker=${t}`,
   replay: (t: string, d: string) => `replay?ticker=${t}&date=${d}`,
-  briefing: (t: string) => `briefing?ticker=${t}`,
+  briefing: (t: string, advanced = false) => `briefing?ticker=${t}${advanced ? "&mode=advanced" : ""}`,
   sentiment: (t: string) => `sentiment?ticker=${t}`,
   backtest: (t: string) => `backtest?ticker=${t}`,
   benchmarks: () => "benchmarks",
@@ -123,6 +125,14 @@ export const paths = {
   specEval: (t: string) => `specialist/eval?ticker=${t}`,
   specStatus: (t: string) => `specialist/status?ticker=${t}`,
 };
+
+// Talk: a question about one stock's news and its tone, answered from the real headlines only. Advice questions
+// (buy, sell, hold, price targets, whether to invest) get a short decline every time.
+export interface TalkSource { n: number; title: string; source?: string; url?: string; time?: string }
+export interface TalkAnswer { ticker: string; id?: string; answer: string; refused: boolean; model?: string; sources: TalkSource[] }
+export function talk(ticker: string, question: string) {
+  return api<TalkAnswer>("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question }) });
+}
 
 // Every fine-tune starts on Oscar from a fresh copy of the general model, never from an earlier specialist.
 export function startTraining(ticker: string, password: string) {

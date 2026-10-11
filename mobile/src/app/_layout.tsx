@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider } from "@/lib/session";
 import { ListProvider } from "@/lib/list";
+import { AdvancedProvider } from "@/lib/advanced";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 
 function Root() {
@@ -31,7 +32,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <SessionProvider>
           <ListProvider>
-            <Root />
+            <AdvancedProvider>
+              <Root />
+            </AdvancedProvider>
           </ListProvider>
         </SessionProvider>
       </ThemeProvider>

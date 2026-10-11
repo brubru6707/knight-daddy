@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
-import { api, ApiError, paths, resetModel, startTraining, type Briefing, type CryptoNews, type Headlines, type Health, type Label, type Model,
+import { api, ApiError, paths, resetModel, startTraining, talk, type Briefing, type TalkAnswer, type CryptoNews, type Headlines, type Health, type Label, type Model,
   type Prices, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { labelColor, pct, relTime, SERIF, usd, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
-import { reasons } from "@/lib/outlook";
+import { bulletsOf, paragraphsOf } from "@/lib/outlook";
 import { NAMES, PEERS, short } from "@/lib/peers";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
@@ -105,58 +105,119 @@ export function ConfidenceBar({ ticker, model, nonce }: { ticker: string; model:
   );
 }
 
-// Gemini (summary): up to 4 plain-English bullets, read aloud through the site's ElevenLabs endpoint.
-export function BriefingCard({ ticker, nonce }: { ticker: string; nonce: number }) {
+// Plays one of the site's mp3 endpoints through expo-audio. Throws a short message when read-aloud is unavailable.
+async function playUrl(url: string, holder: { current: AudioPlayer | null }, onEnd: () => void) {
+  const h = await api<Health>(paths.health());
+  if (!h.keys?.ELEVENLABS_API_KEY) throw new Error("n/a on this server");
+  const r = await fetch(url); // the site caches the mp3, so the player's own fetch below is quick
+  if (!r.ok) throw new Error("n/a right now");
+  await setAudioModeAsync({ playsInSilentMode: true });
+  const p = createAudioPlayer({ uri: url });
+  holder.current = p;
+  p.addListener("playbackStatusUpdate", (x) => { if (x.didJustFinish) onEnd(); });
+  p.play();
+}
+
+// Talk: reads the briefing aloud and answers questions about this stock's news and its tone, typed or dictated with
+// the keyboard mic, from the real headlines only (cited below each answer). Advice questions get a short decline.
+function TalkPanel({ ticker, briefing }: { ticker: string; briefing: Briefing }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
-  const s = useApi<Briefing>(paths.briefing(ticker), nonce);
-  const [audio, setAudio] = useState<{ state: "idle" | "loading" | "playing"; msg: string | null }>({ state: "idle", msg: null });
+  const [q, setQ] = useState("");
+  const [turns, setTurns] = useState<(TalkAnswer & { q: string })[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [audio, setAudio] = useState<{ which: string | null; loading: boolean; msg: string | null }>({ which: null, loading: false, msg: null });
   const player = useRef<AudioPlayer | null>(null);
-  const stop = () => { player.current?.remove(); player.current = null; setAudio({ state: "idle", msg: null }); };
-  useEffect(() => stop, [ticker]);
-  const b = s.data;
-  const ok = b?.status === "ok";
-  const bullets = ok ? reasons(b.text) : [];
-
-  const listen = async () => {
-    if (audio.state === "playing") return stop();
-    if (!b?.id) return;
-    setAudio({ state: "loading", msg: null });
-    try {
-      const h = await api<Health & { keys?: Record<string, boolean> }>(paths.health());
-      if (!h.keys?.ELEVENLABS_API_KEY) throw new Error("n/a on this server");
-      const url = paths.audio(b.id, ticker);
-      const r = await fetch(url); // the site caches the mp3, so the player's own fetch below is quick
-      if (!r.ok) throw new Error("n/a right now");
-      await setAudioModeAsync({ playsInSilentMode: true });
-      const p = createAudioPlayer({ uri: url });
-      player.current = p;
-      p.addListener("playbackStatusUpdate", (x) => { if (x.didJustFinish) stop(); });
-      p.play();
-      setAudio({ state: "playing", msg: null });
-    } catch (e) {
-      setAudio({ state: "idle", msg: e instanceof Error ? e.message : "n/a right now" });
-    }
+  const stop = () => { player.current?.remove(); player.current = null; setAudio({ which: null, loading: false, msg: null }); };
+  useEffect(() => stop, []);
+  const speak = async (which: string, url: string) => {
+    if (audio.which === which && !audio.loading) return stop();
+    stop(); setAudio({ which, loading: true, msg: null });
+    try { await playUrl(url, player, stop); setAudio({ which, loading: false, msg: null }); }
+    catch (e) { setAudio({ which: null, loading: false, msg: e instanceof Error ? e.message : "n/a right now" }); }
   };
+  const ask = async () => {
+    const question = q.trim();
+    if (!question || busy) return;
+    setBusy(true); setErr(null); setQ("");
+    try {
+      const r = await talk(ticker, question);
+      setTurns((t) => [...t, { ...r, q: question }]);
+      if (r.id && !r.refused) speak(`a-${r.id}`, paths.talkAudio(r.id));
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setQ(question); } finally { setBusy(false); }
+  };
+  const on = (w: string) => audio.which === w && !audio.loading;
+  return (
+    <View style={st.talk}>
+      <Pressable onPress={() => briefing.id && speak("briefing", paths.audio(briefing.id, ticker, briefing.mode))} style={st.talkRead} hitSlop={6}
+        accessibilityRole="button" accessibilityLabel={on("briefing") ? "Stop reading" : `Read the ${ticker} briefing aloud`}>
+        {audio.loading && audio.which === "briefing" ? <ActivityIndicator size="small" color={C.ink} /> :
+          <Text style={st.speakerText}>{on("briefing") ? "■ Stop reading" : "🔈 Read the briefing aloud"}</Text>}
+      </Pressable>
+      {audio.msg && <Text style={st.small}>Read-aloud: {audio.msg}</Text>}
+      {turns.map((t, i) => (
+        <View key={i} style={st.turn}>
+          <Text style={st.youText}>You: {t.q}</Text>
+          <Text style={[st.answer, t.refused && { color: C.dim }]}>{t.answer}</Text>
+          {t.id && !t.refused && (
+            <Pressable onPress={() => speak(`a-${t.id}`, paths.talkAudio(t.id!))} hitSlop={6} accessibilityRole="button">
+              <Text style={st.hear}>{on(`a-${t.id}`) ? "■ Stop" : "🔈 Hear answer"}</Text>
+            </Pressable>)}
+          {t.sources.map((x) => (
+            <Pressable key={x.n} disabled={!x.url} onPress={() => x.url && WebBrowser.openBrowserAsync(x.url)} accessibilityRole="link">
+              <Text style={st.source}>[{x.n}] <Text style={{ color: C.ink }}>{x.title}</Text>{x.source ? ` · ${x.source}` : ""}</Text>
+            </Pressable>))}
+        </View>))}
+      <View style={st.askRow}>
+        <TextInput value={q} onChangeText={setQ} onSubmitEditing={ask} returnKeyType="send" maxLength={300}
+          placeholder={`Ask about ${ticker}'s news`} placeholderTextColor={C.dim} style={st.input} accessibilityLabel={`Ask about ${ticker}'s news`} />
+        <Pressable onPress={ask} disabled={!q.trim() || busy} style={[st.askBtn, (!q.trim() || busy) && { opacity: 0.4 }]} accessibilityRole="button">
+          {busy ? <ActivityIndicator size="small" color={C.ground} /> : <Text style={st.askT}>Ask</Text>}
+        </Pressable>
+      </View>
+      {err && <Text style={[st.small, { color: C.down }]}>{err}</Text>}
+      <Text style={st.small}>Type, or tap the keyboard mic to speak. Answers come only from {ticker}'s recent headlines and their tags. No investment advice, price targets or predictions.</Text>
+    </View>
+  );
+}
+
+// Gemini briefing from this stock's own tagged headlines: up to 4 bullets, or paragraphs in Advanced mode. Talk opens
+// read-aloud (ElevenLabs) and questions.
+export function BriefingCard({ ticker, nonce, advanced, initialTalk = false }: { ticker: string; nonce: number; advanced: boolean; initialTalk?: boolean }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
+  const long = useApi<Briefing>(advanced ? paths.briefing(ticker, true) : null, nonce);
+  const longOk = advanced && long.data?.status === "ok";
+  const fallback = advanced && !long.loading && !longOk;
+  const s = useApi<Briefing>(!advanced || fallback ? paths.briefing(ticker) : null, nonce);
+  const [open, setOpen] = useState(initialTalk);
+  useEffect(() => setOpen(initialTalk), [ticker]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cur = longOk ? long : s;
+  const b = cur.data;
+  const ok = b?.status === "ok";
+  const paras = ok && b.mode === "advanced" ? paragraphsOf(b.text) : [];
+  const bullets = ok && b.mode !== "advanced" ? bulletsOf(b.text) : [];
 
   return (
     <Card title="Briefing" right={ok ? (
-      <Pressable onPress={listen} disabled={audio.state === "loading"} style={st.speaker} hitSlop={6} accessibilityRole="button"
-        accessibilityLabel={audio.state === "playing" ? "Stop reading" : `Read the ${ticker} briefing aloud`}>
-        {audio.state === "loading" ? <ActivityIndicator size="small" color={C.ink} /> :
-          <Text style={st.speakerText}>{audio.state === "playing" ? "■ Stop" : "🔈 Listen"}</Text>}
+      <Pressable onPress={() => setOpen(!open)} style={[st.speaker, open && { borderColor: C.amber }]} hitSlop={6} accessibilityRole="button"
+        accessibilityState={{ expanded: open }} accessibilityLabel={`Talk about ${ticker}'s news`}>
+        <Text style={[st.speakerText, open && { color: C.amber }]}>🎙 Talk</Text>
       </Pressable>) : null}>
-      {s.loading && <Status s={s} what="briefing" />}
-      {s.err && <Text style={st.dim}>Summary: n/a right now.</Text>}
+      {(cur.loading || (advanced && long.loading)) && <Status s={cur} what="briefing" />}
+      {cur.err && <Text style={st.dim}>Summary: n/a right now.</Text>}
       {b && !ok && <Text style={st.dim}>Briefing: n/a. {b.status === "no_key" ? "No Gemini key is set on this server." : b.message || ""}</Text>}
       {ok && (
         <>
+          {paras.map((x, i) => <Text key={i} style={st.para}>{x}</Text>)}
           {bullets.map((x, i) => (
             <View key={i} style={st.bulletRow}><Text style={st.bulletDot}>·</Text><Text style={st.bullet}>{x}</Text></View>
           ))}
-          {bullets.length === 0 && <Text style={st.dim}>Summary: n/a</Text>}
-          <Text style={st.small}>Written by Gemini ({b.model || "n/a"}) from {b.n} headlines, {b.window}. Tags come from Qwen.</Text>
-          {audio.msg && <Text style={st.small}>Listen: {audio.msg}</Text>}
+          {paras.length === 0 && bullets.length === 0 && <Text style={st.dim}>Summary: n/a</Text>}
+          <Text style={st.small}>Written by Gemini ({b.model || "n/a"}) from {b.n} {ticker} headlines, {b.window}. Tags come from Qwen.</Text>
+          {fallback && <Text style={st.small}>Longer briefing: n/a until the next update. Showing the short one.</Text>}
+          {open && <TalkPanel ticker={ticker} briefing={b} />}
         </>
       )}
     </Card>
@@ -172,8 +233,10 @@ const clock = (x?: number) => (x === undefined || x === null ? null : x >= 60 ? 
 
 // Fine-tune controls. Progress and elapsed time come from the train endpoint's status, polled every 2 s.
 // Every run starts from a fresh copy of the general model on Oscar, never from an earlier specialist.
-export function FineTuneCard({ ticker, active, onActive, onTrained }: {
-  ticker: string; active: Model; onActive: (m: Model) => void; onTrained: () => void;
+// Advanced mode shows everything (active model, status dot, steps, elapsed time, the long explanation); otherwise the
+// same button and box with plain wording, a simple progress state and a Done check.
+export function FineTuneCard({ ticker, active, advanced, onActive, onTrained }: {
+  ticker: string; active: Model; advanced: boolean; onActive: (m: Model) => void; onTrained: () => void;
 }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
@@ -231,6 +294,39 @@ export function FineTuneCard({ ticker, active, onActive, onTrained }: {
   const frac = status?.phase === "done" ? 1 : status?.total_steps ? (status.step || 0) / status.total_steps : 0;
   const elapsed = clock(status?.phase === "queued" ? status.queued_s : status?.elapsed_s);
   const shown = running || status?.phase === "done" || status?.phase === "failed";
+  const modal = <PasswordModal visible={!!ask} error={pwErr} onCancel={() => setAsk(null)}
+    onSubmit={(pw) => { const what = ask!; setAsk(null); run(what, pw); }} />;
+  if (!advanced) {
+    const done = status?.phase === "done" && !status.quick;
+    return (
+      <Card title="Tune">
+        <Pressable onPress={() => run("train")} disabled={!supported || running || online === false}
+          style={({ pressed }) => [st.primary, { marginTop: 0 }, (!supported || running || online === false) && { opacity: 0.4 }, pressed && { opacity: 0.8 }]}
+          accessibilityRole="button">
+          <Text style={st.primaryText}>{running ? "Tuning…" : "Tune to this stock"}</Text>
+        </Pressable>
+        {active === "specialist" && !running && (
+          <Pressable onPress={() => run("reset")} style={({ pressed }) => [st.secondary, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+            <Text style={st.secondaryText}>Undo tuning</Text>
+          </Pressable>
+        )}
+        {(running || done || status?.phase === "failed") && (
+          <View style={{ marginTop: 14 }}>
+            <Text style={[st.small, { marginTop: 0 }, done && { color: C.up }, status?.phase === "failed" && { color: C.down }]}>
+              {running ? "Tuning…" : done ? "✓ Done" : "Didn't finish. Try again later."}</Text>
+            <View style={st.track} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(frac * 100) }}>
+              <View style={[st.fill, { width: `${Math.round(frac * 100)}%` }]} />
+            </View>
+          </View>
+        )}
+        <Text style={st.small}>{online === false ? "Tuning is offline right now." : !info || supported
+          ? "Trains the model on this stock's news so it reads these headlines more accurately. About a minute."
+          : `Tuning is available for ${stocks.join(", ")}.`}</Text>
+        {err && <Text style={[st.small, { color: C.down }]}>{err}</Text>}
+        {modal}
+      </Card>
+    );
+  }
   return (
     <Card title="Fine-tune">
       <View style={st.rowBetween}>
@@ -267,22 +363,29 @@ export function FineTuneCard({ ticker, active, onActive, onTrained }: {
           : "Each fine-tune starts from a fresh copy of the general model and trains on this stock's headlines. It reads news; it is not a trading signal."}
       </Text>
       {err && <Text style={[st.small, { color: C.down }]}>{err}</Text>}
-      <PasswordModal visible={!!ask} error={pwErr} onCancel={() => setAsk(null)}
-        onSubmit={(pw) => { const what = ask!; setAsk(null); run(what, pw); }} />
+      {modal}
     </Card>
   );
 }
 
-export function HeadlinesCard({ ticker, model, nonce }: { ticker: string; model: Model; nonce: number }) {
+const fullTime = (iso?: string) => {
+  const t = Date.parse(iso || "");
+  return Number.isNaN(t) ? "Time n/a" : new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+};
+
+// Latest headlines. Advanced mode lists every real article we have for the stock, newest first, with its source, full
+// timestamp and a link to the original story.
+export function HeadlinesCard({ ticker, model, nonce, advanced }: { ticker: string; model: Model; nonce: number; advanced: boolean }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const s = useApi<Headlines>(paths.headlines(ticker, model), nonce);
   const [all, setAll] = useState(false);
   const items = s.data?.items || [];
-  const shown = all ? items : items.slice(0, 3);
+  const shown = advanced ? [...items].sort((a, b) => (Date.parse(b.time || "") || 0) - (Date.parse(a.time || "") || 0)) : all ? items : items.slice(0, 3);
   return (
     <Card title="Latest headlines" right={s.data?.provider ? <Text style={st.small}>{s.data.provider}</Text> : null}>
       <Status s={s} what="headlines" />
+      {advanced && s.data && <Text style={[st.small, { marginTop: 0, marginBottom: 6 }]}>All {items.length} articles we have for {ticker}, newest first, with the link to each original story.</Text>}
       {s.data && items.length === 0 && <Text style={st.dim}>No headlines found.</Text>}
       {shown.map((h, k) => (
         <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)} testID="headline"
@@ -294,12 +397,18 @@ export function HeadlinesCard({ ticker, model, nonce }: { ticker: string; model:
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={st.headlineText} numberOfLines={3}>{h.title}</Text>
-            <Text style={st.meta}>{[h.source, relTime(h.time)].filter(Boolean).join(" · ")}</Text>
+            <Text style={st.headlineText} numberOfLines={advanced ? undefined : 3}>{h.title}</Text>
+            {advanced ? (
+              <View style={st.artMeta}>
+                <Text style={[st.meta, { color: C.ink, fontWeight: "700" }]}>{h.source || "Source n/a"}</Text>
+                <Text style={st.meta}>{fullTime(h.time)}</Text>
+                <Text style={[st.meta, { color: h.url ? C.amber : C.dim, fontWeight: "700" }]}>{h.url ? "Open article ↗" : "Link n/a"}</Text>
+              </View>
+            ) : <Text style={st.meta}>{[h.source, relTime(h.time)].filter(Boolean).join(" · ")}</Text>}
           </View>
         </Pressable>
       ))}
-      {items.length > 3 && (
+      {items.length > 3 && !advanced && (
         <Pressable onPress={() => setAll(!all)} style={st.moreBtn} accessibilityRole="button">
           <Text style={st.more}>{all ? "Show fewer headlines" : `View all ${items.length}`}</Text>
         </Pressable>
@@ -397,6 +506,19 @@ const makeStyles = (C: Palette) => sheet({
   speaker: { borderWidth: 1, borderColor: C.line, paddingHorizontal: 10, minHeight: 36, justifyContent: "center" },
   speakerText: { color: C.ink, fontSize: 13, fontWeight: "600" },
   bulletRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  para: { color: C.ink, fontSize: 15, lineHeight: 22, marginBottom: 10 },
+  talk: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line },
+  talkRead: { minHeight: 36, justifyContent: "center", alignSelf: "flex-start" },
+  turn: { marginTop: 12 },
+  youText: { color: C.dim, fontSize: 14, lineHeight: 20 },
+  answer: { color: C.ink, fontSize: 15, lineHeight: 21, marginTop: 4 },
+  hear: { color: C.dim, fontSize: 12, marginTop: 4 },
+  source: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  askRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  input: { flex: 1, borderWidth: 1, borderColor: C.line, color: C.ink, paddingHorizontal: 10, minHeight: 44, fontSize: 15 },
+  askBtn: { backgroundColor: C.ink, paddingHorizontal: 16, minHeight: 44, justifyContent: "center" },
+  askT: { color: C.ground, fontSize: 15, fontWeight: "700" },
+  artMeta: { flexDirection: "row", flexWrap: "wrap", columnGap: 10 },
   bulletDot: { color: C.amber, fontSize: 16, fontWeight: "700" },
   bullet: { color: C.ink, fontSize: 15, lineHeight: 21, flex: 1 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" },

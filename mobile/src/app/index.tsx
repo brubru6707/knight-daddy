@@ -148,6 +148,10 @@ export default function Home() {
           <Text style={st.h2}>Replay</Text>
           <Text style={st.sub}>{"Re-run the model on a past day's headlines and see what it would have said."}</Text>
         </Pressable>
+        <Pressable onPress={() => router.push("/model")} style={({ pressed }) => [st.replay, { marginTop: 12 }, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+          <Text style={st.h2}>Model info</Text>
+          <Text style={st.sub}>How our news model scores against FinBERT, the full benchmark table and the historical backtest.</Text>
+        </Pressable>
         <Text style={st.footer}>News sentiment, not investment advice.</Text>
       </ScrollView>
     </SafeAreaView>

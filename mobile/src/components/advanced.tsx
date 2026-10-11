@@ -1,8 +1,7 @@
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { paths, type Backtest, type Benchmarks, type Sentiment, type SpecEval, type SpecInfo, type SpecStatus } from "@/lib/api";
+import { Text, View } from "react-native";
+import { paths, type Backtest, type Benchmarks, type Sentiment } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { money, pct, SERIF, toneColor, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
+import { money, pct, toneColor, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
 
@@ -109,7 +108,7 @@ export function BenchmarkCard({ nonce }: { nonce: number }) {
   const ours = rows.find((r) => r.model.includes("2B QLoRA"));
   const fb = rows.find((r) => /finbert fine/i.test(r.model)) || rows.find((r) => /finbert/i.test(r.model));
   return (
-    <Card title="Model">
+    <Card title="Ours vs. FinBERT">
       <Text style={st.lead}>Qwen3.5-2B QLoRA. 91.9% accuracy, 0.895 macro F1 on 2,388 held-out financial tweets. FinBERT fine-tuned on the same data: 88.9%.</Text>
       <Status s={s} what="benchmarks" />
       {ours && fb && (
@@ -139,86 +138,6 @@ export function BenchmarkCard({ nonce }: { nonce: number }) {
   );
 }
 
-const fmt = (x?: number | null) => (x === null || x === undefined ? "n/a" : `${(x * 100).toFixed(1)}%`);
-
-export function SpecialistCard({ ticker, nonce }: { ticker: string; nonce: number }) {
-  const { C } = useTheme();
-  const st = useStyles(makeStyles);
-  const info = useApi<SpecInfo>(paths.specInfo(), nonce);
-  const stocks = (info.data?.supported || []).filter((t) => t !== "CRYPTO");
-  const supported = stocks.includes(ticker);
-  const ev = useApi<SpecEval>(supported ? paths.specEval(ticker) : null, nonce);
-  const status = useApi<SpecStatus>(supported ? paths.specStatus(ticker) : null, nonce);
-  const e = ev.data;
-  const c = e?.comparison;
-  const verdict = c ? (c.verdict === "no clear difference" ? "No clear difference" : `Specialist ${c.verdict}`) : null;
-  const vColor = !c ? C.flat : c.verdict === "better" ? C.up : c.verdict === "worse" ? C.down : C.flat;
-  const summary = verdict ? <Pill text={verdict.toUpperCase()} color={vColor} /> : null;
-  const claude = /claude/i.test(e?.label_source || "");
-  return (
-    <Card title="Specialist before / after">
-      {claude && <View style={st.pills}><Pill text="Claude-labeled, not human-labeled" color={C.amber} /></View>}
-      <Status s={info} what="specialist info" />
-      {info.data && !supported && <Text style={st.dim}>No specialist for {ticker}. Available: {stocks.join(", ")}.</Text>}
-      <Status s={ev} what="specialist results" />
-      {e?.status === "scored" && e.models && c && (
-        <>
-          <View style={st.bigRow}>
-            <View style={st.big}><Text style={st.bigLabel}>General 2B</Text><Text style={st.bigNum}>{fmt(e.models.general.accuracy)}</Text></View>
-            <Text style={st.arrow}>→</Text>
-            <View style={st.big}><Text style={st.bigLabel}>Specialist</Text><Text style={[st.bigNum, { color: C.amber }]}>{fmt(e.models.specialist.accuracy)}</Text></View>
-          </View>
-          <View style={st.pills}>{summary}
-            <Text style={st.dim}>Δ {pct(c.accuracy_diff)} [{pct(c.accuracy_diff_ci95[0])}, {pct(c.accuracy_diff_ci95[1])}]</Text></View>
-          <Text style={st.small}>Rule fixed in advance: better or worse only if the 95% CI excludes 0. n={e.n_scored}.</Text>
-        </>
-      )}
-      {e && e.status !== "scored" && (
-        <>
-          <View style={st.pills}><Pill text="NOT SCORED YET" color={C.flat} /></View>
-          <Text style={st.dim}>{e.message}</Text>
-          {e.agreement_with_teacher && (
-            <View style={[st.bigRow, { marginTop: 10 }]}>
-              <View style={st.big}><Text style={st.bigLabel}>9B agreement before</Text><Text style={st.bigNum}>{fmt(e.agreement_with_teacher.general)}</Text></View>
-              <Text style={st.arrow}>→</Text>
-              <View style={st.big}><Text style={st.bigLabel}>after</Text><Text style={[st.bigNum, { color: C.amber }]}>{fmt(e.agreement_with_teacher.specialist)}</Text></View>
-            </View>
-          )}
-          <Text style={st.small}>
-            Agreement with our 9B model is not accuracy.{e.n_test_rows ? ` ${e.changed_on_test_rows}/${e.n_test_rows} test tags changed.` : ""}
-          </Text>
-        </>
-      )}
-      {status.data && status.data.phase !== "none" && (
-        <Text style={[st.small, { marginTop: 8 }]}>Last training run: {status.data.phase}
-          {status.data.total_steps ? ` (${status.data.step}/${status.data.total_steps} steps)` : ""}</Text>
-      )}
-    </Card>
-  );
-}
-
-// Advanced research: collapsed by default.
-export function AdvancedResearch({ ticker, nonce }: { ticker: string; nonce: number }) {
-  const [open, setOpen] = useState(false);
-  const st = useStyles(makeStyles);
-  return (
-    <View style={{ marginTop: 6 }}>
-      <Pressable onPress={() => setOpen(!open)} style={st.advHead} accessibilityRole="button" accessibilityState={{ expanded: open }}>
-        <Text style={st.advTitle}>{open ? "⌃" : "⌄"}  Advanced research</Text>
-        <Text style={st.small}>sentiment vs. price, backtest, model, specialist</Text>
-      </Pressable>
-      {open && (
-        <>
-          <SentimentCard ticker={ticker} nonce={nonce} />
-          <BacktestCard ticker={ticker} nonce={nonce} />
-          <BenchmarkCard nonce={nonce} />
-          <SpecialistCard ticker={ticker} nonce={nonce} />
-        </>
-      )}
-    </View>
-  );
-}
-
 const makeStyles = (C: Palette) => sheet({
   dim: { color: C.dim, fontSize: 14, lineHeight: 20 },
   small: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 6 },
@@ -226,8 +145,6 @@ const makeStyles = (C: Palette) => sheet({
   label: { color: C.dim, fontSize: 12, marginTop: 6, marginBottom: 2, letterSpacing: 0.5 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   pill: { borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
-  advHead: { borderTopWidth: 1, borderTopColor: C.rule, paddingVertical: 14, marginBottom: 8 },
-  advTitle: { color: C.ink, fontSize: 18, fontFamily: SERIF },
   pillText: { fontSize: 12, fontWeight: "800", letterSpacing: 0.8 },
   pills: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 8, flexWrap: "wrap" },
   lagRow: { flexDirection: "row", gap: 4, marginTop: 4 },
@@ -238,7 +155,6 @@ const makeStyles = (C: Palette) => sheet({
   big: { flex: 1 },
   bigLabel: { color: C.dim, fontSize: 12 },
   bigNum: { color: C.ink, fontSize: 30, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  arrow: { color: C.dim, fontSize: 22 },
   read: { color: C.ink, fontSize: 14, lineHeight: 20, marginTop: 8, borderLeftWidth: 2, borderLeftColor: C.amber, paddingLeft: 8 },
   tr: { flexDirection: "row", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.line },
   th: { color: C.dim, fontSize: 12, width: 52, textAlign: "right" },
