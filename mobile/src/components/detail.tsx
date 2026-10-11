@@ -45,7 +45,7 @@ export function PriceHero({ ticker, nonce, crypto = false }: { ticker: string; n
   const color = chg === null ? C.dim : chg >= 0 ? C.up : C.down;
   return (
     <View style={st.hero}>
-      <Text style={st.name}>{NAMES[ticker] || ticker}</Text>
+      <Text style={st.name}>{NAMES[ticker] || (s.data as Prices & { name?: string } | null)?.name || ticker}</Text>
       <Text style={st.tick}>{short(ticker)}{crypto ? " · CRYPTO" : ""}</Text>
       <Text style={st.price} accessibilityLabel="Price">{last !== undefined ? usd(last) : s.loading ? "…" : "n/a"}</Text>
       <Text style={[st.change, { color }]}>
@@ -504,6 +504,7 @@ export function HeadlinesCard({ ticker, model, nonce, advanced, initialAll = fal
   const s = useApi<Headlines>(paths.headlines(ticker, model), nonce);
   const [all, setAll] = useState(initialAll);
   const items = s.data?.items || [];
+  const pending = !!(s.data as { pending?: boolean } | null)?.pending; // a ticker Oscar hasn't covered yet
   const ordered = advanced ? [...items].sort((a, b) => (Date.parse(b.time || "") || 0) - (Date.parse(a.time || "") || 0)) : items;
   const shown = all ? ordered : ordered.slice(0, 3);
   return (
@@ -515,7 +516,7 @@ export function HeadlinesCard({ ticker, model, nonce, advanced, initialAll = fal
         <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)} testID="headline"
           style={({ pressed }) => [st.headline, k === 0 && { borderTopWidth: 0 }, pressed && { opacity: 0.6 }]}
           accessibilityRole="link" accessibilityLabel={`${h.label || "Untagged"}: ${h.title}`}>
-          {model !== "none" && (
+          {model !== "none" && !pending && (
             <View style={[st.tag, { borderColor: labelColor(C, h.label) }]}>
               <Text style={[st.tagText, { color: labelColor(C, h.label) }]}>{h.label || "n/a"}</Text>
             </View>
@@ -537,7 +538,8 @@ export function HeadlinesCard({ ticker, model, nonce, advanced, initialAll = fal
           <Text style={st.more}>{all ? "Show less" : "Show more"}</Text>
         </Pressable>
       )}
-      {s.data && <Text style={st.small}>{model === "none" ? "No sentiment model runs on crypto, so these are untagged."
+      {s.data && <Text style={st.small}>{pending ? "Live headlines from Yahoo Finance. Tags appear after Oscar's next update."
+        : model === "none" ? "No sentiment model runs on crypto, so these are untagged."
         : `Tags by Qwen, ${model === "specialist" ? `${ticker} specialist` : "general model"}.`}</Text>}
     </Card>
   );
