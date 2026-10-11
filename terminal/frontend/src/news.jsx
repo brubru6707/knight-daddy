@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Dot, headlinesPath, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
 
 // Latest headlines tagged by the active Qwen model (general or this ticker's specialist). model="none" (crypto):
-// untagged headlines only, no model output. Advanced mode lists every real article we have for the stock with its
-// source, full timestamp and a link to the article itself.
+// untagged headlines only, no model output. 3 at first, "Show more" expands the full list. Advanced mode adds each
+// article's source, full timestamp and a link to the article itself, newest first.
 export function Headlines({ ticker, model, specVersion, adv }) {
   const [all, setAll] = useState(false);
   const [source, setSource] = useState("live");
@@ -11,7 +11,8 @@ export function Headlines({ ticker, model, specVersion, adv }) {
   const tagged = model !== "none";
   const s = useApi(headlinesPath(ticker, model, tagged ? source : "live"), [specVersion]);
   const items = s.data?.items || [];
-  const shown = adv ? [...items].sort((a, b) => (Date.parse(b.time) || 0) - (Date.parse(a.time) || 0)) : all ? items : items.slice(0, 3);
+  const ordered = adv ? [...items].sort((a, b) => (Date.parse(b.time) || 0) - (Date.parse(a.time) || 0)) : items;
+  const shown = all ? ordered : ordered.slice(0, 3);
   const opt = (cur, set, vals) => vals.map((v) => (
     <button key={v} onClick={() => set(v)} aria-pressed={cur === v} className={cur === v ? "text-amber" : "hover:text-ink"}>{v}</button>));
   return (
@@ -20,7 +21,7 @@ export function Headlines({ ticker, model, specVersion, adv }) {
         {tagged && <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>}
         {tagged && s.data && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
       </span>}>Latest headlines</SectionTitle>
-      {adv && s.data && <p className="-mt-2 mb-3 text-xs text-dim" data-testid="advanced-note">All {items.length} articles we have for {ticker}, newest first, with the link to each original story.</p>}
+      {adv && s.data && <p className="-mt-2 mb-3 text-xs text-dim" data-testid="advanced-note">{items.length} articles for {ticker}, newest first, with the link to each original story.</p>}
       <Status s={s} what="headlines" />
       {s.data && items.length === 0 && <div className="text-sm text-dim">No headlines found.</div>}
       <ul>
@@ -43,9 +44,9 @@ export function Headlines({ ticker, model, specVersion, adv }) {
           </li>
         ))}
       </ul>
-      {items.length > 3 && !adv && (
-        <button onClick={() => setAll(!all)} className="mt-4 text-sm text-amber hover:underline">
-          {all ? "Show fewer headlines" : `View all ${items.length}`}</button>
+      {items.length > 3 && (
+        <button onClick={() => setAll(!all)} aria-expanded={all} data-testid="headlines-more" className="mt-4 text-sm text-amber hover:underline">
+          {all ? "Show less" : "Show more"}</button>
       )}
       {s.data && (
         <p className="mt-4 text-xs text-dim">
@@ -119,8 +120,8 @@ export function CryptoNews({ ticker, Bar }) {
           ))}
         </ul>
         {items.length > 3 && (
-          <button onClick={() => setAll(!all)} className="mt-4 text-sm text-amber hover:underline">
-            {all ? "Show fewer headlines" : `View all ${items.length}`}</button>
+          <button onClick={() => setAll(!all)} aria-expanded={all} data-testid="headlines-more" className="mt-4 text-sm text-amber hover:underline">
+            {all ? "Show less" : "Show more"}</button>
         )}
         {d && <p className="mt-4 text-xs text-dim">Live headlines from {d.provider || "n/a"}{d.filter_note ? `. ${d.filter_note}` : ""}.</p>}
         {tagged && <p className="mt-1 text-xs text-amber" data-testid="crypto-caption">Tagged by our general news model, not yet validated on crypto.</p>}

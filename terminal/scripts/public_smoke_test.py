@@ -3,7 +3,7 @@ password-protected Fine-tune with polled progress (only when the worker is onlin
 Usage: python scripts/public_smoke_test.py <base_url> [train_password] [out.png]"""
 import sys, time
 from playwright.sync_api import sync_playwright
-from _kd import check, errors, finish, load, watch_errors
+from _kd import set_advanced, check, errors, finish, load, watch_errors
 
 url = sys.argv[1]
 pw = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != "-" else None
@@ -20,10 +20,11 @@ with sync_playwright() as p:
     pg.locator("[data-testid=headline]").first.wait_for(timeout=30_000)
     check("headline feed from snapshot (Finnhub)", pg.locator("text=/Live headlines from Finnhub/").count() == 1)
     pg.locator("[data-testid=briefing-bullets]").or_(pg.locator("text=/Briefing: n\\/a/")).first.wait_for(timeout=30_000); check("briefing from snapshot", True)
+    pg.evaluate("localStorage.setItem('kd.advanced', 'true')")  # Model info exists only in Advanced mode
     pg.goto(f"{url}/model"); pg.locator("[data-testid=backtest-caption]").wait_for(timeout=30_000)
     check("backtest from snapshot (Model info)", True)
     load(pg, url, "NVDA")
-    pg.locator("[data-testid=advanced-toggle]").click()  # full fine-tune controls
+    set_advanced(pg, True)  # full fine-tune controls
     pg.locator("[data-testid=model-status] >> text=/online|offline/").wait_for(timeout=30_000)
     status = pg.locator("[data-testid=model-status]").inner_text()
     online = bool(h.get("worker_online"))

@@ -3,7 +3,7 @@ controls, headlines, competitors, advanced research), Back to the list, exact co
 Usage: python scripts/ui_smoke_test.py [base_url] [ticker] [out.png]"""
 import re, sys
 from playwright.sync_api import sync_playwright
-from _kd import HOME, check, copy_rules, finish, load, watch_errors
+from _kd import set_advanced, HOME, check, copy_rules, finish, load, watch_errors
 
 url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
 ticker = sys.argv[2] if len(sys.argv) > 2 else "NVDA"
@@ -97,9 +97,17 @@ with sync_playwright() as p:
     check("3 headlines shown first", pg.locator("[data-testid=headline]").count() == 3)
     tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
     check("headlines carry a Bullish/Bearish/Neutral tag", tags == 3, f"{tags}/3")
-    pg.locator("text=/^View all \\d+$/").click()
-    check("View all expands the list", pg.locator("[data-testid=headline]").count() > 3, str(pg.locator("[data-testid=headline]").count()))
-    pg.locator("text=Show fewer headlines").click()
+    more = pg.locator("[data-testid=headlines-more]")
+    check("Show more button under 3 headlines", more.inner_text() == "Show more")
+    more.click()
+    check("Show more expands the full list", pg.locator("[data-testid=headline]").count() > 3, str(pg.locator("[data-testid=headline]").count()))
+    check("then reads Show less", more.inner_text() == "Show less")
+    pg.screenshot(path=out.replace(".png", "_expanded.png"), full_page=True)
+    more.click()
+    check("Show less collapses to 3", pg.locator("[data-testid=headline]").count() == 3)
+    check("Advanced off: no Model info in the header", pg.locator("[data-testid=nav-model]").count() == 0 and pg.locator("[data-testid=nav-replay]").count() == 1)
+    check("no per-stock Advanced switch on the page", pg.locator("main [data-testid=advanced-toggle], [data-testid=settings-panel]").count() == 0
+          and pg.locator("[data-testid=advanced-toggle]").count() == 0)
     raw = [w for w in ("HTTP 4", "HTTP 5", "certificate", "quota", "server error") if w in pg.inner_text("body")]
     check("no raw error text on the page", not raw, ", ".join(raw))
     check("competitors row has 3 peers", pg.locator("section[aria-label=Competitors] button").count() == 3)
@@ -110,8 +118,9 @@ with sync_playwright() as p:
     check("no model-wide or specialist sections on the detail page",
           not any(x in order for x in ("Advanced research", "Model", "Backtest")) and pg.locator("[data-testid=specialist-table]").count() == 0
           and pg.locator("[data-testid=model-copy]").count() == 0 and pg.locator("text=/general model said/").count() == 0, ", ".join(order))
-    # ---- Advanced mode ----
-    pg.locator("[data-testid=advanced-toggle]").click()
+    # ---- Advanced mode (global switch in Settings) ----
+    set_advanced(pg, True)
+    check("Advanced on: Model info in the header", pg.locator("[data-testid=nav-model]").count() == 1)
     brief.locator("[data-testid=briefing-paragraphs]").or_(brief.locator("[data-testid=briefing-long-na]")).or_(brief.locator("[data-testid=briefing-unavailable]")).first.wait_for(timeout=60_000)
     if brief.locator("[data-testid=briefing-paragraphs]").count():
         paras = [x.inner_text() for x in brief.locator("[data-testid=briefing-paragraphs] p").all()]
@@ -126,14 +135,16 @@ with sync_playwright() as p:
           ft.locator("button:has-text('Reset to general model')").count() == (1 if "specialist" in active else 0))
     hl = pg.locator("section[aria-label='Latest headlines']")
     hl.locator("[data-testid=article-meta]").first.wait_for(timeout=15_000)
+    check("advanced headlines: 3 first", hl.locator("[data-testid=headline]").count() == 3)
+    hl.locator("[data-testid=headlines-more]").click()
     metas = hl.locator("[data-testid=article-meta]").all()
-    check("advanced headlines: every real article listed", len(metas) == pg.locator("[data-testid=headline]").count() and len(metas) > 3, str(len(metas)))
+    check("advanced headlines: Show more lists every article with details", len(metas) == hl.locator("[data-testid=headline]").count() and len(metas) > 3, str(len(metas)))
     links = [l.get_attribute("href") or "" for l in hl.locator("[data-testid=article-link]").all()]
     check("advanced headlines: source, timestamp and article link", all(m.locator("time").count() == 1 and "n/a" not in m.locator("time").inner_text() for m in metas)
           and len(links) >= len(metas) * 0.8 and all(l.startswith("http") for l in links), f"{len(links)} links")
     copy_rules(pg, "(advanced)")
     pg.screenshot(path=out.replace(".png", "_advanced.png"), full_page=True)
-    pg.locator("[data-testid=advanced-toggle]").click()
+    hl.locator("[data-testid=headlines-more]").click()
     check("footer copy", pg.locator("footer").inner_text() == "News sentiment, not investment advice.")
     copy_rules(pg, "(detail)")
     pg.wait_for_timeout(800)
@@ -154,6 +165,11 @@ with sync_playwright() as p:
     check("Model info footer", pg.locator("footer").inner_text() == "News sentiment, not investment advice.")
     copy_rules(pg, "(model info)")
     pg.screenshot(path=out.replace(".png", "_model.png"), full_page=True)
+    pg.go_back(); pg.locator("[data-testid=price]").wait_for(timeout=15_000)
+    set_advanced(pg, False)
+    check("Advanced off again: Model info hidden", pg.locator("[data-testid=nav-model]").count() == 0)
+    pg.goto(pg.url.split("/?")[0].rstrip("/") + "/model"); pg.wait_for_timeout(1500)
+    check("Advanced off: /model shows no Model info", pg.locator("[data-testid=model-info]").count() == 0, pg.url)
     pg.go_back(); pg.locator("[data-testid=price]").wait_for(timeout=15_000)
 
     # ---- back ----

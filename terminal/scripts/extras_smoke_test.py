@@ -133,6 +133,7 @@ with sync_playwright() as p:
         pg.locator("[data-testid=replay-na]").wait_for(timeout=30_000)
         check("replay shows n/a until Oscar publishes replay days", True)
     else:
+        pg.locator("[data-testid=replay-date] option[value]:not([value=''])").first.wait_for(state="attached", timeout=30_000)
         opts = pg.locator("[data-testid=replay-date] option[value]:not([value=''])").evaluate_all("els => els.map(e => e.value)")
         t0 = pairs[0]["ticker"]
         check("date picker offers only published dates", set(opts) == {x["date"] for x in pairs if x["ticker"] == t0}, f"{len(opts)} dates")

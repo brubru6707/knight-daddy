@@ -52,3 +52,12 @@ def finish():
     check("no browser console errors", not errors, "; ".join(errors[:3]))
     print("ALL PASS" if all(checks) else "SOME CHECKS FAILED")
     return 0 if all(checks) else 1
+
+
+def set_advanced(pg, on):
+    """Flip the global Advanced switch in Settings to `on` (if needed), then close the panel."""
+    pg.locator("[data-testid=settings]").click()
+    sw = pg.locator("[data-testid=advanced-toggle]"); sw.wait_for(timeout=10_000)
+    if (sw.get_attribute("aria-checked") == "true") != on:
+        sw.click()
+    pg.keyboard.press("Escape")

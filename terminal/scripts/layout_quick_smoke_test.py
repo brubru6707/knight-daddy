@@ -2,7 +2,7 @@
 Quick demo run timed from click to done. Usage: python scripts/layout_quick_smoke_test.py [base_url] [quick:0|1] [out.png]"""
 import sys, time
 from playwright.sync_api import sync_playwright
-from _kd import check, errors, finish, load, watch_errors
+from _kd import set_advanced, check, errors, finish, load, watch_errors
 
 url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
 quick = len(sys.argv) > 2 and sys.argv[2] == "1"
@@ -42,7 +42,7 @@ with sync_playwright() as p:
     if quick:
         times = []
         for _ in range(3):
-            load(pg, url, "NVDA"); pg.locator("[data-testid=advanced-toggle]").click(); ft = pg.locator("section[aria-label=Fine-tune]"); t0 = time.time()
+            load(pg, url, "NVDA"); set_advanced(pg, True); ft = pg.locator("section[aria-label=Fine-tune]"); t0 = time.time()
             ft.locator("text=Quick run (not scored)").click()
             ft.locator("text=/Last fine-tune: Done/").wait_for(timeout=300_000); times.append(time.time() - t0)
         check("quick demo runs finish", True, ", ".join(f"{t:.0f}s" for t in times))

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, HOME, isCrypto, setPw, useSavedPw, withPw } from "./ui.jsx";
+import { api, HOME, isCrypto, setPw, useAdvanced, useSavedPw, withPw } from "./ui.jsx";
 
 const Gear = () => (
   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -8,7 +8,7 @@ const Gear = () => (
   </svg>
 );
 
-// Settings (gear in the header): active model per stock, reset to the general model (this stock or all stocks), and
+// Settings (gear in the header): the global Advanced switch, active model per stock, reset to the general model (this stock or all stocks), and
 // the saved train password (change or forget). Resets use the password-protected /api/specialist/reset.
 export function Settings({ current, onChanged }) {
   const [open, setOpen] = useState(false);
@@ -19,6 +19,7 @@ export function Settings({ current, onChanged }) {
   const [askFor, setAskFor] = useState(null); // pending reset target while the password box is open
   const [editPw, setEditPw] = useState(false);
   const saved = useSavedPw();
+  const [adv, setAdv] = useAdvanced();
   const box = useRef(null);
   const stock = current && !isCrypto(current) && HOME.includes(current) ? current : null;
 
@@ -55,7 +56,14 @@ export function Settings({ current, onChanged }) {
         className="flex h-9 w-9 items-center justify-center text-dim hover:text-ink"><Gear /></button>
       {open && (
         <div className="absolute right-0 top-11 z-30 w-[min(340px,calc(100vw-2rem))] border border-rule bg-ground p-4 text-sm" role="dialog" aria-label="Settings" data-testid="settings-panel">
-          <div className="kd-label">Active model</div>
+          <button onClick={() => setAdv(!adv)} role="switch" aria-checked={adv} data-testid="advanced-toggle"
+            className="flex w-full items-center justify-between gap-3 text-left">
+            <span><span className="block font-semibold text-ink">Advanced</span>
+              <span className="block text-xs text-dim">Longer briefing, article details, full fine-tune controls, Model info.</span></span>
+            <span className={`relative inline-block h-[18px] w-8 shrink-0 border ${adv ? "border-amber bg-amber" : "border-rule bg-ground"}`}>
+              <span className={`absolute top-[2px] h-3 w-3 transition-all ${adv ? "left-[16px] bg-ground" : "left-[2px] bg-dim"}`} /></span>
+          </button>
+          <div className="kd-label mt-5">Active model</div>
           <ul className="mt-2" data-testid="settings-models">
             {HOME.map((t) => (
               <li key={t} className={`flex justify-between border-b border-line py-1.5 ${t === stock ? "text-ink" : "text-dim"}`}>

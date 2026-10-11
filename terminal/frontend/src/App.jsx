@@ -25,6 +25,7 @@ const SUPPORTED = [...HOME, ...CRYPTO];
 
 function Header({ onHome, onPick, onReplay, onModel, dark, setDark, current, onModelChange }) {
   const [q, setQ] = useState("");
+  const [adv] = useAdvanced(); // Model info only in Advanced mode
   const input = useRef(null);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "/" && document.activeElement?.tagName !== "INPUT") { e.preventDefault(); input.current?.focus(); } };
@@ -34,7 +35,7 @@ function Header({ onHome, onPick, onReplay, onModel, dark, setDark, current, onM
   const submit = (e) => { e.preventDefault(); const t = q.trim().toUpperCase(); if (t) { onPick(t); setQ(""); input.current?.blur(); } };
   return (
     <header className="sticky top-0 z-20 border-b border-rule bg-ground">
-      <div className="mx-auto grid h-14 max-w-[720px] grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-1.5 px-4 sm:h-16 sm:gap-3 sm:px-6">
+      <div className={`mx-auto grid h-14 max-w-[720px] ${adv ? "grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto]" : "grid-cols-[auto_minmax(0,1fr)_auto_auto_auto]"} items-center gap-1.5 px-4 sm:h-16 sm:gap-3 sm:px-6`}>
         <button onClick={onHome} className="flex items-center gap-2 text-[15px] font-semibold text-amber" title="Knight-Daddy home">
           <img src="/favicon.svg" alt="" className="h-5 w-5" /><span className="hidden sm:inline">Knight-Daddy</span></button>
         <form onSubmit={submit} className="relative">
@@ -44,8 +45,8 @@ function Header({ onHome, onPick, onReplay, onModel, dark, setDark, current, onM
           <datalist id="kd-tickers">{SUPPORTED.map((t) => <option key={t} value={t}>{NAMES[t]?.[0]}</option>)}</datalist>
         </form>
         <button onClick={onReplay} className="px-1 text-sm text-dim hover:text-ink" data-testid="nav-replay">Replay</button>
-        <button onClick={onModel} className="whitespace-nowrap px-1 text-sm text-dim hover:text-ink" data-testid="nav-model">
-          <span className="sm:hidden">Model</span><span className="hidden sm:inline">Model info</span></button>
+        {adv && <button onClick={onModel} className="whitespace-nowrap px-1 text-sm text-dim hover:text-ink" data-testid="nav-model">
+          <span className="sm:hidden">Model</span><span className="hidden sm:inline">Model info</span></button>}
         <button onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
           className="h-9 w-9 text-dim hover:text-ink">{dark ? "☀" : "☾"}</button>
         <Settings current={current} onChanged={onModelChange} />
@@ -72,7 +73,7 @@ function Detail({ ticker, onBack, onPick, modelVersion }) {
   const [info, setInfo] = useState(null);
   const [active, setActive] = useState("general");
   const [specVersion, setSpecVersion] = useState(0);
-  const [adv, setAdv] = useAdvanced();
+  const [adv] = useAdvanced(); // the switch lives in Settings
   useEffect(() => {
     api("health").then(setHealth).catch(() => setHealth(null));
     api("specialist/info").then(setInfo).catch(() => setInfo(null));
@@ -80,16 +81,8 @@ function Detail({ ticker, onBack, onPick, modelVersion }) {
   }, [ticker, specVersion, modelVersion]);
   return (
     <div className="mx-auto max-w-[720px] px-4 pb-12 pt-4 sm:px-6 sm:pt-6">
-      <div className="-ml-1 mb-5 flex items-center justify-between gap-3">
-        <button onClick={onBack} className="flex items-center gap-1.5 px-1 py-2 text-sm text-dim hover:text-ink" data-testid="back">
-          <span aria-hidden>‹</span> Back to stocks</button>
-        <button onClick={() => setAdv(!adv)} role="switch" aria-checked={adv} data-testid="advanced-toggle"
-          className="flex items-center gap-2 py-2 text-xs text-dim hover:text-ink">
-          Advanced
-          <span className={`relative inline-block h-[18px] w-8 border ${adv ? "border-amber bg-amber" : "border-rule bg-ground"}`}>
-            <span className={`absolute top-[2px] h-3 w-3 transition-all ${adv ? "left-[16px] bg-ground" : "left-[2px] bg-dim"}`} /></span>
-        </button>
-      </div>
+      <button onClick={onBack} className="-ml-1 mb-5 flex items-center gap-1.5 px-1 py-2 text-sm text-dim hover:text-ink" data-testid="back">
+        <span aria-hidden>‹</span> Back to stocks</button>
       <PriceBlock key={ticker} ticker={ticker} />
       <ConfidenceBar key={`c-${ticker}-${active}-${specVersion}`} ticker={ticker} model={active} />
       <Briefing key={`b-${ticker}`} ticker={ticker} adv={adv} />
@@ -134,16 +127,19 @@ export default function App() {
     go({ page: "detail", t });
     if (fromHome) history.replaceState({ kd: "from-home" }, "", location.href);
   };
+  const add = (t) => { const l = list.includes(t) ? list : [...list, t]; setList(l); writeLocal("kd.list", l); };
+  const [adv] = useAdvanced();
+  useEffect(() => { if (route.page === "model" && !adv) history.replaceState(null, "", "/"); }, [route.page, adv]); // hidden when Advanced is off
   const finishOnboarding = (sel) => { setList(sel); writeLocal("kd.list", sel); setOnboarded(true); writeLocal("kd.onboarded", true); setEditing(false); };
 
   let page;
-  if (route.page === "model") page = <ModelInfo onBack={() => go(home)} />;
+  if (route.page === "model" && adv) page = <ModelInfo onBack={() => go(home)} />;
+  else if (route.page === "model") page = <Home onOpen={open} list={list} onEdit={() => setEditing(true)} onReplay={() => go({ page: "replay" })} onAdd={add} />;
   else if (route.page === "replay") page = <Replay ticker={route.t} date={route.d} onBack={() => go(home)} onPick={(t, d) => go({ page: "replay", t, d }, true)} />;
   else if (route.page === "detail") page = isCrypto(route.t) ? <CryptoDetail ticker={route.t} onBack={back} />
     : <Detail ticker={route.t} onBack={back} onPick={(t) => go({ page: "detail", t })} modelVersion={modelVersion} />;
   else if (!onboarded || editing) page = <Onboarding initial={list} onDone={finishOnboarding} onSkip={() => finishOnboarding(editing ? list : [])} />;
-  else page = <Home onOpen={open} list={list} onEdit={() => setEditing(true)} onReplay={() => go({ page: "replay" })}
-    onAdd={(t) => { const l = list.includes(t) ? list : [...list, t]; setList(l); writeLocal("kd.list", l); }} />;
+  else page = <Home onOpen={open} list={list} onEdit={() => setEditing(true)} onReplay={() => go({ page: "replay" })} onAdd={add} />;
 
   return (
     <div className="min-h-screen">
