@@ -111,7 +111,8 @@ async function talk(body) {
   if (!process.env.GEMINI_API_KEY) return fail();
   const coin = !!COINS[t];
   const feed = coin ? await cryptoNews(t)
-    : (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model: "general" })}`))?.body;
+    : (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model: "general" })}`))?.body
+      || (SYM.test(t) ? { items: await yahooNews(t).catch(() => []) } : null);
   const items = (feed?.items || []).slice(0, 40);
   if (!items.length) return fail(`I don't have any headlines for ${t} right now, so I can't answer that.`);
   const day = `kw:talkq:${new Date().toISOString().slice(0, 10)}`, used = (await getJSON(day)) || 0;
@@ -222,6 +223,61 @@ async function cryptoNews(t) {
   const items = ((await r.json()).news || []).filter((n) => n.title && pat.test(n.title))
     .map((n) => ({ title: n.title, source: n.publisher || "", url: n.link || "", time: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null }));
   return { ticker: t, provider: "Yahoo Finance", filter_note: `Showing only headlines that name ${COINS[t][0]}`, items, tagged: false };
+}
+// ---------- any ticker: live fallback until Oscar covers it ----------
+// The site only mirrors what the Oscar worker pushes. For a ticker it has never pushed, prices and headlines come live
+// from Yahoo Finance (no key, headlines untagged), and the ticker is queued in kw:wanted; the worker picks the queue up
+// with its next job check, pushes tags, briefing and confidence for it, and keeps it fresh in later rounds.
+const SYM = /^[A-Z][A-Z0-9.-]{0,9}$/;
+const YH = { "user-agent": "Mozilla/5.0" };
+const WANTED_MAX = 20, WANTED_DAYS = 7;
+async function want(t) {
+  const w = (await getJSON("kw:wanted")) || {};
+  w[t] = now();
+  const keep = Object.entries(w).filter(([, at]) => now() - at < WANTED_DAYS * 86400e3).sort((a, b) => b[1] - a[1]).slice(0, WANTED_MAX);
+  await setJSON("kw:wanted", Object.fromEntries(keep), { ex: WANTED_DAYS * 86400 });
+}
+async function yahooPrices(t, period) {
+  const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?range=${period}&interval=1d`, { headers: YH });
+  if (!r.ok) return null;
+  const c = (await r.json()).chart?.result?.[0], q = c?.indicators?.quote?.[0];
+  if (!c?.timestamp || !q) return null;
+  const bars = c.timestamp.map((ts, i) => ({ time: new Date(ts * 1000).toISOString().slice(0, 10), open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume[i] || 0 }))
+    .filter((b) => b.close != null);
+  if (!bars.length) return null;
+  const last = bars.at(-1).close, prev = bars.length > 1 ? bars.at(-2).close : last;
+  return { ticker: t, period, bars, last, change_1d: last / prev - 1, change_period: last / bars[0].close - 1,
+    high: Math.max(...bars.map((b) => b.high ?? b.close)), low: Math.min(...bars.map((b) => b.low ?? b.close)),
+    name: c.meta?.longName || c.meta?.shortName || null, exchange: c.meta?.fullExchangeName || null, provider: "Yahoo Finance", pending: true };
+}
+async function yahooNews(t) {
+  const q = new URLSearchParams({ q: t, newsCount: "40", quotesCount: "0", enableFuzzyQuery: "false", newsQueryId: "news_cie_vespa" });
+  const r = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?${q}`, { headers: YH });
+  if (!r.ok) return [];
+  const all = ((await r.json()).news || []).filter((n) => n.title);
+  const about = all.filter((n) => (n.relatedTickers || []).includes(t)); // stories Yahoo links to this ticker
+  return (about.length ? about : all).map((n) => ({ title: n.title, source: n.publisher || "", url: n.link || "",
+    time: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null }));
+}
+async function liveFallback(key) {
+  const [path, qs] = key.split("?"), q = new URLSearchParams(qs || ""), t = q.get("ticker") || "";
+  if (!SYM.test(t) || COINS[t]) return null;
+  if (path === "prices") {
+    const p = await yahooPrices(t, q.get("period") || "1y").catch(() => null);
+    if (!p) return null;
+    await want(t);
+    return [200, p];
+  }
+  if (path === "headlines" && q.get("source") === "live" && q.get("model") !== "specialist") {
+    const items = (await yahooNews(t).catch(() => [])).slice(0, Number(q.get("limit")) || 40);
+    if (!items.length) return null;
+    await want(t);
+    return [200, { ticker: t, source: "live", provider: "Yahoo Finance", provider_note: null, model: q.get("model") || "general", items, labeled: false, pending: true,
+      filter_note: "Tags appear after Oscar's next update", p_bearish: null, p_neutral: null, p_bullish: null, confidence_n: 0 }];
+  }
+  if (path === "briefing" && (await getJSON("kw:wanted"))?.[t])
+    return [200, { status: "pending", ticker: t, message: `The ${t} summary appears after Oscar's next update.` }];
+  return null;
 }
 const jobKey = (id) => `kw:job:${id}`;
 
@@ -334,6 +390,8 @@ async function mirror(res, key, extra) {
   if (!snap && key.startsWith("briefing?mode=advanced")) // the longer briefing appears once the worker pushes it
     return send(res, 200, { status: "not_published", mode: "advanced", message: "Longer briefing not published yet." });
   if (!snap) {
+    const fb = await liveFallback(key);
+    if (fb) return send(res, fb[0], fb[1]);
     const meta = await getJSON("kw:meta");
     return send(res, 404, { detail: `Not available on the public site yet (${key}). Tracked tickers: ${(meta?.tickers || []).join(", ") || "none pushed yet"}.` });
   }
@@ -375,10 +433,11 @@ export default async function handler(req, res) {
       if (route === "jobs/heartbeat" && method === "POST") return send(res, 200, { ok: true }); // worker alive, GPU busy
       const job = await activeJob();
       if (route === "jobs/claim" && method === "POST") {
-        if (!job || job.status !== "queued") return send(res, 200, { job: null });
+        const wanted = Object.keys((await getJSON("kw:wanted")) || {});
+        if (!job || job.status !== "queued") return send(res, 200, { job: null, wanted });
         Object.assign(job, { status: "running", claimed_at: now(), updated_at: now() });
         await setJSON(jobKey(job.id), job, { ex: 86400 });
-        return send(res, 200, { job });
+        return send(res, 200, { job, wanted });
       }
       if (!job || job.id !== body.id) return send(res, 409, { detail: "no such active job" });
       if (route === "jobs/progress" && method === "POST") {

@@ -11,6 +11,7 @@ export function Headlines({ ticker, model, specVersion, adv }) {
   const tagged = model !== "none";
   const s = useApi(headlinesPath(ticker, model, tagged ? source : "live"), [specVersion]);
   const items = s.data?.items || [];
+  const pending = !!s.data?.pending; // a ticker Oscar hasn't covered yet: live untagged headlines until its next update
   const ordered = adv ? [...items].sort((a, b) => (Date.parse(b.time) || 0) - (Date.parse(a.time) || 0)) : items;
   const shown = all ? ordered : ordered.slice(0, 3);
   const opt = (cur, set, vals) => vals.map((v) => (
@@ -19,7 +20,7 @@ export function Headlines({ ticker, model, specVersion, adv }) {
     <section className="mt-12" aria-label="Latest headlines">
       <SectionTitle right={<span className="flex items-center gap-3">
         {tagged && <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>}
-        {tagged && s.data && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
+        {tagged && s.data && !pending && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
       </span>}>Latest headlines</SectionTitle>
       {adv && s.data && <p className="-mt-2 mb-3 text-xs text-dim" data-testid="advanced-note">{items.length} articles for {ticker}, newest first, with the link to each original story.</p>}
       <Status s={s} what="headlines" />
@@ -27,7 +28,7 @@ export function Headlines({ ticker, model, specVersion, adv }) {
       <ul>
         {shown.map((h, k) => (
           <li key={k} className="flex gap-4 border-b border-line py-3.5" data-testid="headline">
-            {tagged && <span className={`flex h-fit w-[80px] shrink-0 items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}
+            {tagged && !pending && <span className={`flex h-fit w-[80px] shrink-0 items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}
               title={h.p_bull !== undefined ? `bull ${(h.p_bull * 100).toFixed(0)}% · bear ${(h.p_bear * 100).toFixed(0)}% · neutral ${(h.p_neut * 100).toFixed(0)}%` : "not classified"}>
               <Dot label={h.label} />{h.label || "n/a"}</span>}
             <div className="min-w-0">
@@ -51,7 +52,7 @@ export function Headlines({ ticker, model, specVersion, adv }) {
       {s.data && (
         <p className="mt-4 text-xs text-dim">
           {source === "live" ? `Live headlines from ${s.data.provider || "n/a"}${s.data.filter_note ? `. ${s.data.filter_note}` : ""}.` : "Historical headlines from the FNSPID dataset."}
-          {" "}{tagged ? `Tags by Qwen, ${model === "specialist" ? `${ticker} specialist` : "general model"}.` : "No sentiment model runs on crypto, so these are untagged."}</p>
+          {" "}{pending ? "" : tagged ? `Tags by Qwen, ${model === "specialist" ? `${ticker} specialist` : "general model"}.` : "No sentiment model runs on crypto, so these are untagged."}</p>
       )}
     </section>
   );

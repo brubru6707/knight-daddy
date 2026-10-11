@@ -92,13 +92,13 @@ def spc_urls(t):
     return [f"specialist/status?ticker={t}", f"specialist/eval?ticker={t}"]
 
 
-def push_snapshots(client, tickers, include_global=True, replays=False):
+def push_snapshots(client, tickers, include_global=True, replays=False, full=()):
     t0 = time.time()
     # specialist-only tickers (e.g. CRYPTO: no prices or news feed) still get SPC panel snapshots
     spc_only = [t for t in client.get("/api/specialist/info").json().get("supported", []) if t not in TICKERS] \
         if include_global else []
     groups = ([("global", ["health", "benchmarks", "specialist/info"])] if include_global else []) + \
-             [(t, spc_urls(t) if t not in TICKERS else urls_for(client, t)) for t in tickers] + \
+             [(t, urls_for(client, t) if t in TICKERS or t in full else spc_urls(t)) for t in tickers] + \
              [(t, spc_urls(t)) for t in spc_only] + \
              ([(t, crypto_urls(t)) for t in CRYPTO] if include_global else []) + \
              (replay_groups(client) if replays else [])
@@ -156,20 +156,29 @@ def main():
         push_snapshots(client, TICKERS, replays=True)
         if args.once:
             return
+        # tickers people opened on the site that are not in TICKERS: pushed as soon as they show up in the queue,
+        # then kept fresh in every regular round (the site drops a ticker after 7 days without a view)
+        extra = []
         next_snap = time.time() + args.snapshot_every
         next_replay = time.time() + args.replay_every
         while not stop_at or time.time() < stop_at:
             try:
                 # never claim a job while our own GPU is busy (startup warmup or another run)
                 if not client.get("/api/specialist/info").json().get("busy"):
-                    job = remote("jobs/claim", {}).get("job")
-                    if job:
-                        run_job(client, job)
+                    res = remote("jobs/claim", {})
+                    wanted = [t for t in res.get("wanted", []) if t not in TICKERS and t not in CRYPTO]
+                    new = [t for t in wanted if t not in extra]
+                    extra = wanted
+                    if new:
+                        log(f"new tickers requested on the site: {new}")
+                        push_snapshots(client, new, include_global=False, full=new)
+                    if res.get("job"):
+                        run_job(client, res["job"])
                 else:  # GPU busy (e.g. startup warmup): still tell the site we are online
                     remote("jobs/heartbeat", {})
                 if time.time() >= next_snap:
                     replays = time.time() >= next_replay
-                    push_snapshots(client, TICKERS, replays=replays)
+                    push_snapshots(client, TICKERS + extra, replays=replays, full=extra)
                     next_snap = time.time() + args.snapshot_every
                     if replays:
                         next_replay = time.time() + args.replay_every

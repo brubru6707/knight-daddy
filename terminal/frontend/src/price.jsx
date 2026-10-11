@@ -93,7 +93,7 @@ export function PriceBlock({ ticker, crypto = false, children }) {
   const s = useApi(!per.api ? null : crypto ? `crypto/candles?ticker=${ticker}&days=730` : `prices?ticker=${ticker}&period=${per.api}`, [ticker]);
   const bars = useMemo(() => (s.data ? (per.n ? s.data.bars.slice(-per.n) : s.data.bars) : []), [s.data, per.n]);
   const [hover, setHover] = useState(null);
-  const [name, exch] = NAMES[ticker] || [ticker, null];
+  const [name, exch] = NAMES[ticker] || [s.data?.name || ticker, s.data?.exchange || null]; // Yahoo's name for other tickers
   const label = ticker.replace(/-USD$/, "");
   const first = bars[0]?.close, cur = hover !== null ? bars[hover] : bars.at(-1);
   const chg = cur && first ? cur.close - first : null;
