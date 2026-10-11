@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SettingsButton } from "@/components/Settings";
@@ -110,8 +110,14 @@ export default function Home() {
   const { advanced, setAdvanced } = useAdvanced(); // Model info only in Advanced mode
   const [editing, setEditing] = useState(false);
   const open = (t: string) => router.push({ pathname: "/stock/[ticker]", params: { ticker: t } });
-  // Deep links: knightdaddy://?ticker=DDOG opens that stock; ?advanced=1|0 sets Advanced.
-  const link = useLocalSearchParams<{ ticker?: string; advanced?: string }>();
+  // Deep links: knightdaddy://?ticker=DDOG opens that stock; ?advanced=1|0 sets Advanced; ?at=end scrolls to the bottom.
+  const link = useLocalSearchParams<{ ticker?: string; advanced?: string; at?: string }>();
+  const scroll = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (link.at !== "end") return;
+    const id = setTimeout(() => scroll.current?.scrollToEnd({ animated: false }), 3000);
+    return () => clearTimeout(id);
+  }, [link.at, ready, onboarded]);
   useEffect(() => { if (link.advanced === "1" || link.advanced === "0") setAdvanced(link.advanced === "1"); }, [link.advanced]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const t = typeof link.ticker === "string" ? link.ticker.toUpperCase() : "";
@@ -140,7 +146,7 @@ export default function Home() {
         <SettingsButton current={null} />
         </View>
       </View>
-      <ScrollView contentContainerStyle={st.content}
+      <ScrollView ref={scroll} contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={false} tintColor={C.amber} onRefresh={() => setNonce((n) => n + 1)} />}>
         {list.length > 0 && <Section title="Your list" tickers={list} nonce={nonce} onOpen={open} right={edit("Edit your list")} />}
         <Section title="Stocks" note={"Price and today's change, with the dominant tone of recent headlines."} tickers={HOME}
