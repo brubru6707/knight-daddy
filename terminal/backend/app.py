@@ -1,6 +1,6 @@
 """KNIGHTWATCH terminal backend (FastAPI).
 
-Endpoints (all under /api): health, prices, headlines, classify, sentiment, backtest, benchmarks.
+Endpoints (all under /api): health, prices, headlines, classify, sentiment, backtest, benchmarks, replay, replay/available.
 Classification runs on the local GPU, or on a remote endpoint (e.g. Modal) if MODEL_ENDPOINT_URL is set.
 If neither is available, live headlines come back unlabeled and cached labels are still served.
 """
@@ -237,6 +237,125 @@ def classify_endpoint(body: ClassifyIn):
     if any(r is None for r in res):
         raise HTTPException(503, "no GPU here and no MODEL_ENDPOINT_URL set")
     return {"results": res, "seconds": time.time() - t0}
+
+
+# ------------------------------------------------------------------------------------------- historical replay
+# Real cached FNSPID headlines for one ticker and one UTC date, re-scored by the general model on every request.
+# Never uses the label cache or the stored backtest probabilities, never invents a day: dates come only from the
+# cached headline files, and a date without headlines returns status "no_data".
+REPLAY_DIR = Path(os.path.expanduser(os.getenv("REPLAY_DIR", "~/scratch/poc1/backtest_broad")))
+_replay_news = {}
+
+
+def _replay_frame(t):
+    if t not in _replay_news:
+        f = REPLAY_DIR / f"news_{t}.parquet"
+        if not f.exists():
+            return None
+        df = pd.read_parquet(f).dropna(subset=["date_utc", "Article_title"])
+        df["date"] = pd.to_datetime(df.date_utc).dt.strftime("%Y-%m-%d")
+        _replay_news[t] = df
+    return _replay_news[t]
+
+
+def _replay_prices(t):
+    f = REPLAY_DIR / f"prices_{t}.parquet"
+    return pd.read_parquet(f) if f.exists() else None
+
+
+def _replay_tickers():
+    return sorted(Path(p).stem.split("_", 1)[1] for p in glob.glob(str(REPLAY_DIR / "news_*.parquet")))
+
+
+def classify_fresh(texts):
+    """Model output computed now, bypassing the label cache. Returns (results, device) or (None, reason)."""
+    if MODEL_URL:
+        h = {"Authorization": f"Bearer {MODEL_TOKEN}"} if MODEL_TOKEN else {}
+        r = requests.post(f"{MODEL_URL}/classify", json={"texts": texts}, headers=h, timeout=120)
+        r.raise_for_status()
+        return r.json()["results"], "remote endpoint"
+    if not _gpu_available():
+        return None, "no GPU here and no MODEL_ENDPOINT_URL set"
+    global _model
+    import torch
+    with _gpu_lock:
+        if _model is None:
+            from classifier import SentimentModel
+            _model = SentimentModel(ADAPTER)
+        return _model.classify(texts), torch.cuda.get_device_name(0)
+
+
+@app.get("/api/replay/available")
+def replay_available(ticker: str | None = None):
+    """Every (ticker, date) with at least one real cached headline, with headline counts and price availability."""
+    tickers = [_ticker(ticker)] if ticker else _replay_tickers()
+    out = {}
+    for t in tickers:
+        df = _replay_frame(t)
+        if df is None:
+            continue
+        px = _replay_prices(t)
+        trading = set(px.index.strftime("%Y-%m-%d")) if px is not None else set()
+        counts = df.groupby("date").size().sort_index()
+        out[t] = {"n_days": int(len(counts)), "first_date": counts.index[0], "last_date": counts.index[-1],
+                  "n_days_with_price": int(sum(d in trading for d in counts.index)),
+                  "dates": [{"date": d, "n_headlines": int(n), "has_price": d in trading} for d, n in counts.items()]}
+    return {"mode": "historical", "is_live": False, "source": "FNSPID (cached)", "tickers": out}
+
+
+@app.get("/api/replay")
+def replay(ticker: str, date: str):
+    """Re-run the general model on the real cached headlines for ticker on date (UTC); historical, never live."""
+    t = _ticker(ticker)
+    try:
+        d = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(400, "date must be YYYY-MM-DD")
+    base = {"mode": "historical", "is_live": False, "ticker": t, "date": d, "source": "FNSPID (cached)",
+            "date_basis": "headline publication date (UTC); FNSPID has no time of day"}
+    df = _replay_frame(t)
+    if df is None:
+        return {**base, "status": "no_data", "message": f"no cached headlines for {t}; available: {_replay_tickers()}",
+                "n_headlines": 0, "items": [], "day": None, "price": None, "price_note": None}
+    # price for that trading session (split-adjusted, as cached); null when the market was closed or outside the cache
+    px, price, price_note = _replay_prices(t), None, None
+    if px is None:
+        price_note = "no cached prices for this ticker"
+    else:
+        idx = list(px.index.strftime("%Y-%m-%d"))
+        if d in idx:
+            i = idx.index(d); r = px.iloc[i]
+            prev = float(px.Close.iloc[i - 1]) if i > 0 else None
+            price = {"date": d, "open": float(r.Open), "high": float(r.High), "low": float(r.Low), "close": float(r.Close),
+                     "volume": float(r.Volume), "change_1d": (float(r.Close) / prev - 1) if prev else None,
+                     "adjusted": True}
+        elif idx[0] <= d <= idx[-1]:
+            price_note = "no trading session on this date (weekend or market holiday)"
+        else:
+            price_note = f"outside cached price range {idx[0]} to {idx[-1]}"
+    rows = df[df.date == d]
+    if rows.empty:
+        return {**base, "status": "no_data", "message": f"no cached headlines for {t} on {d}",
+                "n_headlines": 0, "items": [], "day": None, "price": price, "price_note": price_note}
+    titles = rows.Article_title.tolist()
+    t0 = time.time()
+    res, device = classify_fresh(titles)
+    if res is None:
+        return {**base, "status": "model_unavailable", "message": device, "n_headlines": len(titles),
+                "items": [{"title": x, "label": None, "p_bearish": None, "p_neutral": None, "p_bullish": None} for x in titles],
+                "day": None, "price": price, "price_note": price_note}
+    items = [{"title": x, "label": r["label"], "p_bearish": r["p_bear"], "p_neutral": r["p_neut"], "p_bullish": r["p_bull"]}
+             for x, r in zip(titles, res)]
+    n = len(items)
+    counts = {l: sum(i["label"] == l for i in items) for l in ("Bullish", "Bearish", "Neutral")}
+    day = {"p_bearish": sum(i["p_bearish"] for i in items) / n, "p_neutral": sum(i["p_neutral"] for i in items) / n,
+           "p_bullish": sum(i["p_bullish"] for i in items) / n, "counts": counts,
+           "score": (counts["Bullish"] - counts["Bearish"]) / n,
+           "aggregation": "p_* are the mean of per-headline probabilities; score = (bullish - bearish) / headlines"}
+    return {**base, "status": "ok", "n_headlines": n, "items": items, "day": day, "price": price, "price_note": price_note,
+            "model": {"name": "Qwen3.5-2B QLoRA (general)", "adapter": Path(ADAPTER).name, "device": device,
+                      "recomputed": True, "label_cache_used": False, "seconds": round(time.time() - t0, 2),
+                      "computed_at": datetime.now(timezone.utc).isoformat()}}
 
 
 @app.get("/api/sentiment")
