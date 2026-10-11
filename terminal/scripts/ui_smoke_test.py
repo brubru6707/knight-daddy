@@ -71,16 +71,18 @@ with sync_playwright() as p:
         check("Talk button (no Listen button)", brief.locator("[data-testid=talk]").inner_text().strip() == "Talk" and brief.locator("text=Listen").count() == 0)
         brief.locator("[data-testid=talk]").click()
         check("Talk reads this ticker's briefing aloud", ticker in (brief.locator("[data-testid=speaker]").get_attribute("aria-label") or ""))
+        check("Talk is press-to-talk", brief.locator("[data-testid=talk-hold]").count() == 1)
+        brief.locator("[data-testid=talk-type]").click()
         for q in ("Should I buy this stock?", "What is the price target?", "Is it a good investment right now?"):
             n = brief.locator("[data-testid=talk-answer]").count()
             brief.locator("[data-testid=talk-input]").fill(q); brief.locator("[data-testid=talk-ask]").click()
             brief.locator("[data-testid=talk-answer]").nth(n).wait_for(timeout=30_000)
-            check(f"Talk declines advice: {q}", brief.locator("[data-testid=talk-answer]").nth(n).inner_text().startswith("I only talk about the news coverage"))
+            check(f"Talk declines advice: {q}", brief.locator("[data-testid=talk-answer]").nth(n).inner_text().startswith("I only explain the news, not what to trade."))
         n = brief.locator("[data-testid=talk-answer]").count()
         brief.locator("[data-testid=talk-input]").fill("What is the overall tone of the headlines?"); brief.locator("[data-testid=talk-ask]").click()
         brief.locator("[data-testid=talk-answer]").nth(n).or_(brief.locator("[data-testid=talk-error]")).first.wait_for(timeout=60_000)
         ans = brief.locator("[data-testid=talk-answer]").nth(n)
-        check("Talk answers a news question from the headlines", ans.count() == 1 and not ans.inner_text().startswith("I only talk"),
+        check("Talk answers a news question from the headlines", ans.count() == 1 and not ans.inner_text().startswith("I only explain"),
               ans.inner_text()[:120] if ans.count() else brief.locator("[data-testid=talk-error]").inner_text())
     else:  # Gemini down upstream: a plain n/a line, never the raw error
         check("briefing unavailable shows plain n/a", True, brief.locator("[data-testid=briefing-unavailable]").inner_text())

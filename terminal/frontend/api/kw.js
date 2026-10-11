@@ -39,16 +39,63 @@ function routeOf(req) {
 
 const send = (res, code, body) => res.status(code).json(body);
 
-// ---------- Talk: questions about one stock's news and its tone, answered only from the real headlines ----------
+// ---------- Talk: a press-to-talk conversation about one stock's news and its tone ----------
+// The app records while the button is held, sends the clip to talk/stt (ElevenLabs speech-to-text), then the text to
+// talk with the last few turns, and plays the answer from talk/audio (ElevenLabs). Answers come only from the real
+// headlines.
 // Hard rule: news and sentiment only. Questions about buying, selling, holding, price targets, predictions or whether
 // to invest get the same short decline every time, before any model call; answers are checked again afterwards.
-const DECLINE = "I only talk about the news coverage and its tone. I can't help with buying, selling, holding, price targets, predictions or whether to invest. Try asking what the headlines say.";
+const DECLINE = "I only explain the news, not what to trade. Ask me what the headlines say about it instead.";
 const ADVICE_Q = /\b(buy|buying|sell|selling|hold|holding|short(ing)?|invest(ing|ment|or)?s?|should i|price target|target price|worth (it|buying)|undervalued|overvalued|entry point|exit point|portfolio|predict(ion)?|forecast|go(ing)? (up|down)|(rise|fall|drop|climb|rally) (to|by)|good (buy|investment|time))\b/i;
 const ADVICE_A = /\b(you should|you might want to|consider (buying|selling|holding)|(should|could) (buy|sell|hold)|good (time|investment|buy)|price target|i recommend|we recommend|recommend (buying|selling|holding)|is (likely|expected) to (rise|fall|climb|drop))\b/i;
 const TALK_DAILY_CAP = 300;
 
+const STT_DAILY_CAP = 300;
+
+// Speech-to-text for one press-to-talk clip: {audio: base64, mime}. The apps use the phone's or browser's own speech
+// recognition first; this is the backup. ElevenLabs Scribe when the key allows speech_to_text, else Gemini.
+async function sttGemini(b64, mime) {
+  const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: mime.split(";")[0], data: b64 } },
+      { text: "Transcribe the spoken English in this clip exactly. Output only the words, nothing else. If there is no speech, output nothing." }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 1024, ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}) } }),
+  });
+  if (!r.ok) return null;
+  return ((await r.json()).candidates?.[0]?.content?.parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("").trim();
+}
+async function talkStt(body) {
+  if (!process.env.ELEVENLABS_API_KEY && !process.env.GEMINI_API_KEY) return [503, { detail: "Voice input is not available on this site." }];
+  const b64 = String(body.audio || "");
+  if (!b64) return [400, { detail: "No audio." }];
+  const audio = Buffer.from(b64, "base64");
+  if (audio.length < 800) return [200, { text: "" }]; // a tap, not speech
+  if (audio.length > 3_000_000) return [413, { detail: "That was too long. Keep questions under a minute." }];
+  const day = `kw:stt:${new Date().toISOString().slice(0, 10)}`, used = (await getJSON(day)) || 0;
+  if (used >= STT_DAILY_CAP) return [429, { detail: "Voice limit for today reached." }];
+  await setJSON(day, used + 1, { ex: 2 * 86400 });
+  const mime = String(body.mime || "audio/m4a").replace(/[^a-z0-9/.+;=-]/gi, "");
+  let text = null;
+  if (process.env.ELEVENLABS_API_KEY) text = await sttEleven(audio, mime);
+  if (text === null && process.env.GEMINI_API_KEY) text = await sttGemini(b64, mime);
+  if (text === null) return [502, { detail: "Couldn't transcribe that. Try again." }];
+  return [200, { text: text.replace(/\(.*?\)/g, "").trim() }]; // drop "(background noise)" style tags
+}
+async function sttEleven(audio, mime) {
+  const form = new FormData();
+  form.append("model_id", process.env.ELEVENLABS_STT_MODEL || "scribe_v1");
+  form.append("language_code", "en");
+  form.append("file", new Blob([audio], { type: mime }), `question.${mime.split("/")[1]?.split(";")[0] || "m4a"}`);
+  const r = await fetch("https://api.elevenlabs.io/v1/speech-to-text", { method: "POST", headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY }, body: form });
+  return r.ok ? String((await r.json()).text || "") : null; // e.g. a key without the speech_to_text permission
+}
+
 async function talk(body) {
   const t = String(body.ticker || "").toUpperCase(), q = String(body.question || "").trim().slice(0, 300);
+  // short memory: the last few turns of this conversation, sent back by the app (never stored server side)
+  const history = (Array.isArray(body.history) ? body.history : []).slice(-3)
+    .map((h) => ({ q: String(h?.q || "").slice(0, 300), a: String(h?.a || "").slice(0, 600) })).filter((h) => h.q && h.a);
   if (!q) return [400, { detail: "Ask a question about the news." }];
   if (ADVICE_Q.test(q)) return [200, { ticker: t, answer: DECLINE, refused: true, sources: [] }];
   const coin = !!COINS[t];
@@ -56,25 +103,31 @@ async function talk(body) {
     : (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model: "general" })}`))?.body;
   const items = (feed?.items || []).slice(0, 40);
   if (!items.length) return [200, { ticker: t, answer: `I don't have any headlines for ${t} right now, so I can't answer that.`, refused: false, sources: [] }];
-  if (!process.env.GEMINI_API_KEY) return [200, matchAnswer(t, q, items)];
+  if (!process.env.GEMINI_API_KEY) {
+    const a = matchAnswer(t, q, items); // follow-ups like "tell me more" reuse the previous question's words
+    return [200, !a.sources.length && history.length ? matchAnswer(t, `${history.at(-1).q} ${q}`, items) : a];
+  }
   const day = `kw:talkq:${new Date().toISOString().slice(0, 10)}`, used = (await getJSON(day)) || 0;
   if (used >= TALK_DAILY_CAP) return [429, { detail: "Question limit for today reached." }];
   await setJSON(day, used + 1, { ex: 2 * 86400 });
   const list = items.map((h, i) => `[${i + 1}] ${h.title} (${h.source || "unknown source"}, ${String(h.time || "").slice(0, 10)}${h.label ? `, tagged ${h.label}` : ""})`).join("\n");
   const prompt = `You answer questions about the news coverage of ${t} and how that coverage is framed. Tags come from our sentiment model${coin ? " (not yet validated on crypto)" : ""}.
-Rules: use ONLY the numbered headlines below; cite them like [2]. If they do not cover the question, say the headlines do not say. Never give investment advice, price predictions, price targets, or views on buying, selling or holding; if asked, reply exactly: "${DECLINE}" Do not invent facts, numbers or quotes. At most 80 words, plain sentences, no dashes as punctuation.
+This is a spoken conversation: your answer is read aloud, so write short plain sentences a person would say.
+Rules: use ONLY the numbered headlines below; cite them like [2]. If they do not cover the question, say the headlines do not say. Never give investment advice, price predictions, price targets, or views on buying, selling or holding; if asked, reply exactly: "${DECLINE}" Do not invent facts, numbers or quotes. At most 70 words, no dashes as punctuation, no markdown.
 
 Headlines:
 ${list}
-
+${history.length ? `\nEarlier in this conversation (for follow-ups like "tell me more"):\n${history.map((h) => `User: ${h.q}\nYou: ${h.a}`).join("\n")}\n` : ""}
 Question: ${q}`;
   const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
-    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 220 } }),
+    // thinking tokens count against maxOutputTokens on gemini-3 models, so keep thinking low and the budget roomy
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 2048, ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}) } }),
   });
   if (!r.ok) return [502, { detail: r.status === 429 ? "The AI is busy right now. Try again in a minute." : "The AI is unavailable right now." }];
-  let answer = ((await r.json()).candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("").trim().replace(/\s*\u2014\s*/g, ", ");
+  let answer = ((await r.json()).candidates?.[0]?.content?.parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("").trim().replace(/\s*\u2014\s*/g, ", ");
   if (!answer) return [502, { detail: "The AI is unavailable right now." }];
   const refused = answer.startsWith(DECLINE.slice(0, 40)) || ADVICE_A.test(answer);
   if (refused) answer = DECLINE;
@@ -235,7 +288,7 @@ async function talkAudio(req, res) {
   const id = String(req.query.id || "").replace(/[^a-f0-9]/g, "").slice(0, 16);
   const text = id ? await getJSON(`kw:talk:${id}`) : null;
   if (!text) return send(res, 404, { detail: "No answer with that id." });
-  const [code, out] = await tts(`kw:audio:talk:${id}`, text.replace(/\[\d+\]/g, ""));
+  const [code, out] = await tts(`kw:audio:talk:${id}`, text.replace(/\s*\[\d+\](?:\s*,?\s*\[\d+\])*/g, ""));
   if (code !== 200) return send(res, code, out);
   res.setHeader("content-type", "audio/mpeg");
   return res.status(200).send(out);
@@ -402,6 +455,7 @@ export default async function handler(req, res) {
       return send(res, 404, { detail: "unknown crypto route" });
     }
     if (route === "briefing/audio" && method === "GET") return briefingAudio(req, res);
+    if (route === "talk/stt" && method === "POST") { const [code, out] = await talkStt(body); return send(res, code, out); }
     if (route === "talk" && method === "POST") { const [code, out] = await talk(body); return send(res, code, out); }
     if (route === "talk/audio" && method === "GET") return talkAudio(req, res);
     if (route === "history" && method === "GET") {
