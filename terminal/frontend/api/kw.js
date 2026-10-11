@@ -43,11 +43,13 @@ const send = (res, code, body) => res.status(code).json(body);
 // The app records while the button is held, sends the clip to talk/stt (ElevenLabs speech-to-text), then the text to
 // talk with the last few turns, and plays the answer from talk/audio (ElevenLabs). Answers come only from the real
 // headlines.
-// Hard rule: news and sentiment only. Questions about buying, selling, holding, price targets, predictions or whether
-// to invest get the same short decline every time, before any model call; answers are checked again afterwards.
-const DECLINE = "I only explain the news, not what to trade. Ask me what the headlines say about it instead.";
-const ADVICE_Q = /\b(buy|buying|sell|selling|hold|holding|short(ing)?|invest(ing|ment|or)?s?|should i|price target|target price|worth (it|buying)|undervalued|overvalued|entry point|exit point|portfolio|predict(ion)?|forecast|go(ing)? (up|down)|(rise|fall|drop|climb|rally) (to|by)|good (buy|investment|time))\b/i;
-const ADVICE_A = /\b(you should|you might want to|consider (buying|selling|holding)|(should|could) (buy|sell|hold)|good (time|investment|buy)|price target|i recommend|we recommend|recommend (buying|selling|holding)|is (likely|expected) to (rise|fall|climb|drop))\b/i;
+// Hard rule: news and sentiment only. Every question goes to Gemini with the stock's real headlines and tags; price
+// direction and trading questions get "I don't call prices." and then what the news says. If Gemini fails, the answer
+// says so plainly ("engine": "error"); there is no made-up fallback.
+const NO_CALLS = "I don't call prices.";
+const NO_AI = "I can't reach the AI right now, try again in a moment.";
+const ADVICE_Q = /\b(buy|buying|sell|selling|hold|holding|short(ing)?|invest(ing|ment|or)?s?|should i|price target|target price|worth (it|buying)|undervalued|overvalued|entry point|exit point|portfolio|predict(ion)?|forecast|go(ing)? (up|down)|(rise|fall|drop|climb|rally)|up or down|bullish or bearish)\b/i;
+const ADVICE_A = /\b(you should|you might want to|consider (buying|selling|holding)|(should|could) (buy|sell|hold)|good (time|investment|buy)|price target|i recommend|we recommend|recommend (buying|selling|holding)|(is|are) (likely|expected|poised|set) to (rise|fall|climb|drop|go up|go down)|will (likely )?(rise|fall|climb|drop|go up|go down))\b/i;
 const TALK_DAILY_CAP = 300;
 
 const STT_DAILY_CAP = 300;
@@ -104,61 +106,56 @@ async function talk(body) {
   const history = (Array.isArray(body.history) ? body.history : []).slice(-3)
     .map((h) => ({ q: String(h?.q || "").slice(0, 300), a: String(h?.a || "").slice(0, 600) })).filter((h) => h.q && h.a);
   if (!q) return [400, { detail: "Ask a question about the news." }];
-  if (ADVICE_Q.test(q)) return [200, { ticker: t, answer: DECLINE, refused: true, sources: [] }];
+  const fail = (answer = NO_AI) => [200, { ticker: t, answer, engine: "error", refused: false, sources: [] }];
+  if (!process.env.GEMINI_API_KEY) return fail();
   const coin = !!COINS[t];
   const feed = coin ? await cryptoNews(t)
     : (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model: "general" })}`))?.body;
   const items = (feed?.items || []).slice(0, 40);
-  if (!items.length) return [200, { ticker: t, answer: `I don't have any headlines for ${t} right now, so I can't answer that.`, refused: false, sources: [] }];
-  if (!process.env.GEMINI_API_KEY) {
-    const a = matchAnswer(t, q, items); // follow-ups like "tell me more" reuse the previous question's words
-    return [200, !a.sources.length && history.length ? matchAnswer(t, `${history.at(-1).q} ${q}`, items) : a];
-  }
+  if (!items.length) return fail(`I don't have any headlines for ${t} right now, so I can't answer that.`);
   const day = `kw:talkq:${new Date().toISOString().slice(0, 10)}`, used = (await getJSON(day)) || 0;
-  if (used >= TALK_DAILY_CAP) return [429, { detail: "Question limit for today reached." }];
+  if (used >= TALK_DAILY_CAP) return fail("I've hit today's question limit. Try again tomorrow.");
   await setJSON(day, used + 1, { ex: 2 * 86400 });
-  const list = items.map((h, i) => `[${i + 1}] ${h.title} (${h.source || "unknown source"}, ${String(h.time || "").slice(0, 10)}${h.label ? `, tagged ${h.label}` : ""})`).join("\n");
-  const prompt = `You answer questions about the news coverage of ${t} and how that coverage is framed. Tags come from our sentiment model${coin ? " (not yet validated on crypto)" : ""}.
-This is a spoken conversation: your answer is read aloud, so write short plain sentences a person would say.
-Rules: use ONLY the numbered headlines below; cite them like [2]. If they do not cover the question, say the headlines do not say. Never give investment advice, price predictions, price targets, or views on buying, selling or holding; if asked, reply exactly: "${DECLINE}" Do not invent facts, numbers or quotes. At most 70 words, no dashes as punctuation, no markdown.
+  const calls = ADVICE_Q.test(q);
+  const list = items.map((h, i) => `${i + 1}. ${h.title} (${h.source || "unknown source"}, ${String(h.time || "").slice(0, 16).replace("T", " ")}${h.label ? `, tagged ${h.label}${h.prob ? ` ${Math.round(h.prob * 100)}%` : ""}` : ""})`).join("\n");
+  const system = `You are Knight-Daddy's voice assistant. You talk about the news coverage of ${t} and how it is framed, using ONLY the headlines below. Tags come from our sentiment model${coin ? " (not yet validated on crypto)" : ""}.
+Your answer is read aloud. Write 2 to 4 natural, conversational sentences (under 80 words) that weave in specific real headlines by their content (company names, events, sources). No lists, no numbers in brackets, no counts of how many headlines match, no markdown, no dashes as punctuation.
+Never predict prices or say whether to buy, sell or hold. If the question asks about price direction, trading or investing, begin with exactly "${NO_CALLS}" and then summarize what the news actually says about the company, good and bad.
+If asked for the most alarming, worrying, negative or risky headline, pick the single headline that is genuinely the most negative or risky for the company, say what it is and explain why it matters.
+If the headlines truly do not cover the question, say so in one sentence and mention what they do cover. Never invent facts, numbers or quotes.
+Return JSON: {"answer": string, "used": [the numbers of the headlines you drew on]}.
 
-Headlines:
-${list}
-${history.length ? `\nEarlier in this conversation (for follow-ups like "tell me more"):\n${history.map((h) => `User: ${h.q}\nYou: ${h.a}`).join("\n")}\n` : ""}
-Question: ${q}`;
+Headlines for ${t}, newest first:
+${list}`;
+  const contents = [...history.flatMap((h) => [{ role: "user", parts: [{ text: h.q }] }, { role: "model", parts: [{ text: JSON.stringify({ answer: h.a, used: [] }) }] }]),
+    { role: "user", parts: [{ text: calls ? `${q}\n(This asks about price direction or trading: start with "${NO_CALLS}" then summarize the news.)` : q }] }];
   const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-  const r = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
-    // thinking tokens count against maxOutputTokens on gemini-3 models, so keep thinking low and the budget roomy
-    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 2048, ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}) } }),
-  });
-  if (!r.ok) return [502, { detail: r.status === 429 ? "The AI is busy right now. Try again in a minute." : "The AI is unavailable right now." }];
-  let answer = ((await r.json()).candidates?.[0]?.content?.parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("").trim().replace(/\s*\u2014\s*/g, ", ");
-  if (!answer) return [502, { detail: "The AI is unavailable right now." }];
-  const refused = answer.startsWith(DECLINE.slice(0, 40)) || ADVICE_A.test(answer);
-  if (refused) answer = DECLINE;
-  const cited = refused ? [] : [...new Set([...answer.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])))].filter((n) => n >= 1 && n <= items.length);
+  let out = null;
+  try {
+    const r = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
+      // thinking tokens count against maxOutputTokens on gemini-3 models, so keep thinking low and the budget roomy
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents,
+        generationConfig: { temperature: 0.4, maxOutputTokens: 2048, responseMimeType: "application/json",
+          responseSchema: { type: "OBJECT", properties: { answer: { type: "STRING" }, used: { type: "ARRAY", items: { type: "INTEGER" } } }, required: ["answer"] },
+          ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}) } }),
+    });
+    if (!r.ok) { console.error("talk: gemini HTTP", r.status, (await r.text()).slice(0, 300)); return fail(); }
+    const text = ((await r.json()).candidates?.[0]?.content?.parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
+    out = JSON.parse(text);
+  } catch (e) { console.error("talk: gemini failed", e.message); return fail(); }
+  let answer = String(out?.answer || "").replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, "").replace(/\s*[\u2014\u2013]\s*/g, ", ").replace(/\s+/g, " ").trim();
+  if (!answer) return fail();
+  // safety net: drop any sentence that slips into advice or a price call; keep the rest of the summary
+  const sentences = answer.split(/(?<=[.!?]["')]*)\s+/);
+  answer = sentences.filter((x) => !ADVICE_A.test(x)).join(" ").replace(/\s+/g, " ").trim();
+  if (calls && !answer.startsWith(NO_CALLS)) answer = `${NO_CALLS} ${answer}`.trim();
+  if (!answer || answer === NO_CALLS) return fail();
+  const picked = [...new Set((out.used || []).map(Number))].filter((n) => n >= 1 && n <= items.length).slice(0, 4);
   const id = hashId(t + q + answer);
   await setJSON(`kw:talk:${id}`, answer, { ex: 86400 }).catch(() => {});
-  return [200, { ticker: t, id, answer, refused, model, sources: cited.map((n) => ({ n, title: items[n - 1].title, source: items[n - 1].source, url: items[n - 1].url, time: items[n - 1].time })) }];
-}
-// Without a Gemini key: no generated prose, just the headlines whose words match the question and their tag counts.
-const STOP = new Set("a an and are about any anything as at be been by can could did do does for from has have how i in is it its me more most news of on or say saying says tell that the their them there these they this to was what whats when where which who why will with you your headlines headline latest recent today stock company".split(" "));
-const TONE_Q = /\b(sentiment|tone|mood|feel|feeling|positive|negative|bullish|bearish|neutral|overall|optimistic|pessimistic)\b/i;
-function matchAnswer(t, q, items) {
-  const words = [...new Set(q.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w) && w !== t.toLowerCase()).map((w) => (w.length > 4 ? w.replace(/(ies|es|s)$/, "") : w)))];
-  const hits = words.length ? items.map((h, i) => [i, words.filter((w) => h.title.toLowerCase().includes(w)).length]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([i]) => i) : [];
-  const pool = hits.length ? hits.map((i) => items[i]) : TONE_Q.test(q) ? items : [];
-  const count = (l) => pool.filter((h) => h.label === l).length;
-  const tags = pool.length === 1 && pool[0].label ? ` Our model tagged it ${pool[0].label.toLowerCase()}.` : pool.some((h) => h.label) ? ` Our model tagged them ${count("Bullish")} bullish, ${count("Neutral")} neutral and ${count("Bearish")} bearish.` : "";
-  let answer;
-  if (hits.length) answer = `${hits.length} of the latest ${items.length} ${t} headlines match that: ${hits.map((i) => `[${i + 1}]`).join(" ")}.${tags}`;
-  else if (TONE_Q.test(q)) answer = `Across the latest ${items.length} ${t} headlines:${tags || " no tags are available yet."}`;
-  else answer = `None of the latest ${items.length} ${t} headlines mention that, so I can't say.`;
-  const id = hashId(t + q + answer);
-  setJSON(`kw:talk:${id}`, answer, { ex: 86400 }).catch(() => {});
-  return { ticker: t, id, answer, refused: false, model: "headline search", sources: hits.map((i) => ({ n: i + 1, title: items[i].title, source: items[i].source, url: items[i].url, time: items[i].time })) };
+  return [200, { ticker: t, id, answer, engine: "gemini", model, refused: false,
+    sources: picked.map((n) => ({ n, title: items[n - 1].title, source: items[n - 1].source, url: items[n - 1].url, time: items[n - 1].time })) }];
 }
 const hashId = (x) => crypto.createHash("sha1").update(x).digest("hex").slice(0, 16);
 

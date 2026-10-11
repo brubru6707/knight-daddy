@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, bullets, Dot, fmtDay, headlinesPath, LABELS, TAG, useApi } from "./ui.jsx";
+import { api, bullets, Dot, fmtDay, headlinesPath, LABELS, TAG, useAdvanced, useApi } from "./ui.jsx";
 
 const FILL = { Bearish: "bg-down", Neutral: "bg-neutral", Bullish: "bg-up" };
 const FIELD = { Bearish: "p_bearish", Neutral: "p_neutral", Bullish: "p_bullish" };
@@ -115,6 +115,7 @@ const SILENCE_MS = 1600, WAKE_TIMEOUT_MS = 7000;
 // speech recognition fall back to tap to record, tap to send (transcribed by /api/talk/stt). Advice questions get a
 // short decline every time.
 function Talk({ ticker, briefingId, mode: briefingMode }) {
+  const [adv] = useAdvanced(); // Advanced shows which engine answered
   const [turns, setTurns] = useState([]);
   const [mode, setModeState] = useState("off"); // off | waiting | capturing | recording | thinking | speaking
   const [live, setLive] = useState("");
@@ -169,13 +170,16 @@ function Talk({ ticker, briefingId, mode: briefingMode }) {
     if (!text) { if (viaVoice) resume(); return; }
     clearTimers(); setErr(null);
     if (viaVoice) { setMode("thinking"); stopRec(); }
-    const history = turnsRef.current.filter((t) => !t.refused).slice(-3).map((t) => ({ q: t.q, a: t.answer }));
+    const history = turnsRef.current.filter((t) => t.engine === "gemini").slice(-3).map((t) => ({ q: t.q, a: t.answer }));
     try {
       const r = await api("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question: text, history }) });
       setTurns((t) => [...t, { q: text, ...r }]); setLive("");
       if (r.id) { if (viaVoice) setMode("speaking"); speak(`a-${r.id}`, `/api/talk/audio?id=${r.id}`, viaVoice ? resume : undefined); }
       else if (viaVoice) resume();
-    } catch (e) { setErr(e.message); if (viaVoice) resume(); }
+    } catch { // never a made-up answer: say plainly that the AI didn't answer
+      setTurns((t) => [...t, { q: text, answer: "I can't reach the AI right now, try again in a moment.", engine: "error" }]); setLive("");
+      if (viaVoice) resume();
+    }
   };
 
   // Fallback without browser speech recognition: tap to record, tap again to send the clip for transcription.
@@ -223,14 +227,15 @@ function Talk({ ticker, briefingId, mode: briefingMode }) {
         {turns.map((t, i) => (
           <li key={i} className="text-[14px] leading-snug">
             <div className="text-dim" data-testid="talk-heard">You: {t.q}</div>
-            <div className={`mt-1.5 ${t.refused ? "text-dim" : "text-ink"}`} data-testid="talk-answer">{t.answer}</div>
+            <div className={`mt-1.5 ${t.engine === "error" ? "text-dim" : "text-ink"}`} data-testid="talk-answer">{t.answer}</div>
+            {adv && <div className="mt-0.5 text-[10px] uppercase tracking-wide text-dim" data-testid="talk-engine">{t.engine === "gemini" ? "Gemini" : "error"}</div>}
             {t.id && (
               <button onClick={() => (playing(`a-${t.id}`) ? stopAudio() : speak(`a-${t.id}`, `/api/talk/audio?id=${t.id}`))} className="mt-1 flex items-center gap-1 text-xs text-dim hover:text-amber" data-testid="talk-hear">
                 <Speaker on={playing(`a-${t.id}`)} />{playing(`a-${t.id}`) ? "Stop" : audio.state === "loading" && audio.which === `a-${t.id}` ? "Loading" : "Hear again"}</button>)}
             {t.sources?.length > 0 && (
               <ol className="mt-2 space-y-1 text-xs text-dim" data-testid="talk-sources">
                 {t.sources.map((x) => (
-                  <li key={x.n}>[{x.n}] {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-ink hover:text-amber">{x.title}</a> : x.title}
+                  <li key={x.n}>{x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-ink hover:text-amber">{x.title}</a> : x.title}
                     {x.source ? ` · ${x.source}` : ""}</li>))}
               </ol>)}
           </li>))}

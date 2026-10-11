@@ -14,7 +14,7 @@ url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
 ticker = sys.argv[2] if len(sys.argv) > 2 else "NVDA"
 out = sys.argv[3] if len(sys.argv) > 3 else "talk_voice.png"
 FIX = pathlib.Path(__file__).parent / "fixtures"
-DECLINE = "I only explain the news, not what to trade."
+NO_CALLS, NO_AI = "I don't call prices.", "I can't reach the AI right now"
 FAKE_SR = """
 class FakeSR {
   start() { window.__sr = this; this.running = true; this.text = ""; window.__starts = (window.__starts || 0) + 1; }
@@ -73,8 +73,9 @@ with sync_playwright() as p:
 
     heard, ans, srcs = turn("hey KD what are the headlines saying about quantum computing")
     check("Hey KD wakes it; only the question is kept", heard == "You: what are the headlines saying about quantum computing", heard)
-    check("answer grounded: cites headlines, or says they don't cover it", not ans.startswith(DECLINE) and
-          ((srcs >= 1 and re.search(r"\[\d+\]", ans)) or re.search(r"(do not|don't|does not) (say|mention|cover)|no headlines", ans, re.I)), f"{srcs} sources: {ans[:120]}")
+    check("answer from Gemini, grounded in headlines (or says they don't cover it)", not ans.startswith(NO_AI) and
+          (srcs >= 1 or re.search(r"(do not|don't|does not|doesn't) (say|mention|cover)|no headlines", ans, re.I)), f"{srcs} sources: {ans[:120]}")
+    check("no [n] citations or match counts in the answer", not re.search(r"\[\d+\]|headlines match", ans), ans[:120])
     brief.locator("[data-testid=talk-hear] >> text=Stop").first.wait_for(timeout=60_000)
     check("answer is spoken while the mic pauses", state.inner_text().startswith("Answering"), state.inner_text())
     pg.wait_for_function(f"document.querySelector('[data-testid=talk-state]').innerText === {WAITING!r}", timeout=120_000)
@@ -82,11 +83,11 @@ with sync_playwright() as p:
 
     heard, ans, srcs = turn("hey Katie tell me more about that")
     check("misheard wake phrase (Hey Katie) still works", heard == "You: tell me more about that", heard)
-    check("follow-up keeps the conversation's memory", not ans.startswith(DECLINE) and len(ans) > 30, ans[:160])
+    check("follow-up keeps the conversation's memory", not ans.startswith(NO_AI) and len(ans) > 30, ans[:160])
     pg.wait_for_function(f"document.querySelector('[data-testid=talk-state]').innerText === {WAITING!r}", timeout=120_000)
 
     heard, ans, srcs = turn("hey KD should I buy Nvidia stock right now")
-    check("trading question declined with the short line", ans.startswith(DECLINE) and srcs == 0, ans)
+    check("trading question: short no-calls line, then the news", ans.startswith(NO_CALLS) and len(ans) > 60, ans[:160])
     pg.wait_for_timeout(1500)
     mic.click()
     check("second tap ends the conversation", state.inner_text() == "Tap to talk again" and mic.get_attribute("aria-pressed") == "false", state.inner_text())
