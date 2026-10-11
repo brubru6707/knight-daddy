@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { paths, type Health } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { useAdvanced } from "@/lib/advanced";
 import { HOME } from "@/lib/peers";
 import { SERIF, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { BacktestCard, BenchmarkCard } from "@/components/advanced";
 
 // Model info: facts about the sentiment model itself, not about any one stock. Ours vs. FinBERT, the full benchmark
-// table, and the historical backtest of the signal (pick a stock with cached history).
+// table, and the historical backtest of the signal (pick a stock with cached history). Only in Advanced mode.
 export default function ModelInfo() {
   const router = useRouter();
   const { dark, toggle } = useTheme();
@@ -19,6 +20,11 @@ export default function ModelInfo() {
   const [pick, setPick] = useState<string | null>(null);
   const t = pick || hist[0];
   const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  const { advanced } = useAdvanced();
+  const [checked, setChecked] = useState(false); // the saved Advanced setting loads a moment after launch
+  useEffect(() => { const id = setTimeout(() => setChecked(true), 400); return () => clearTimeout(id); }, []);
+  useEffect(() => { if (checked && !advanced) router.replace("/"); }, [checked, advanced]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!advanced) return <View style={st.screen} />;
   return (
     <SafeAreaView style={st.screen} edges={["top", "left", "right"]}>
       <View style={st.header}>

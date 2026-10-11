@@ -7,6 +7,7 @@ import { paths, type CryptoNews, type CryptoQuote, type Headlines, type Label, t
 import { useApi } from "@/lib/useApi";
 import { CRYPTO, HOME, isCrypto, NAMES, short, SUPPORTED } from "@/lib/peers";
 import { useList } from "@/lib/list";
+import { useAdvanced } from "@/lib/advanced";
 import { Onboarding } from "@/components/Onboarding";
 import { labelColor, pct, SERIF, toneColor, usd, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 
@@ -106,10 +107,12 @@ export default function Home() {
   const st = useStyles(makeStyles);
   const [nonce, setNonce] = useState(0);
   const { ready, onboarded, list, save } = useList();
+  const { advanced, setAdvanced } = useAdvanced(); // Model info only in Advanced mode
   const [editing, setEditing] = useState(false);
   const open = (t: string) => router.push({ pathname: "/stock/[ticker]", params: { ticker: t } });
-  // Deep link: knightdaddy://?ticker=DDOG opens that stock.
-  const link = useLocalSearchParams<{ ticker?: string }>();
+  // Deep links: knightdaddy://?ticker=DDOG opens that stock; ?advanced=1|0 sets Advanced.
+  const link = useLocalSearchParams<{ ticker?: string; advanced?: string }>();
+  useEffect(() => { if (link.advanced === "1" || link.advanced === "0") setAdvanced(link.advanced === "1"); }, [link.advanced]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const t = typeof link.ticker === "string" ? link.ticker.toUpperCase() : "";
     if (TICKER_RE.test(t)) router.push({ pathname: "/stock/[ticker]", params: { ticker: t } });
@@ -148,10 +151,10 @@ export default function Home() {
           <Text style={st.h2}>Replay</Text>
           <Text style={st.sub}>{"Re-run the model on a past day's headlines and see what it would have said."}</Text>
         </Pressable>
-        <Pressable onPress={() => router.push("/model")} style={({ pressed }) => [st.replay, { marginTop: 12 }, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+        {advanced && <Pressable onPress={() => router.push("/model")} style={({ pressed }) => [st.replay, { marginTop: 12 }, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Text style={st.h2}>Model info</Text>
           <Text style={st.sub}>How our news model scores against FinBERT, the full benchmark table and the historical backtest.</Text>
-        </Pressable>
+        </Pressable>}
         <Text style={st.footer}>News sentiment, not investment advice.</Text>
       </ScrollView>
     </SafeAreaView>

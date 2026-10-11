@@ -12,15 +12,15 @@ import { isCrypto } from "@/lib/peers";
 
 // Ticker detail, only what is specific to this stock: price and chart, Qwen confidence bar, Gemini briefing with Talk,
 // this stock's sentiment-vs-price history, headlines, competitors, and tuning. Model-wide facts live on Model info.
-// The Advanced switch shows the longer briefing, every article with links and the full fine-tune details.
+// The global Advanced switch (in Settings) shows the longer briefing, every article with links and the full fine-tune details.
 export default function Stock() {
   const router = useRouter();
   const { C, dark, toggle } = useTheme();
   const st = useStyles(makeStyles);
-  // Deep links: ?settings=1 opens settings, ?advanced=1|0 sets Advanced, ?talk=1 opens Talk, ?at=briefing|sentiment|
+  // Deep links: ?settings=1 opens settings, ?advanced=1|0 sets Advanced, ?talk=1 opens Talk, ?more=1 expands headlines, ?at=briefing|sentiment|
   // headlines|tune scrolls to that card.
-  const { ticker: raw, settings, advanced: advParam, talk: talkParam, at } =
-    useLocalSearchParams<{ ticker: string; settings?: string; advanced?: string; talk?: string; at?: string }>();
+  const { ticker: raw, settings, advanced: advParam, talk: talkParam, at, more } =
+    useLocalSearchParams<{ ticker: string; settings?: string; advanced?: string; talk?: string; at?: string; more?: string }>();
   const scroll = useRef<ScrollView>(null);
   const [ys, setYs] = useState<Record<string, number>>({});
   const mark = (k: string) => ({ onLayout: (e: { nativeEvent: { layout: { y: number } } }) => { const y = e.nativeEvent.layout.y; setYs((m) => (m[k] === y ? m : { ...m, [k]: y })); } });
@@ -51,13 +51,6 @@ export default function Stock() {
           <Text style={st.backText}>‹ Back</Text>
         </Pressable>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-        {!crypto && (
-          <Pressable onPress={() => setAdvanced(!advanced)} style={st.advBtn} hitSlop={6} accessibilityRole="switch"
-            accessibilityState={{ checked: advanced }} accessibilityLabel="Advanced">
-            <Text style={[st.advText, advanced && { color: C.amber }]}>Advanced</Text>
-            <View style={[st.switch, advanced && { backgroundColor: C.amber, borderColor: C.amber }]}>
-              <View style={[st.knob, advanced ? { left: 15, backgroundColor: C.ground } : { left: 2 }]} /></View>
-          </Pressable>)}
         <Pressable onPress={toggle} style={st.themeBtn} hitSlop={6} accessibilityRole="button"
           accessibilityLabel={dark ? "Switch to light mode" : "Switch to dark mode"}>
           <Text style={st.themeIcon}>{dark ? "☀︎" : "☾"}</Text>
@@ -72,7 +65,7 @@ export default function Stock() {
         <ConfidenceBar key={`c-${active}`} ticker={ticker} model={active} nonce={nonce} />
         <View {...mark("briefing")}><BriefingCard ticker={ticker} nonce={nonce} advanced={advanced} initialTalk={talkParam === "1"} /></View>
         <View {...mark("sentiment")}><SentimentCard ticker={ticker} nonce={nonce} /></View>
-        <View {...mark("headlines")}><HeadlinesCard key={`h-${active}`} ticker={ticker} model={active} nonce={nonce} advanced={advanced} /></View>
+        <View {...mark("headlines")}><HeadlinesCard key={`h-${active}`} ticker={ticker} model={active} nonce={nonce} advanced={advanced} initialAll={more === "1"} /></View>
         <CompetitorsRow ticker={ticker} onPick={pick} />
         <View {...mark("tune")} />
         <FineTuneCard ticker={ticker} active={active} advanced={advanced} onActive={setActive} onTrained={() => setNonce((n) => n + 1)} />
@@ -88,10 +81,6 @@ const makeStyles = (C: Palette) => sheet({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: C.rule },
   back: { minHeight: 44, minWidth: 44, justifyContent: "center", paddingHorizontal: 8 },
   backText: { color: C.ink, fontSize: 16, fontWeight: "600" },
-  advBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 6 },
-  advText: { color: C.dim, fontSize: 13, fontWeight: "600" },
-  switch: { width: 30, height: 18, borderWidth: 1, borderColor: C.rule },
-  knob: { position: "absolute", top: 2, width: 12, height: 12, backgroundColor: C.dim },
   themeBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   themeIcon: { color: C.ink, fontSize: 20 },
   content: { padding: 16, paddingBottom: 48 },

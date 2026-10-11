@@ -373,19 +373,20 @@ const fullTime = (iso?: string) => {
   return Number.isNaN(t) ? "Time n/a" : new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 };
 
-// Latest headlines. Advanced mode lists every real article we have for the stock, newest first, with its source, full
-// timestamp and a link to the original story.
-export function HeadlinesCard({ ticker, model, nonce, advanced }: { ticker: string; model: Model; nonce: number; advanced: boolean }) {
+// Latest headlines: 3 at first, "Show more" expands the full list. Advanced mode adds each article's source, full
+// timestamp and a link to the original story, newest first.
+export function HeadlinesCard({ ticker, model, nonce, advanced, initialAll = false }: { ticker: string; model: Model; nonce: number; advanced: boolean; initialAll?: boolean }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const s = useApi<Headlines>(paths.headlines(ticker, model), nonce);
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useState(initialAll);
   const items = s.data?.items || [];
-  const shown = advanced ? [...items].sort((a, b) => (Date.parse(b.time || "") || 0) - (Date.parse(a.time || "") || 0)) : all ? items : items.slice(0, 3);
+  const ordered = advanced ? [...items].sort((a, b) => (Date.parse(b.time || "") || 0) - (Date.parse(a.time || "") || 0)) : items;
+  const shown = all ? ordered : ordered.slice(0, 3);
   return (
     <Card title="Latest headlines" right={s.data?.provider ? <Text style={st.small}>{s.data.provider}</Text> : null}>
       <Status s={s} what="headlines" />
-      {advanced && s.data && <Text style={[st.small, { marginTop: 0, marginBottom: 6 }]}>All {items.length} articles we have for {ticker}, newest first, with the link to each original story.</Text>}
+      {advanced && s.data && <Text style={[st.small, { marginTop: 0, marginBottom: 6 }]}>{items.length} articles for {ticker}, newest first, with the link to each original story.</Text>}
       {s.data && items.length === 0 && <Text style={st.dim}>No headlines found.</Text>}
       {shown.map((h, k) => (
         <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)} testID="headline"
@@ -408,9 +409,9 @@ export function HeadlinesCard({ ticker, model, nonce, advanced }: { ticker: stri
           </View>
         </Pressable>
       ))}
-      {items.length > 3 && !advanced && (
+      {items.length > 3 && (
         <Pressable onPress={() => setAll(!all)} style={st.moreBtn} accessibilityRole="button">
-          <Text style={st.more}>{all ? "Show fewer headlines" : `View all ${items.length}`}</Text>
+          <Text style={st.more}>{all ? "Show less" : "Show more"}</Text>
         </Pressable>
       )}
       {s.data && <Text style={st.small}>{model === "none" ? "No sentiment model runs on crypto, so these are untagged."
@@ -453,7 +454,7 @@ export function CryptoNewsCard({ ticker, nonce }: { ticker: string; nonce: numbe
         ))}
         {items.length > 3 && (
           <Pressable onPress={() => setAll(!all)} style={st.moreBtn} accessibilityRole="button">
-            <Text style={st.more}>{all ? "Show fewer headlines" : `View all ${items.length}`}</Text>
+            <Text style={st.more}>{all ? "Show less" : "Show more"}</Text>
           </Pressable>
         )}
         {d?.filter_note ? <Text style={st.small}>{d.filter_note}.</Text> : null}

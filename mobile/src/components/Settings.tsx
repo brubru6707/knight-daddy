@@ -3,15 +3,17 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, Sc
 import Svg, { Circle, Path } from "react-native-svg";
 import { api, ApiError, paths, resetModel } from "@/lib/api";
 import { useSession } from "@/lib/session";
+import { useAdvanced } from "@/lib/advanced";
 import { HOME, isCrypto } from "@/lib/peers";
 import { SERIF, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 
-// Settings (gear in the header): active model per stock, reset to the general model (this stock or all stocks), and
+// Settings (gear in the header): the global Advanced switch, active model per stock, reset to the general model (this stock or all stocks), and
 // the saved train password (change or forget). Resets use the password-protected /api/specialist/reset.
 export function SettingsButton({ current, onChanged, initiallyOpen = false }: { current?: string | null; onChanged?: () => void; initiallyOpen?: boolean }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const { password, setPassword } = useSession();
+  const { advanced, setAdvanced } = useAdvanced();
   const [open, setOpen] = useState(initiallyOpen); // deep link: knightdaddy:///stock/NVDA?settings=1
   const [active, setActive] = useState<Record<string, string | null>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -57,7 +59,15 @@ export function SettingsButton({ current, onChanged, initiallyOpen = false }: { 
               <Pressable onPress={() => setOpen(false)} hitSlop={10} accessibilityRole="button"><Text style={st.link}>Done</Text></Pressable>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
-              <Text style={st.label}>ACTIVE MODEL</Text>
+              <Pressable onPress={() => setAdvanced(!advanced)} style={st.advRow} accessibilityRole="switch" accessibilityState={{ checked: advanced }} accessibilityLabel="Advanced">
+                <View style={{ flex: 1 }}>
+                  <Text style={st.btnT}>Advanced</Text>
+                  <Text style={[st.dim, { fontSize: 12, lineHeight: 17 }]}>Longer briefing, article details, full fine-tune controls, Model info.</Text>
+                </View>
+                <View style={[st.switch, advanced && { backgroundColor: C.amber, borderColor: C.amber }]}>
+                  <View style={[st.knob, advanced ? { left: 19, backgroundColor: C.ground } : { left: 3 }]} /></View>
+              </Pressable>
+              <Text style={[st.label, { marginTop: 22 }]}>ACTIVE MODEL</Text>
               {HOME.map((t) => (
                 <View key={t} style={st.row}>
                   <Text style={[st.rowT, t === stock && { color: C.ink }]}>{t}</Text>
@@ -102,6 +112,9 @@ export function SettingsButton({ current, onChanged, initiallyOpen = false }: { 
 }
 
 const makeStyles = (C: Palette) => sheet({
+  advRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.line },
+  switch: { width: 38, height: 22, borderWidth: 1, borderColor: C.rule },
+  knob: { position: "absolute", top: 3, width: 14, height: 14, backgroundColor: C.dim },
   gearBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   bg: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet: { backgroundColor: C.ground, maxHeight: "85%", borderTopWidth: 1, borderColor: C.rule },
