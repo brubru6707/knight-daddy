@@ -5,7 +5,7 @@ import { SettingsButton } from "@/components/Settings";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { paths, type CryptoNews, type CryptoQuote, type Headlines, type Label, type Prices } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { CRYPTO, HOME, isCrypto, NAMES, short } from "@/lib/peers";
+import { CRYPTO, HOME, isCrypto, NAMES, short, SUPPORTED } from "@/lib/peers";
 import { useList } from "@/lib/list";
 import { Onboarding } from "@/components/Onboarding";
 import { labelColor, pct, SERIF, toneColor, usd, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
@@ -29,7 +29,7 @@ function Row({ ticker, nonce, onOpen }: { ticker: string; nonce: number; onOpen:
   // crypto: Coinbase price and 24h change; the tone pill appears only once the worker pushes tags for the coin
   const p = useApi<Prices | CryptoQuote>(crypto ? paths.cryptoQuote(ticker) : paths.prices(ticker, "3mo"), nonce);
   const h = useApi<Headlines | CryptoNews>(crypto ? paths.cryptoNews(ticker) : paths.headlines(ticker), nonce);
-  if (!crypto && p.err && h.err) return null; // only stock rows with real data; a crypto row shows n/a
+  if (crypto ? p.err : p.err && h.err) return null; // only rows with real data (never an n/a price for crypto)
   const tone = h.data ? dominant(h.data.items) : null;
   const change = p.data ? ("change_24h" in p.data ? p.data.change_24h : p.data.change_1d) : null;
   const showPill = crypto ? !!((h.data as CryptoNews | null)?.tagged && tone) : !h.loading;
@@ -66,6 +66,36 @@ function Section({ title, note, tickers, nonce, onOpen, right }: {
       <View style={st.secHead}><Text style={st.h2}>{title}</Text>{right}</View>
       {note ? <Text style={st.sub}>{note}</Text> : null}
       <View style={st.list}>{tickers.map((t) => <Row key={t} ticker={t} nonce={nonce} onOpen={onOpen} />)}</View>
+    </View>
+  );
+}
+
+// Explore more: every supported name not already in Your list, A to Z, each with an Add button. It only lets the
+// user add names; nothing is ranked or suggested.
+function Explore({ list, onAdd, onOpen }: { list: string[]; onAdd: (t: string) => void; onOpen: (t: string) => void }) {
+  const st = useStyles(makeStyles);
+  const rest = SUPPORTED.filter((t) => !list.includes(t)).sort((a, b) => short(a).localeCompare(short(b)));
+  return (
+    <View style={{ marginTop: 26 }}>
+      <Text style={st.h2}>Explore more</Text>
+      <Text style={st.sub}>Every name Knight-Daddy covers, A to Z. Add any of them to Your list.</Text>
+      {rest.length === 0 ? <Text style={[st.sub, { marginTop: 10 }]}>Every covered name is already in Your list.</Text> : (
+        <View style={st.list}>
+          {rest.map((t) => (
+            <View key={t} style={st.row}>
+              <Pressable onPress={() => onOpen(t)} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }} accessibilityRole="button">
+                <View style={st.mono}><Text style={st.monoText}>{short(t)[0]}</Text></View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={st.ticker}>{short(t)}</Text>
+                  <Text style={st.company} numberOfLines={1}>{NAMES[t] || "n/a"}</Text>
+                </View>
+              </Pressable>
+              <Pressable onPress={() => onAdd(t)} style={st.add} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Add ${short(t)} to Your list`}>
+                <Text style={st.addT}>+ Add</Text>
+              </Pressable>
+            </View>))}
+        </View>
+      )}
     </View>
   );
 }
@@ -113,6 +143,7 @@ export default function Home() {
         <Section title="Stocks" note={"Price and today's change, with the dominant tone of recent headlines."} tickers={HOME}
           nonce={nonce} onOpen={open} right={list.length ? null : edit("Build your list")} />
         <Section title="Crypto" note="Coinbase price and 24h change." tickers={CRYPTO} nonce={nonce} onOpen={open} />
+        <Explore list={list} onAdd={(t) => save(list.includes(t) ? list : [...list, t])} onOpen={open} />
         <Pressable onPress={() => router.push("/replay")} style={({ pressed }) => [st.replay, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Text style={st.h2}>Replay</Text>
           <Text style={st.sub}>{"Re-run the model on a past day's headlines and see what it would have said."}</Text>
@@ -149,5 +180,7 @@ const makeStyles = (C: Palette) => sheet({
   change: { fontSize: 13, fontWeight: "600", minWidth: 58, textAlign: "right", fontVariant: ["tabular-nums"] },
   pill: { borderWidth: 1, paddingHorizontal: 6, paddingVertical: 1 },
   pillText: { fontSize: 11, fontWeight: "600" },
+  add: { borderWidth: 1, borderColor: C.rule, paddingHorizontal: 12, minHeight: 36, justifyContent: "center" },
+  addT: { color: C.ink, fontSize: 13, fontWeight: "700" },
   footer: { color: C.dim, fontSize: 12, marginTop: 28, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.rule },
 });
