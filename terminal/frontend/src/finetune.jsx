@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api, setPw as savePw, useSavedPw, withPw } from "./ui.jsx";
+import { smoothPath } from "./price.jsx";
+import { api, setPw as savePw, useSavedPw, useWidth, withPw } from "./ui.jsx";
 
 const PHASES = {
   queued: "Queued, waiting for the Oscar GPU", "waiting for GPU": "Waiting for the Oscar GPU", starting: "Starting",
@@ -7,6 +8,41 @@ const PHASES = {
   training: "Training", "scoring specialist": "Scoring the specialist", saving: "Saving", done: "Done", failed: "Failed",
 };
 const clock = (s) => (s === null || s === undefined ? null : s >= 60 ? `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s` : `${Math.round(s)}s`);
+
+// Training loss as it happens (Advanced): each step's batch loss (faint), a smoothed line, and the held-out probe loss
+// (headlines never trained on, measured every few steps, dashed). All from the trainer's progress, polled every 2 s.
+function LossChart({ st }) {
+  const [ref, w] = useWidth();
+  const raw = st.losses || [], probe = (st.probe || []).filter((p) => Array.isArray(p) && typeof p[1] === "number");
+  const total = Math.max(st.total_steps || 0, raw.length, 1);
+  const ema = []; raw.forEach((v, i) => ema.push(i ? ema[i - 1] * 0.8 + v * 0.2 : v));
+  const all = [...raw, ...probe.map((p) => p[1])];
+  const H = 64, lo = 0, hi = Math.max(...all, 0.01) * 1.08;
+  const X = (i) => (i / Math.max(1, total - 1)) * w, Y = (v) => 3 + (1 - (v - lo) / (hi - lo)) * (H - 6);
+  const pts = (arr) => arr.map((v, i) => [X(i), Y(v)]);
+  return (
+    <div className="mt-3" data-testid="loss-chart">
+      <div className="mb-1 flex justify-between text-[11px] text-dim">
+        <span>Training loss{raw.length ? ` ${ema.at(-1).toFixed(3)}` : ""}{probe.length ? ` · held-out ${probe.at(-1)[1].toFixed(3)}` : ""}</span>
+        <span>step {raw.length}/{st.total_steps || "n/a"}</span>
+      </div>
+      <div ref={ref} className="w-full border border-line bg-card">
+        {w > 0 && (raw.length > 1 ? (
+          <svg width={w} height={H} role="img" aria-label="Training loss by step">
+            <path d={pts(raw).map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join("")} fill="none" style={{ stroke: "var(--kd-dim)", opacity: 0.35 }} strokeWidth="1" />
+            <path d={smoothPath(pts(ema))} fill="none" style={{ stroke: "var(--kd-chart)" }} strokeWidth="1.75" />
+            {probe.length > 1 && <path d={probe.map(([s, v], i) => `${i ? "L" : "M"}${X(s)},${Y(v)}`).join("")} fill="none" style={{ stroke: "var(--kd-up)" }} strokeWidth="1.5" strokeDasharray="4 3" />}
+          </svg>
+        ) : <div className="flex items-center justify-center text-[11px] text-dim" style={{ height: H }}>Loss appears once training starts</div>)}
+      </div>
+      <div className="mt-1 flex gap-3 text-[11px] text-dim">
+        <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 bg-amber" />smoothed</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-3 bg-dim opacity-50" />each step</span>
+        {probe.length > 0 && <span className="flex items-center gap-1"><span className="inline-block w-3 border-t border-dashed border-up" />held-out headlines</span>}
+      </div>
+    </div>
+  );
+}
 
 // Fine-tune a ticker specialist through the password-protected train endpoint. Every run starts from a fresh copy of the
 // general model on Oscar (never from an earlier specialist). Progress and elapsed time come from /api/specialist/status,
@@ -149,6 +185,7 @@ export function FineTune({ ticker, health, info, active, adv, onActive, onTraine
           </div>
           {st.phase === "failed" && st.error && <div className="mt-1 text-xs text-down">{st.error}</div>}
           {st.phase === "queued" && st.note && <div className="mt-1 text-xs text-dim">{st.note}</div>}
+          {st.phase !== "queued" && <LossChart st={st} />}
         </div>
       )}
       <div className="mt-3 text-xs text-dim">

@@ -121,6 +121,42 @@ with sync_playwright() as p:
     ft.locator("button:has-text('Fine-tune to this stock')").click(); pg.wait_for_timeout(1500)  # server now rejects it
     check("a rejected password is forgotten and asked again",
           ft.locator("input[aria-label='Train password']").count() == 1 and pg.evaluate("localStorage.getItem('kd.trainpw')") is None)
+    # ---- live loss chart (Advanced): the status endpoint replays a real finished run's per-step losses, a few more
+    # steps on each poll, the way the worker streams them during training ----
+    real = pg.request.get(f"{url}/api/specialist/status?ticker=NVDA").json()
+    losses, probe = real.get("losses") or [], real.get("probe") or []
+    if len(losses) > 20:
+        pg.unroute("**/api/specialist/train"); pg.unroute("**/api/specialist/status?*")
+        import time as _t
+        t0 = [None]
+        def train_ok(r):
+            t0[0] = _t.time(); r.fulfill(json={"ticker": "NVDA", "job": "test"})
+        pg.route("**/api/specialist/train", train_ok)
+        def live_status(r):  # about 4 steps per second after the button press, like a real run sped up
+            if t0[0] is None: return r.fulfill(json={"phase": "none"})
+            n = min(len(losses), max(2, int((_t.time() - t0[0]) * 4)))
+            r.fulfill(json={"phase": "training" if n < len(losses) else "done", "running": n < len(losses), "step": n, "total_steps": len(losses),
+                            "elapsed_s": n * 0.8, "losses": losses[:n], "probe": [x for x in probe if x[0] <= n]})
+        pg.route("**/api/specialist/status?*", live_status)
+        pg.evaluate("localStorage.setItem('kd.trainpw', 'pw-test-A')")
+        pg.goto(f"{url}/?t=NVDA"); ft = pg.locator("section[aria-label=Fine-tune]")
+        ft.locator("button:has-text('Fine-tune to this stock')").click()
+        chart = ft.locator("[data-testid=loss-chart]"); chart.wait_for(timeout=15_000)
+        pg.wait_for_function("document.querySelector('[data-testid=loss-chart] svg') !== null", timeout=15_000)
+        first = chart.locator("text=/^step \\d+/").inner_text(); pg.wait_for_timeout(4500)
+        later = chart.locator("text=/^step \\d+/").inner_text()
+        n1, n2 = int(first.split()[1].split("/")[0]), int(later.split()[1].split("/")[0])
+        check("Advanced: loss chart inside the fine-tune box, below the progress bar", ft.locator("[data-testid=train-progress] [data-testid=loss-chart]").count() == 1)
+        check("loss chart grows in real time while training", n2 > n1, f"{first} -> {later}")
+        h = chart.locator("svg").bounding_box()["height"]
+        check("loss chart is short", h <= 70, f"{h}px")
+        ft.screenshot(path=out.replace(".png", "_loss.png"))
+        pg.wait_for_function(f"document.querySelector('[data-testid=loss-chart]').innerText.includes('step {len(losses)}/{len(losses)}')", timeout=60_000)
+        check("chart keeps the whole run when it finishes", ft.locator("text=Last fine-tune: Done").count() == 1)
+        pg.evaluate("localStorage.setItem('kd.advanced', 'false')"); pg.reload(); ft.locator("button:has-text('Tune to this stock')").wait_for(timeout=15_000)
+        check("regular mode: no loss chart", ft.locator("[data-testid=loss-chart]").count() == 0)
+    else:
+        check("loss chart: no finished run with losses to replay (skipped)", True)
     pg.unroute("**/api/specialist/train"); pg.unroute("**/api/specialist/status?*"); pg.unroute("**/api/health"); pg.unroute("**/api/specialist/info")
     pg.goto(url)
 
