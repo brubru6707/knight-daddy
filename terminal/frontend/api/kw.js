@@ -275,6 +275,7 @@ async function liveFallback(key) {
     return [200, { ticker: t, source: "live", provider: "Yahoo Finance", provider_note: null, model: q.get("model") || "general", items, labeled: false, pending: true,
       filter_note: "Tags appear after Oscar's next update", p_bearish: null, p_neutral: null, p_bullish: null, confidence_n: 0 }];
   }
+  if (path === "specialist/status") return [200, { ticker: t, phase: "none" }]; // never fine-tuned: same as the backend says
   if (path === "briefing" && (await getJSON("kw:wanted"))?.[t])
     return [200, { status: "pending", ticker: t, message: `The ${t} summary appears after Oscar's next update.` }];
   return null;
