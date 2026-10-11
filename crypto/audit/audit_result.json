@@ -1,0 +1,118 @@
+{
+ "overall": {
+  "n": 800,
+  "text_matches_tag": 467,
+  "text_has_no_stance": 294,
+  "text_contradicts_tag": 39,
+  "match_rate": 0.584,
+  "match_ci95": [
+   0.549,
+   0.617
+  ],
+  "mismatch_rate": 0.416,
+  "mismatch_ci95": [
+   0.383,
+   0.451
+  ],
+  "contradict_rate": 0.049,
+  "contradict_ci95": [
+   0.036,
+   0.066
+  ],
+  "no_stance_rate": 0.367,
+  "no_stance_ci95": [
+   0.335,
+   0.401
+  ],
+  "match_rate_among_posts_with_a_stance": 0.923,
+  "match_ci95_among_posts_with_a_stance": [
+   0.896,
+   0.943
+  ]
+ },
+ "tag_Bullish": {
+  "n": 400,
+  "text_matches_tag": 216,
+  "text_has_no_stance": 161,
+  "text_contradicts_tag": 23,
+  "match_rate": 0.54,
+  "match_ci95": [
+   0.491,
+   0.588
+  ],
+  "mismatch_rate": 0.46,
+  "mismatch_ci95": [
+   0.412,
+   0.509
+  ],
+  "contradict_rate": 0.058,
+  "contradict_ci95": [
+   0.039,
+   0.085
+  ],
+  "no_stance_rate": 0.403,
+  "no_stance_ci95": [
+   0.356,
+   0.451
+  ],
+  "match_rate_among_posts_with_a_stance": 0.904,
+  "match_ci95_among_posts_with_a_stance": [
+   0.86,
+   0.935
+  ]
+ },
+ "tag_Bearish": {
+  "n": 400,
+  "text_matches_tag": 251,
+  "text_has_no_stance": 133,
+  "text_contradicts_tag": 16,
+  "match_rate": 0.627,
+  "match_ci95": [
+   0.579,
+   0.673
+  ],
+  "mismatch_rate": 0.373,
+  "mismatch_ci95": [
+   0.327,
+   0.421
+  ],
+  "contradict_rate": 0.04,
+  "contradict_ci95": [
+   0.025,
+   0.064
+  ],
+  "no_stance_rate": 0.333,
+  "no_stance_ci95": [
+   0.288,
+   0.38
+  ],
+  "match_rate_among_posts_with_a_stance": 0.94,
+  "match_ci95_among_posts_with_a_stance": [
+   0.905,
+   0.963
+  ]
+ },
+ "hand_vs_general2b_3way_agreement_on_sample": 0.491,
+ "hand_vs_general2b_crosstab": {
+  "Bearish": {
+   "Bearish": 67,
+   "Bullish": 8,
+   "None": 9
+  },
+  "Bullish": {
+   "Bearish": 14,
+   "Bullish": 55,
+   "None": 14
+  },
+  "None": {
+   "Bearish": 193,
+   "Bullish": 169,
+   "None": 271
+  }
+ },
+ "general2b_on_all_4000": {
+  "says_no_stance": 0.789,
+  "agrees_with_tag": 0.17,
+  "contradicts_tag": 0.041
+ }
+}

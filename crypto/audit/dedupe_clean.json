@@ -1,0 +1,20 @@
+{
+ "clean_n": 467,
+ "exact_overlap_with_train_or_heldout": 0,
+ "template_overlap_with_train_or_heldout": 6,
+ "duplicate_texts_within_clean": 0,
+ "template_overlap_examples": [
+  "-x going to 0",
+  " shorting here 1000x leverage",
+  " fomo doesn't start until we cross 120k",
+  " 37 is the new 38",
+  " me buying at 14k next year",
+  "back down to .13"
+ ],
+ "accuracy_after_dropping_template_overlaps": {
+  "n": 461,
+  "general_2b": 0.7722,
+  "specialist_600": 0.8069,
+  "finbert": 0.6681
+ }
+}

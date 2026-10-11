@@ -1,0 +1,225 @@
+{
+ "run": "run-20261010-011058",
+ "clean": {
+  "set": "double-annotated: blind hand label == author tag",
+  "n": 467,
+  "n_bullish": 216,
+  "n_bearish": 251,
+  "general_2b": {
+   "binary_accuracy": 0.7709,
+   "binary_accuracy_ci95": [
+    0.7323,
+    0.8094
+   ],
+   "binary_macro_f1": 0.7692,
+   "binary_macro_f1_ci95": [
+    0.7299,
+    0.8069
+   ],
+   "f1_bearish": 0.789,
+   "f1_bullish": 0.7494
+  },
+  "specialist_600": {
+   "binary_accuracy": 0.8051,
+   "binary_accuracy_ci95": [
+    0.7687,
+    0.8415
+   ],
+   "binary_macro_f1": 0.8025,
+   "binary_macro_f1_ci95": [
+    0.7639,
+    0.8393
+   ],
+   "f1_bearish": 0.8253,
+   "f1_bullish": 0.7797
+  },
+  "finbert": {
+   "binary_accuracy": 0.6617,
+   "binary_accuracy_ci95": [
+    0.6167,
+    0.7045
+   ],
+   "binary_macro_f1": 0.6611,
+   "binary_macro_f1_ci95": [
+    0.6198,
+    0.7022
+   ],
+   "f1_bearish": 0.6749,
+   "f1_bullish": 0.6473
+  },
+  "specialist_600_vs_general_2b": {
+   "accuracy_diff": 0.0343,
+   "accuracy_diff_ci95": [
+    0.0107,
+    0.0578
+   ],
+   "mcnemar": {
+    "b_right_a_wrong": 24,
+    "a_right_b_wrong": 8,
+    "p": 0.0070003666914999485
+   },
+   "verdict": "better"
+  },
+  "specialist_600_vs_finbert": {
+   "accuracy_diff": 0.1435,
+   "accuracy_diff_ci95": [
+    0.0964,
+    0.1906
+   ],
+   "mcnemar": {
+    "b_right_a_wrong": 106,
+    "a_right_b_wrong": 39,
+    "p": 2.403002231061224e-08
+   },
+   "verdict": "better"
+  }
+ },
+ "no_stance": {
+  "set": "text has no stance (tag not recoverable from text; chance = 0.5)",
+  "n": 294,
+  "n_bullish": 161,
+  "n_bearish": 133,
+  "general_2b": {
+   "binary_accuracy": 0.5034,
+   "binary_accuracy_ci95": [
+    0.4456,
+    0.5646
+   ],
+   "binary_macro_f1": 0.4967,
+   "binary_macro_f1_ci95": [
+    0.4435,
+    0.557
+   ],
+   "f1_bearish": 0.5549,
+   "f1_bullish": 0.4385
+  },
+  "specialist_600": {
+   "binary_accuracy": 0.5408,
+   "binary_accuracy_ci95": [
+    0.483,
+    0.5986
+   ],
+   "binary_macro_f1": 0.538,
+   "binary_macro_f1_ci95": [
+    0.4837,
+    0.5953
+   ],
+   "f1_bearish": 0.5741,
+   "f1_bullish": 0.5018
+  },
+  "finbert": {
+   "binary_accuracy": 0.4864,
+   "binary_accuracy_ci95": [
+    0.4252,
+    0.5442
+   ],
+   "binary_macro_f1": 0.4854,
+   "binary_macro_f1_ci95": [
+    0.4283,
+    0.5442
+   ],
+   "f1_bearish": 0.4626,
+   "f1_bullish": 0.5081
+  },
+  "specialist_600_vs_general_2b": {
+   "accuracy_diff": 0.0374,
+   "accuracy_diff_ci95": [
+    0.0,
+    0.0748
+   ],
+   "mcnemar": {
+    "b_right_a_wrong": 22,
+    "a_right_b_wrong": 11,
+    "p": 0.08014331245794892
+   },
+   "verdict": "no clear difference"
+  },
+  "specialist_600_vs_finbert": {
+   "accuracy_diff": 0.0544,
+   "accuracy_diff_ci95": [
+    -0.0136,
+    0.119
+   ],
+   "mcnemar": {
+    "b_right_a_wrong": 58,
+    "a_right_b_wrong": 42,
+    "p": 0.13321061920721333
+   },
+   "verdict": "no clear difference"
+  }
+ },
+ "all_audited": {
+  "set": "all 800 audited posts, author tags (same as the original noisy metric)",
+  "n": 800,
+  "n_bullish": 400,
+  "n_bearish": 400,
+  "general_2b": {
+   "binary_accuracy": 0.6462,
+   "binary_accuracy_ci95": [
+    0.615,
+    0.6813
+   ],
+   "binary_macro_f1": 0.6431,
+   "binary_macro_f1_ci95": [
+    0.6105,
+    0.6781
+   ],
+   "f1_bearish": 0.6766,
+   "f1_bullish": 0.6097
+  },
+  "specialist_600": {
+   "binary_accuracy": 0.6775,
+   "binary_accuracy_ci95": [
+    0.645,
+    0.71
+   ],
+   "binary_macro_f1": 0.6746,
+   "binary_macro_f1_ci95": [
+    0.6416,
+    0.7055
+   ],
+   "f1_bearish": 0.7055,
+   "f1_bullish": 0.6436
+  },
+  "finbert": {
+   "binary_accuracy": 0.58,
+   "binary_accuracy_ci95": [
+    0.545,
+    0.6138
+   ],
+   "binary_macro_f1": 0.58,
+   "binary_macro_f1_ci95": [
+    0.5437,
+    0.6137
+   ],
+   "f1_bearish": 0.5789,
+   "f1_bullish": 0.581
+  },
+  "specialist_600_vs_general_2b": {
+   "accuracy_diff": 0.0312,
+   "accuracy_diff_ci95": [
+    0.0125,
+    0.0513
+   ],
+   "mcnemar": {
+    "b_right_a_wrong": 46,
+    "a_right_b_wrong": 21,
+    "p": 0.003065317669608741
+   },
+   "verdict": "better"
+  },
+  "specialist_600_vs_finbert": {
+   "accuracy_diff": 0.0975,
+   "accuracy_diff_ci95": [
+    0.0575,
+    0.1362
+   ],
+   "mcnemar": {
+    "b_right_a_wrong": 168,
+    "a_right_b_wrong": 90,
+    "p": 1.3722531225087616e-06
+   },
+   "verdict": "better"
+  }
+ }
+}
