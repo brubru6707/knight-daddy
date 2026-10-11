@@ -15,11 +15,13 @@ export function SentimentCard({ ticker, nonce }: { ticker: string; nonce: number
   const st = useStyles(makeStyles);
   const s = useApi<Sentiment>(paths.sentiment(ticker), nonce);
   const d = s.data;
-  const lags = d ? Object.entries(d.corr_by_lag).map(([k, v]) => [Number(k), v] as const).sort((a, b) => a[0] - b[0]) : [];
+  // the live version has no correlations until it has enough tagged days, and single lags can be null
+  const lags = d?.corr_by_lag ? Object.entries(d.corr_by_lag).filter((e): e is [string, number] => typeof e[1] === "number")
+    .map(([k, v]) => [Number(k), v] as const).sort((a, b) => a[0] - b[0]) : [];
   const peak = (f: (k: number) => boolean) => Math.max(0, ...lags.filter(([k]) => f(k)).map(([, v]) => Math.abs(v)));
   const past = peak((k) => k < 0), next = peak((k) => k > 0);
   const lagsPrice = past > next;
-  const finding = d ? <Pill text={lagsPrice ? "LAGS PRICE" : "LEADS PRICE"} color={C.amber} /> : null;
+  const finding = d && lags.length ? <Pill text={lagsPrice ? "LAGS PRICE" : "LEADS PRICE"} color={C.amber} /> : null;
   // Daily score, smoothed over 10 days so the line is readable on a phone.
   const scores = d ? d.rows.map((r) => r.score ?? 0) : [];
   const smooth = scores.map((_, i) => { const w = scores.slice(Math.max(0, i - 9), i + 1); return w.reduce((a, b) => a + b, 0) / w.length; });
@@ -29,13 +31,15 @@ export function SentimentCard({ ticker, nonce }: { ticker: string; nonce: number
       {d && (
         <>
           <View style={st.rowBetween}>{finding}<Text style={st.dim}>{d.start} to {d.end}</Text></View>
-          <Text style={st.lead}>{lagsPrice
-            ? "Sentiment tracks the previous day's move, not the next one. It lags price."
+          <Text style={st.lead}>{!lags.length
+            ? `Daily tags from our general model against ${ticker}'s close. ${d.tagged_days ?? 0} trading days with tagged headlines so far; the correlation appears after ${d.min_days ?? 20}.`
+            : lagsPrice ? "Sentiment tracks the previous day's move, not the next one. It lags price."
             : "Sentiment correlates more with the next day's move than the previous one over this window."}</Text>
           <Text style={st.label}>Price</Text>
           <LineChart series={[{ values: d.rows.map((r) => r.close), color: C.amber }]} height={90} />
           <Text style={st.label}>News score (10-day avg)</Text>
           <LineChart series={[{ values: smooth, color: C.flat, width: 1.5 }]} height={60} baseline={0} />
+          {lags.length > 0 && <>
           <Text style={[st.label, { marginTop: 12 }]}>Correlation with return k days away</Text>
           <View style={st.lagRow}>
             {lags.map(([k, v]) => (
@@ -50,6 +54,7 @@ export function SentimentCard({ ticker, nonce }: { ticker: string; nonce: number
             ))}
           </View>
           <Text style={st.small}>Left (amber) = past returns. Taller left bars mean news reacts to price.</Text>
+          </>}
         </>
       )}
     </Card>

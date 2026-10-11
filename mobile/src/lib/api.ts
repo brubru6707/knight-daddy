@@ -59,7 +59,8 @@ export interface Briefing {
 export interface Sentiment {
   ticker: string; start: string; end: string;
   rows: { time: string; close: number; score: number | null; n: number }[];
-  corr_by_lag: Record<string, number>;
+  corr_by_lag: Record<string, number | null> | null; // null on the live version until min_days tagged days
+  source?: "live"; tagged_days?: number; min_days?: number;
 }
 
 export interface Metric {
@@ -119,7 +120,7 @@ export const paths = {
   cryptoNews: (t: string) => `crypto/news?ticker=${t}`,
   replay: (t: string, d: string) => `replay?ticker=${t}&date=${d}`,
   briefing: (t: string, advanced = false) => `briefing?ticker=${t}${advanced ? "&mode=advanced" : ""}`,
-  sentiment: (t: string) => `sentiment?ticker=${t}`,
+  sentiment: (t: string) => `sentiment?ticker=${t}&live=1`, // live=1: every stock (Tiger daily tags) besides FNSPID
   backtest: (t: string) => `backtest?ticker=${t}`,
   benchmarks: () => "benchmarks",
   specInfo: () => "specialist/info",
