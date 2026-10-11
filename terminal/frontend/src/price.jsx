@@ -83,13 +83,18 @@ const PERIODS = [
   { k: "ALL", api: "2y", label: "past 2 years", span: "2 years", title: "All history the API serves: 2 years" },
 ];
 
-export function PriceBlock({ ticker, children }) {
+// Crypto trades every day: a week is 7 daily bars and a month 30, not 6 and 22.
+const DAYS_7 = { "1W": 7, "1M": 30 };
+
+export function PriceBlock({ ticker, crypto = false, children }) {
   const [pk, setPk] = useState("1M");
-  const per = PERIODS.find((p) => p.k === pk);
+  const base = PERIODS.find((p) => p.k === pk);
+  const per = crypto && DAYS_7[pk] ? { ...base, n: DAYS_7[pk] } : base;
   const s = useApi(per.api ? `prices?ticker=${ticker}&period=${per.api}` : null, [ticker]);
   const bars = useMemo(() => (s.data ? (per.n ? s.data.bars.slice(-per.n) : s.data.bars) : []), [s.data, per.n]);
   const [hover, setHover] = useState(null);
   const [name, exch] = NAMES[ticker] || [ticker, null];
+  const label = ticker.replace(/-USD$/, "");
   const first = bars[0]?.close, cur = hover !== null ? bars[hover] : bars.at(-1);
   const chg = cur && first ? cur.close - first : null;
   const chgPct = chg !== null ? chg / first : null;
@@ -97,7 +102,7 @@ export function PriceBlock({ ticker, children }) {
   return (
     <section>
       <h1 className="font-serif text-[30px] font-medium leading-tight text-ink">{name}</h1>
-      <div className="kd-label mt-1">{ticker}{exch ? ` · ${exch}` : ""}</div>
+      <div className="kd-label mt-1">{label}{exch ? ` · ${exch}` : ""}</div>
       <div className="mt-5 text-[48px] font-semibold leading-none tracking-tight text-ink" data-testid="price">
         {cur ? usd(cur.close) : s.loading ? "…" : "n/a"}</div>
       <div className="mt-2 h-5 text-sm" data-testid="change">

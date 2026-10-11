@@ -82,7 +82,7 @@ def name_filter(t, items):
 
 def yahoo_news(t):
     import yfinance as yf
-    raw = yf.Ticker(t).news or []
+    raw = (yf.Ticker(t).news or []) if t.isupper() else []  # a coin name ("Bitcoin") goes straight to Search
     if not raw:  # Ticker.news came back empty on Oscar (2026-10); Search still returns news
         raw = yf.Search(t, news_count=40).news or []
     items = []
@@ -98,9 +98,41 @@ def yahoo_news(t):
     return items
 
 
+# Crypto rows are display only. Their news comes from Finnhub's crypto category (or a Yahoo name search), kept to
+# headlines that name the coin.
+COINS = {"BTC-USD": ("Bitcoin", "BTC"), "ETH-USD": ("Ethereum", "Ether", "ETH"), "SOL-USD": ("Solana", "SOL")}
+
+
+def crypto_news(t):
+    terms = COINS[t]
+    pat = re.compile(r"\b(" + "|".join(re.escape(x) for x in terms) + r")\b", re.I)
+    note = None
+    try:
+        tok = key("FINNHUB_API_KEY")
+        if not tok:
+            raise RuntimeError("FINNHUB_API_KEY not set")
+        r = requests.get("https://finnhub.io/api/v1/news", params={"category": "crypto"},
+                         headers={"X-Finnhub-Token": tok}, timeout=15)
+        if r.status_code != 200:
+            raise RuntimeError(f"Finnhub HTTP {r.status_code}")
+        items = [{"title": n["headline"].strip(), "source": n.get("source", ""), "url": n.get("url", ""),
+                  "time": datetime.fromtimestamp(n["datetime"], timezone.utc).isoformat()}
+                 for n in sorted(r.json(), key=lambda n: n.get("datetime", 0), reverse=True) if n.get("headline")]
+        named = [i for i in items if pat.search(i["title"])]
+        if named:
+            return "Finnhub", named, None, f"{len(named)} of {len(items)} Finnhub crypto headlines name {terms[0]}; showing only those"
+        note = f"no Finnhub crypto headlines name {terms[0]} right now"
+    except Exception as e:
+        note = f"Finnhub unavailable ({e})"
+    items = [i for i in yahoo_news(terms[0]) if pat.search(i["title"])]
+    return "Yahoo Finance (fallback)", items, note, f"Showing only headlines that name {terms[0]}"
+
+
 def live_news(t):
     """Returns (provider, items, note, filter_note). provider is 'Finnhub' or 'Yahoo Finance (fallback)'.
     note explains a fallback (a warning); filter_note describes the company-name filter (informational)."""
+    if t in COINS:
+        return crypto_news(t)
     try:
         items = finnhub_news(t)
         if items:

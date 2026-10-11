@@ -27,7 +27,9 @@ ENV = {**dotenv_values(HERE.parent / ".env"), **os.environ}
 p = argparse.ArgumentParser()
 p.add_argument("--api", default=ENV.get("KW_API_URL", ""), help="public site base URL")
 p.add_argument("--tickers", default="NVDA,DDOG,AAPL,MSFT,AMZN,TSLA,CELH,PTON,ENPH,SMCI,WING")
+p.add_argument("--crypto", default="BTC-USD,ETH-USD,SOL-USD", help="display-only rows: price and untagged headlines")
 p.add_argument("--snapshot-every", type=int, default=900, help="seconds between snapshot rounds")
+p.add_argument("--replay-every", type=int, default=86400, help="seconds between pushes of the historical replays")
 p.add_argument("--poll", type=int, default=5, help="seconds between job checks (2 store reads each; keeps QUICK DEMO pickup fast)")
 p.add_argument("--once", action="store_true", help="push one round of snapshots and exit")
 p.add_argument("--minutes", type=float, default=None, help="stop after this many minutes")
@@ -37,6 +39,7 @@ SECRET = ENV.get("KW_PUSH_SECRET", "")
 if not API or not SECRET:
     sys.exit("Set KW_API_URL and KW_PUSH_SECRET (env or terminal/.env).")
 TICKERS = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+CRYPTO = [t.strip().upper() for t in args.crypto.split(",") if t.strip()]
 HDR = {"x-kw-secret": SECRET, "content-type": "application/json"}
 
 
@@ -63,18 +66,41 @@ def urls_for(client, t):
     return u
 
 
+def crypto_urls(t):
+    # crypto is display only: prices and headlines with model=none (no tags, no probabilities, no briefing)
+    return [f"prices?ticker={t}&period={per}" for per in ("3mo", "6mo", "1y", "2y")] + \
+           [f"headlines?ticker={t}&source=live&limit=40&model=none"]
+
+
+def replay_groups(client):
+    """replay/available plus one replay per (ticker, date) pair, grouped by ticker (labels are cached per headline,
+    so only the first push runs the model)."""
+    r = client.get("/api/replay/available")
+    if r.status_code != 200:
+        return []
+    pairs = r.json().get("pairs", [])
+    by = {}
+    for p in pairs:
+        by.setdefault(p["ticker"], []).append(f"replay?ticker={p['ticker']}&date={p['date']}")
+    # 40 replays per POST keeps each push well under Vercel's 4.5 MB request limit
+    return [("replay", ["replay/available"])] + \
+           [(f"replay {t} {i // 40 + 1}", u[i:i + 40]) for t, u in by.items() for i in range(0, len(u), 40)]
+
+
 def spc_urls(t):
     return [f"specialist/status?ticker={t}", f"specialist/eval?ticker={t}"]
 
 
-def push_snapshots(client, tickers, include_global=True):
+def push_snapshots(client, tickers, include_global=True, replays=False):
     t0 = time.time()
     # specialist-only tickers (e.g. CRYPTO: no prices or news feed) still get SPC panel snapshots
     spc_only = [t for t in client.get("/api/specialist/info").json().get("supported", []) if t not in TICKERS] \
         if include_global else []
     groups = ([("global", ["health", "benchmarks", "specialist/info"])] if include_global else []) + \
              [(t, spc_urls(t) if t not in TICKERS else urls_for(client, t)) for t in tickers] + \
-             [(t, spc_urls(t)) for t in spc_only]
+             [(t, spc_urls(t)) for t in spc_only] + \
+             ([(t, crypto_urls(t)) for t in CRYPTO] if include_global else []) + \
+             (replay_groups(client) if replays else [])
     total = 0
     for name, urls in groups:
         items = []
@@ -126,10 +152,11 @@ def main():
     stop_at = time.time() + args.minutes * 60 if args.minutes else None
     log(f"worker starting: api={API} tickers={TICKERS}")
     with TestClient(backend.app) as client:   # runs the backend's startup (kernel warmup) in this process
-        push_snapshots(client, TICKERS)
+        push_snapshots(client, TICKERS, replays=True)
         if args.once:
             return
         next_snap = time.time() + args.snapshot_every
+        next_replay = time.time() + args.replay_every
         while not stop_at or time.time() < stop_at:
             try:
                 # never claim a job while our own GPU is busy (startup warmup or another run)
@@ -140,8 +167,11 @@ def main():
                 else:  # GPU busy (e.g. startup warmup): still tell the site we are online
                     remote("jobs/heartbeat", {})
                 if time.time() >= next_snap:
-                    push_snapshots(client, TICKERS)
+                    replays = time.time() >= next_replay
+                    push_snapshots(client, TICKERS, replays=replays)
                     next_snap = time.time() + args.snapshot_every
+                    if replays:
+                        next_replay = time.time() + args.replay_every
             except requests.RequestException as e:
                 log(f"network error (will retry): {e}")
             time.sleep(args.poll)

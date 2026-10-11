@@ -4,38 +4,41 @@ import { api, bullets, Dot, fmtDay, headlinesPath, LABELS, TAG, useApi } from ".
 const FILL = { Bearish: "bg-down", Neutral: "bg-neutral", Bullish: "bg-up" };
 const FIELD = { Bearish: "p_bearish", Neutral: "p_neutral", Bullish: "p_bullish" };
 
+// Red / yellow / green bar sized by class probabilities d.p_bearish / d.p_neutral / d.p_bullish. n/a when missing.
+export function ProbBar({ d }) {
+  const p = d && LABELS.every((l) => typeof d[FIELD[l]] === "number") ? Object.fromEntries(LABELS.map((l) => [l, d[FIELD[l]]])) : null;
+  const sum = p ? LABELS.reduce((a, l) => a + p[l], 0) : 0;
+  if (!p || !sum) return <div className="mt-4 text-sm text-dim" data-testid="confidence-na">Confidence: n/a</div>;
+  const top = LABELS.reduce((a, l) => (p[l] > p[a] ? l : a), "Neutral");
+  return (
+    <>
+      <div className="mt-4 flex h-9 w-full overflow-hidden border border-line" data-testid="confidence-bar">
+        {LABELS.map((l) => p[l] > 0 && (
+          <div key={l} className={`${FILL[l]} flex min-w-0 items-center justify-center text-[11px] font-semibold text-ground`}
+            style={{ width: `${(p[l] / sum) * 100}%` }} title={`${l} ${(p[l] * 100).toFixed(1)}%`} data-testid={`seg-${l}`}>
+            <span className="truncate px-1">{Math.round((p[l] / sum) * 100)}%</span>
+          </div>))}
+      </div>
+      <div className="mt-2 flex justify-between text-xs">
+        {LABELS.map((l) => (
+          <span key={l} className={`flex items-center gap-1.5 ${TAG[l]}`}><Dot label={l} />{l} {(p[l] * 100).toFixed(0)}%</span>))}
+      </div>
+      <p className="mt-3 text-xs text-dim">Leans {top}. Average class probability over {d.confidence_n ?? "n/a"} headlines.</p>
+    </>
+  );
+}
+
 // Qwen (classification): one bar split by the model's softmax probabilities for this ticker, pushed by the Oscar worker
 // as p_bearish / p_neutral / p_bullish on the headlines snapshot. Until those fields exist it says n/a, never a fake split.
 export function ConfidenceBar({ ticker, model }) {
   const s = useApi(headlinesPath(ticker, model), [model]);
-  const d = s.data;
-  const p = d && LABELS.every((l) => typeof d[FIELD[l]] === "number") ? Object.fromEntries(LABELS.map((l) => [l, d[FIELD[l]]])) : null;
-  const sum = p ? LABELS.reduce((a, l) => a + p[l], 0) : 0;
-  const top = p ? LABELS.reduce((a, l) => (p[l] > p[a] ? l : a), "Neutral") : null;
   return (
     <section className="kd-box mt-8 p-5" aria-label="Model confidence" data-testid="confidence">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-serif text-[17px] font-medium text-ink">Model confidence</h2>
         <span className="text-xs text-dim">Qwen classification{model === "specialist" ? `, ${ticker} specialist` : ", general model"}</span>
       </div>
-      {s.loading && <div className="mt-4 text-sm text-dim">Loading<span className="animate-pulse">_</span></div>}
-      {!s.loading && !p && <div className="mt-4 text-sm text-dim" data-testid="confidence-na">Confidence: n/a</div>}
-      {p && sum > 0 && (
-        <>
-          <div className="mt-4 flex h-9 w-full overflow-hidden border border-line" data-testid="confidence-bar">
-            {LABELS.map((l) => p[l] > 0 && (
-              <div key={l} className={`${FILL[l]} flex min-w-0 items-center justify-center text-[11px] font-semibold text-ground`}
-                style={{ width: `${(p[l] / sum) * 100}%` }} title={`${l} ${(p[l] * 100).toFixed(1)}%`} data-testid={`seg-${l}`}>
-                <span className="truncate px-1">{Math.round((p[l] / sum) * 100)}%</span>
-              </div>))}
-          </div>
-          <div className="mt-2 flex justify-between text-xs">
-            {LABELS.map((l) => (
-              <span key={l} className={`flex items-center gap-1.5 ${TAG[l]}`}><Dot label={l} />{l} {(p[l] * 100).toFixed(0)}%</span>))}
-          </div>
-          <p className="mt-3 text-xs text-dim">Leans {top}. Average class probability over {d.confidence_n ?? "n/a"} recent headlines.</p>
-        </>
-      )}
+      {s.loading ? <div className="mt-4 text-sm text-dim">Loading<span className="animate-pulse">_</span></div> : <ProbBar d={s.data} />}
       <History ticker={ticker} model={model} />
     </section>
   );

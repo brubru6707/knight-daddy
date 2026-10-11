@@ -20,9 +20,10 @@ def watch_errors(pg):
 
 def load(pg, url, ticker):
     """Fresh home page, then open `ticker`: tap its home row, or search for it when it has no row."""
-    pg.goto(url); pg.evaluate("localStorage.clear()"); pg.reload()
+    pg.goto(url); pg.evaluate("localStorage.clear(); localStorage.setItem('kd.onboarded', 'true')"); pg.reload()
     row = pg.locator(f"[data-testid=home-row][data-ticker={ticker}]")
     if ticker in HOME:
+        row = pg.locator(f"section[aria-label=Stocks] [data-testid=home-row][data-ticker={ticker}]")
         row.wait_for(timeout=60_000); row.click()
     else:
         pg.fill("input[aria-label=Ticker]", ticker); pg.press("input[aria-label=Ticker]", "Enter")
@@ -43,7 +44,7 @@ def copy_rules(pg, label=""):
     check(f"no buy/sell/hold in UI text {label}", not bad, ", ".join(bad[:5]))
     check(f"no demo or simulated labels {label}", not SIMULATED.search(t))
     check(f"no balances, holdings or portfolio wording {label}", not ACCOUNT.search(t), ", ".join(ACCOUNT.findall(t)[:3]))
-    check(f"no crypto in the app {label}", not re.search(r"\bcrypto", t, re.I))
+    check(f"no admin wording {label}", not re.search(r"\badmin\b", t, re.I))
 
 
 def finish():

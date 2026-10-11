@@ -157,8 +157,8 @@ def _confidence(items):
 @app.get("/api/headlines")
 def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "general"):
     t = _ticker(ticker)
-    if model not in ("general", "specialist"):
-        raise HTTPException(400, "model must be general or specialist")
+    if model not in ("general", "specialist", "none"):
+        raise HTTPException(400, "model must be general, specialist or none")
     if source == "live":
         f = CACHE / f"news2_{t}_{datetime.now():%Y%m%d%H}.json"  # news2: Finnhub results are name-filtered
         cached = json.loads(f.read_text()) if f.exists() else None
@@ -184,6 +184,10 @@ def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "
     else:
         raise HTTPException(400, "source must be live or historical")
     items = items[:limit]
+    if model == "none":  # display only (crypto): headlines without any model output
+        items = [{k: v for k, v in i.items() if k not in ("label", "p_bear", "p_bull", "p_neut", "general_label")} for i in items]
+        return {"ticker": t, "source": source, "provider": provider, "provider_note": note, "filter_note": fnote,
+                "model": "none", "items": items, "labeled": False}
     titles = [i["title"] for i in items]
     general = [{k: i[k] for k in ("label", "p_bear", "p_bull", "p_neut")} for i in items] \
         if items and "label" in items[0] else (classify(titles) if items else [])
@@ -203,6 +207,52 @@ def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "
     return {"ticker": t, "source": source, "provider": provider, "provider_note": note, "filter_note": fnote, "model": model,
             "items": items, "labeled": all(labels),
             "specialist_run": adapter.parent.name if adapter else None, **_confidence(items)}
+
+
+REPLAY_MIN_HEADLINES = int(os.getenv("REPLAY_MIN_HEADLINES", "3"))
+
+
+def _replay_days(t):
+    """{date: headlines} for one cached historical ticker: FNSPID headlines on trading days with a close price."""
+    f, pf = BT_CACHE / f"sentiment_{t}.parquet", BT_CACHE / f"prices_{t}.parquet"
+    if not f.exists() or not pf.exists():
+        return {}, None
+    df = pd.read_parquet(f)
+    df["day"] = df["date_utc"].astype(str).str[:10]
+    px = pd.read_parquet(pf)
+    trading = {d.strftime("%Y-%m-%d") for d in px.index}
+    days = {d: g for d, g in df.groupby("day") if d in trading and len(g) >= REPLAY_MIN_HEADLINES}
+    return days, px
+
+
+@app.get("/api/replay/available")
+def replay_available():
+    """Every (ticker, date) pair a replay can be computed for. The UI only offers these."""
+    pairs = []
+    for t in _historical_tickers():
+        days, _ = _replay_days(t)
+        pairs += [{"ticker": t, "date": d, "n": len(g)} for d, g in sorted(days.items())]
+    return {"pairs": pairs, "source": "FNSPID", "min_headlines": REPLAY_MIN_HEADLINES}
+
+
+@app.get("/api/replay")
+def replay(ticker: str, date: str):
+    """Historical replay: that day's FNSPID headlines re-tagged now by the general model, the ticker-level class
+    probabilities, and that day's close. Recomputed on request (labels cached per headline), never live data."""
+    t = _ticker(ticker)
+    days, px = _replay_days(t)
+    if date not in days:
+        raise HTTPException(404, f"no replay for {t} on {date}")
+    g = days[date].sort_values("ts", ascending=False)
+    titles = [str(x) for x in g["Article_title"]]
+    labels = classify(titles)
+    items = [{"title": ti, "time": str(r.date_utc), "source": "FNSPID", "url": "", **(lab or {})}
+             for ti, r, lab in zip(titles, g.itertuples(), labels)]
+    closes = px["Close"]
+    i = [d.strftime("%Y-%m-%d") for d in closes.index].index(date)
+    close, prev = float(closes.iloc[i]), (float(closes.iloc[i - 1]) if i > 0 else None)
+    return {"ticker": t, "date": date, "replay": True, "model": "general", "source": "FNSPID", "items": items,
+            **_confidence(items), "price": {"close": close, "prev_close": prev, "change_1d": close / prev - 1 if prev else None}}
 
 
 @app.get("/api/briefing")

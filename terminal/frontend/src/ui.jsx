@@ -22,6 +22,22 @@ export const LABELS = ["Bearish", "Neutral", "Bullish"];
 
 // Home list: stocks the Oscar worker pushes live data for. Stocks only; crypto stays out of the app.
 export const HOME = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "DDOG"];
+// Crypto rows are display only: price and untagged headlines (model=none), never a model output or fine-tune.
+export const CRYPTO = ["BTC-USD", "ETH-USD", "SOL-USD"];
+export const isCrypto = (t) => CRYPTO.includes(t);
+export const short = (t) => t.replace(/-USD$/, "");
+
+// Onboarding groups: our supported tickers only. Grouping organizes the user's own choices; it never suggests picks.
+export const CATEGORIES = [
+  { name: "Chips", tickers: ["NVDA"] },
+  { name: "Software and cloud", tickers: ["MSFT", "DDOG"] },
+  { name: "Consumer tech and retail", tickers: ["AAPL", "AMZN"] },
+  { name: "Cars", tickers: ["TSLA"] },
+  { name: "Crypto (prices only)", tickers: CRYPTO },
+];
+export const readLocal = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+export const writeLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
+
 export const headlinesPath = (t, model = "general", source = "live") => `headlines?ticker=${t}&source=${source}&limit=40&model=${model}`;
 
 // Most common Qwen tag among the headlines (ties go to Neutral); null when nothing is tagged.
@@ -48,7 +64,7 @@ export const NAMES = {
   RIVN: ["Rivian Automotive, Inc.", "NASDAQ"], LCID: ["Lucid Group, Inc.", "NASDAQ"], F: ["Ford Motor Company", "NYSE"],
   SNOW: ["Snowflake Inc.", "NYSE"], MDB: ["MongoDB, Inc.", "NASDAQ"], DT: ["Dynatrace, Inc.", "NYSE"],
   MNST: ["Monster Beverage Corporation", "NASDAQ"], KDP: ["Keurig Dr Pepper Inc.", "NASDAQ"], PEP: ["PepsiCo, Inc.", "NASDAQ"],
-  WMT: ["Walmart Inc.", "NYSE"], DELL: ["Dell Technologies Inc.", "NYSE"], HPE: ["Hewlett Packard Enterprise", "NYSE"], QCOM: ["Qualcomm Incorporated", "NASDAQ"],
+  WMT: ["Walmart Inc.", "NYSE"], "BTC-USD": ["Bitcoin", "Crypto"], "ETH-USD": ["Ethereum", "Crypto"], "SOL-USD": ["Solana", "Crypto"], DELL: ["Dell Technologies Inc.", "NYSE"], HPE: ["Hewlett Packard Enterprise", "NYSE"], QCOM: ["Qualcomm Incorporated", "NASDAQ"],
 };
 export const PEERS = {
   NVDA: ["AMD", "INTC", "TSM"], AAPL: ["MSFT", "GOOGL", "AMZN"], TSLA: ["RIVN", "LCID", "F"], DDOG: ["SNOW", "MDB", "DT"],

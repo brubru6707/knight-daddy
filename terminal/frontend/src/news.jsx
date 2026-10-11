@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Dot, headlinesPath, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
 
-// Latest headlines tagged by the active Qwen model (general or this ticker's specialist).
+// Latest headlines tagged by the active Qwen model (general or this ticker's specialist). model="none" (crypto):
+// untagged headlines only, no model output.
 export function Headlines({ ticker, model, specVersion }) {
   const [all, setAll] = useState(false);
   const [source, setSource] = useState("live");
   useEffect(() => setAll(false), [ticker]);
-  const s = useApi(headlinesPath(ticker, model, source), [specVersion]);
+  const tagged = model !== "none";
+  const s = useApi(headlinesPath(ticker, model, tagged ? source : "live"), [specVersion]);
   const items = s.data?.items || [];
   const shown = all ? items : items.slice(0, 3);
   const opt = (cur, set, vals) => vals.map((v) => (
@@ -14,17 +16,17 @@ export function Headlines({ ticker, model, specVersion }) {
   return (
     <section className="mt-12" aria-label="Latest headlines">
       <SectionTitle right={<span className="flex items-center gap-3">
-        <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>
-        {s.data && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
+        {tagged && <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>}
+        {tagged && s.data && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
       </span>}>Latest headlines</SectionTitle>
       <Status s={s} what="headlines" />
       {s.data && items.length === 0 && <div className="text-sm text-dim">No headlines found.</div>}
       <ul>
         {shown.map((h, k) => (
           <li key={k} className="flex gap-4 border-b border-line py-3.5" data-testid="headline">
-            <span className={`flex h-fit w-[80px] shrink-0 items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}
+            {tagged && <span className={`flex h-fit w-[80px] shrink-0 items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}
               title={h.p_bull !== undefined ? `bull ${(h.p_bull * 100).toFixed(0)}% · bear ${(h.p_bear * 100).toFixed(0)}% · neutral ${(h.p_neut * 100).toFixed(0)}%` : "not classified"}>
-              <Dot label={h.label} />{h.label || "n/a"}</span>
+              <Dot label={h.label} />{h.label || "n/a"}</span>}
             <div className="min-w-0">
               {h.url ? <a href={h.url} target="_blank" rel="noreferrer" className="text-[14px] leading-snug text-ink hover:text-amber">{h.title}</a>
                 : <span className="text-[14px] leading-snug text-ink">{h.title}</span>}
@@ -41,7 +43,7 @@ export function Headlines({ ticker, model, specVersion }) {
       {s.data && (
         <p className="mt-4 text-xs text-dim">
           {source === "live" ? `Live headlines from ${s.data.provider || "n/a"}${s.data.filter_note ? `. ${s.data.filter_note}` : ""}.` : "Historical headlines from the FNSPID dataset."}
-          {" "}Tags by Qwen, {model === "specialist" ? `${ticker} specialist` : "general model"}.</p>
+          {" "}{tagged ? `Tags by Qwen, ${model === "specialist" ? `${ticker} specialist` : "general model"}.` : "No sentiment model runs on crypto, so these are untagged."}</p>
       )}
     </section>
   );
