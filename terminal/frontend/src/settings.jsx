@@ -85,14 +85,14 @@ export function Settings({ current, onChanged }) {
           <div className="kd-label mt-5">Train password</div>
           <div className="mt-1 text-xs text-dim" data-testid="pw-state">{saved ? "Saved on this device. Used for fine-tunes and resets." : "Not saved. You will be asked the first time you need it."}</div>
           {editPw ? (
-            <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (typed) { setPw(typed); setTyped(""); setEditPw(false); setMsg("Train password saved. It is checked the next time you use it."); } }}>
-              <input type="password" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="New train password" aria-label="New train password"
+            <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (typed) { setPw(typed); setTyped(""); setEditPw(false); setMsg("Saved on this device. It has to match the site's train password, and is checked the next time you fine-tune."); } }}>
+              <input type="password" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Train password" aria-label="Train password"
                 className="min-w-0 flex-1 border border-line bg-ground px-3 py-1.5 text-ink outline-none focus:border-amber" />
               <button className="bg-ink px-3 py-1.5 font-semibold text-ground disabled:opacity-40" disabled={!typed}>Save</button>
             </form>
           ) : (
             <div className="mt-2 flex gap-4 text-xs">
-              <button onClick={() => { setEditPw(true); setAskFor(null); setTyped(""); }} className="text-amber hover:underline">Change train password</button>
+              <button onClick={() => { setEditPw(true); setAskFor(null); setTyped(""); }} className="text-amber hover:underline">Re-enter train password</button>
               {saved && <button onClick={() => { setPw(""); setMsg("Train password forgotten on this device."); }} className="text-amber hover:underline">Forget password</button>}
             </div>
           )}
