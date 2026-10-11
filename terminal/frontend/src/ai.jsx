@@ -264,7 +264,7 @@ function Talk({ ticker, briefingId, mode: briefingMode }) {
 
 // Bullet lines ("- ...") as the model wrote them, after dropping any line with advice words; older one-paragraph
 // briefings fall back to bullets(). Advanced briefings are paragraphs separated by blank lines.
-const ADVICE_LINE = /\b(buy|buys|buying|sell|sells|selling|hold|holds|holding|price targets?)\b/i;
+const ADVICE_LINE = /\b(buy|buys|buying|sell|sells|selling|hold|holds|holding|holdings|portfolios?|price targets?)\b/i;
 const toBullets = (text = "") => {
   const lines = text.split("\n").map((l) => l.trim()).filter((l) => /^[-*•]\s+/.test(l)).map((l) => l.replace(/^[-*•]\s+/, ""));
   return lines.length ? lines.filter((l) => !ADVICE_LINE.test(l)).slice(0, 4) : bullets(text);

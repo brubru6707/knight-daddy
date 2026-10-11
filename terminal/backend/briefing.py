@@ -54,7 +54,7 @@ BANNED = re.compile(r"\b(you should|investors should|we recommend|recommend(ed|s
                     r"strong buy|should (buy|sell|hold)|price targets?|target prices?|(raised|lowered|cut|lifted|boosted) (its|their|the) target)\b", re.I)
 
 
-WORDS = re.compile(r"\b(buy|buys|buying|sell|sells|selling|hold|holds|holding)\b", re.I)  # banned from the text outright
+WORDS = re.compile(r"\b(buy|buys|buying|sell|sells|selling|hold|holds|holding|holdings|portfolios?)\b", re.I)  # banned from the text outright
 
 
 def pick_window(items):
