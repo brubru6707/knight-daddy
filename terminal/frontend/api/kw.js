@@ -13,6 +13,7 @@ const STALE_MS = 10 * 60 * 1000;      // a job with no update for 10 min is cons
 const WORKER_ONLINE_MS = 2 * 60 * 1000; // worker must have polled within 2 min to accept new jobs
 const now = () => Date.now();
 
+// Train password check. Both sides are trimmed: a value pasted into Vercel often carries a trailing newline or space.
 function same(a, b) {
   if (!a || !b) return false;
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
@@ -400,7 +401,7 @@ export default async function handler(req, res) {
     // ---------- public endpoints ----------
     if (route === "specialist/train" && method === "POST") {
       if (!process.env.KW_TRAIN_PASSWORD) return send(res, 503, { detail: "Training is disabled on this site (no KW_TRAIN_PASSWORD set)." });
-      if (!same(req.headers["x-train-password"], process.env.KW_TRAIN_PASSWORD)) return send(res, 401, { detail: "Wrong train password." });
+      if (!same(String(req.headers["x-train-password"] || "").trim(), process.env.KW_TRAIN_PASSWORD.trim())) return send(res, 401, { detail: "Wrong train password." });
       const ticker = String(body.ticker || "").toUpperCase();
       if (ticker === "CRYPTO") return send(res, 400, { detail: "Specialists are available for stocks only." });
       const info = (await getJSON("kw:get:specialist/info"))?.body;
@@ -435,7 +436,7 @@ export default async function handler(req, res) {
     }
     if (route === "specialist/reset" && method === "POST") {
       if (!process.env.KW_TRAIN_PASSWORD) return send(res, 503, { detail: "Model switching is disabled on this site (no KW_TRAIN_PASSWORD set)." });
-      if (!same(req.headers["x-train-password"], process.env.KW_TRAIN_PASSWORD)) return send(res, 401, { detail: "Wrong train password." });
+      if (!same(String(req.headers["x-train-password"] || "").trim(), process.env.KW_TRAIN_PASSWORD.trim())) return send(res, 401, { detail: "Wrong train password." });
       const ticker = String(body.ticker || "").toUpperCase();
       await setJSON(`kw:active:${ticker}`, "general");
       return send(res, 200, { ticker, active: "general" });
