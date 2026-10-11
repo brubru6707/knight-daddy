@@ -7,7 +7,7 @@ import { useApi } from "@/lib/useApi";
 import { useAdvanced } from "@/lib/advanced";
 import { HOME } from "@/lib/peers";
 import { SERIF, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
-import { BacktestCard, BenchmarkCard } from "@/components/advanced";
+import { BacktestCard, BenchmarkCard, CryptoModelCard } from "@/components/advanced";
 
 // Model info: facts about the sentiment model itself, not about any one stock. Ours vs. FinBERT, the full benchmark
 // table, and the historical backtest of the signal (pick a stock with cached history). Only in Advanced mode.
@@ -40,6 +40,7 @@ export default function ModelInfo() {
         <Text style={st.h1}>Model info</Text>
         <Text style={st.sub}>How the headline tagger was built and how it scores. The same model tags every stock.</Text>
         <BenchmarkCard nonce={0} />
+        <CryptoModelCard />
         <View style={st.chips}>
           {hist.map((x) => (
             <Pressable key={x} onPress={() => setPick(x)} style={[st.chip, x === t && st.chipOn]} accessibilityRole="button" accessibilityState={{ selected: x === t }}>

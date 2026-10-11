@@ -138,6 +138,33 @@ export function BenchmarkCard({ nonce }: { nonce: number }) {
   );
 }
 
+// Crypto 3-class experiment (crypto/EXPERIMENT_RESULTS_3CLASS.md): accuracy on held-out crypto posts and headlines.
+const CRYPTO3 = [
+  { model: "Crypto model (fine-tuned)", posts: 0.723, headlines: 0.649 },
+  { model: "General model (ours)", posts: 0.52, headlines: 0.658 },
+  { model: "FinBERT (zero-shot)", posts: 0.432, headlines: 0.58 },
+];
+export function CryptoModelCard() {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
+  return (
+    <Card title="Crypto model">
+      <Text style={st.lead}>Fine-tuning helped on crypto social posts (+20 pts) but tied on news headlines, so headlines use the general model.</Text>
+      <View style={{ marginTop: 6 }}>
+        <View style={st.tr}><Text style={[st.th, { flex: 1, textAlign: "left" }]}>model</Text><Text style={[st.th, { width: 64 }]}>posts</Text><Text style={[st.th, { width: 72 }]}>headlines</Text></View>
+        {CRYPTO3.map((r) => (
+          <View key={r.model} style={st.tr}>
+            <Text style={[st.td, { flex: 1, textAlign: "left", color: C.ink }]} numberOfLines={1}>{r.model}</Text>
+            <Text style={[st.td, { width: 64, color: C.ink }]}>{(r.posts * 100).toFixed(1)}%</Text>
+            <Text style={[st.td, { width: 72, color: C.ink }]}>{(r.headlines * 100).toFixed(1)}%</Text>
+          </View>))}
+        <Text style={st.small}>400 held-out crypto posts, 231 crypto news headlines.</Text>
+        <Text style={[st.small, { color: C.amber }]}>Claude-labeled, needs human spot-check.</Text>
+      </View>
+    </Card>
+  );
+}
+
 const makeStyles = (C: Palette) => sheet({
   dim: { color: C.dim, fontSize: 14, lineHeight: 20 },
   small: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 6 },

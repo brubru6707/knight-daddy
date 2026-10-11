@@ -5,7 +5,7 @@ import { SettingsButton } from "@/components/Settings";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { paths, type CryptoNews, type CryptoQuote, type Headlines, type Label, type Prices } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { CRYPTO, HOME, isCrypto, NAMES, short, SUPPORTED } from "@/lib/peers";
+import { CRYPTO, CRYPTO_CAPTION, HOME, isCrypto, NAMES, short, SUPPORTED } from "@/lib/peers";
 import { useList } from "@/lib/list";
 import { useAdvanced } from "@/lib/advanced";
 import { Onboarding } from "@/components/Onboarding";
@@ -151,7 +151,7 @@ export default function Home() {
         {list.length > 0 && <Section title="Your list" tickers={list} nonce={nonce} onOpen={open} right={edit("Edit your list")} />}
         <Section title="Stocks" note={"Price and today's change, with the dominant tone of recent headlines."} tickers={HOME}
           nonce={nonce} onOpen={open} right={list.length ? null : edit("Build your list")} />
-        <Section title="Crypto" note="Coinbase price and 24h change." tickers={CRYPTO} nonce={nonce} onOpen={open} />
+        <Section title="Crypto" note={`Coinbase price and 24h change. ${CRYPTO_CAPTION}`} tickers={CRYPTO} nonce={nonce} onOpen={open} />
         <Explore list={list} onAdd={(t) => save(list.includes(t) ? list : [...list, t])} onOpen={open} />
         <Pressable onPress={() => router.push("/replay")} style={({ pressed }) => [st.replay, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Text style={st.h2}>Replay</Text>

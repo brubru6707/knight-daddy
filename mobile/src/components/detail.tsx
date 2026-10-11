@@ -11,7 +11,8 @@ import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { labelColor, pct, relTime, SERIF, usd, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { bulletsOf, paragraphsOf } from "@/lib/outlook";
-import { NAMES, PEERS, short } from "@/lib/peers";
+import { CRYPTO_CAPTION, NAMES, PEERS, short } from "@/lib/peers";
+import { useAdvanced } from "@/lib/advanced";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
 import { PasswordModal } from "./PasswordModal";
@@ -131,6 +132,7 @@ const SILENCE_MS = 1600, WAKE_TIMEOUT_MS = 7000;
 
 function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Briefing; hear?: string }) {
   const { C } = useTheme();
+  const { advanced } = useAdvanced(); // Advanced shows which engine answered
   const st = useStyles(makeStyles);
   const [turns, setTurns] = useState<(TalkAnswer & { q: string })[]>([]);
   const [mode, setModeState] = useState<Mode>("off");
@@ -165,13 +167,16 @@ function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Brief
     if (!text) return;
     clearTimers(); setErr(null);
     if (viaVoice) { setMode("thinking"); ExpoSpeechRecognitionModule.abort(); }
-    const history = turnsRef.current.filter((t) => !t.refused).slice(-3).map((t) => ({ q: t.q, a: t.answer }));
+    const history = turnsRef.current.filter((t) => t.engine === "gemini").slice(-3).map((t) => ({ q: t.q, a: t.answer }));
     try {
       const r = await talk(ticker, text, history);
       setTurns((t) => [...t, { ...r, q: text }]); setLive("");
       if (r.id) { if (viaVoice) setMode("speaking"); speak(`a-${r.id}`, paths.talkAudio(r.id), viaVoice ? resume : undefined); }
       else if (viaVoice) resume();
-    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); if (viaVoice) resume(); }
+    } catch { // never a made-up answer: say plainly that the AI didn't answer
+      setTurns((t) => [...t, { q: text, ticker, answer: "I can't reach the AI right now, try again in a moment.", engine: "error", sources: [] }]); setLive("");
+      if (viaVoice) resume();
+    }
   };
 
   useSpeechRecognitionEvent("result", (e) => {
@@ -222,14 +227,15 @@ function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Brief
       {turns.map((t, i) => (
         <View key={i} style={st.turn}>
           <Text style={st.youText}>You: {t.q}</Text>
-          <Text style={[st.answer, t.refused && { color: C.dim }]}>{t.answer}</Text>
+          <Text style={[st.answer, t.engine !== "gemini" && { color: C.dim }]}>{t.answer}</Text>
+          {advanced && <Text style={st.engine}>{t.engine === "gemini" ? "GEMINI" : "ERROR"}</Text>}
           {t.id && (
             <Pressable onPress={() => (on(`a-${t.id}`) ? stopAudio() : speak(`a-${t.id}`, paths.talkAudio(t.id!)))} hitSlop={6} accessibilityRole="button">
               <Text style={st.hear}>{on(`a-${t.id}`) ? "■ Stop" : audio.loading && audio.which === `a-${t.id}` ? "Loading…" : "🔈 Hear again"}</Text>
             </Pressable>)}
           {t.sources.map((x) => (
             <Pressable key={x.n} disabled={!x.url} onPress={() => x.url && WebBrowser.openBrowserAsync(x.url)} accessibilityRole="link">
-              <Text style={st.source}>[{x.n}] <Text style={{ color: C.ink }}>{x.title}</Text>{x.source ? ` · ${x.source}` : ""}</Text>
+              <Text style={st.source}><Text style={{ color: C.ink }}>{x.title}</Text>{x.source ? ` · ${x.source}` : ""}</Text>
             </Pressable>))}
         </View>))}
       {(mode === "capturing" || mode === "thinking") && live ? <Text style={[st.youText, { marginTop: 12 }]}>You: {live}</Text> : null}
@@ -541,6 +547,7 @@ export function HeadlinesCard({ ticker, model, nonce, advanced, initialAll = fal
 // tags for the coin; until then both are hidden (not shown as n/a). No fine-tune on crypto.
 export function CryptoNewsCard({ ticker, nonce }: { ticker: string; nonce: number }) {
   const { C } = useTheme();
+  const { advanced } = useAdvanced(); // Advanced adds the crypto model's tag beside each general tag
   const st = useStyles(makeStyles);
   const s = useApi<CryptoNews>(paths.cryptoNews(ticker), nonce);
   const [all, setAll] = useState(false);
@@ -550,7 +557,8 @@ export function CryptoNewsCard({ ticker, nonce }: { ticker: string; nonce: numbe
   const shown = all ? items : items.slice(0, 3);
   return (
     <>
-      {hasBar && <Card title="Headline tone" right={<Text style={st.small}>general news model</Text>}><ProbBar d={d} /></Card>}
+      {hasBar && <Card title="Headline tone" right={<Text style={st.small}>general model</Text>}><ProbBar d={d} />
+        <Text style={st.small}>{CRYPTO_CAPTION}</Text></Card>}
       <Card title="Latest headlines" right={d?.provider ? <Text style={st.small}>{d.provider}</Text> : null}>
         {s.loading && <Status s={s} what="headlines" />}
         {s.err && <Text style={st.dim}>Headlines: n/a right now.</Text>}
@@ -559,8 +567,11 @@ export function CryptoNewsCard({ ticker, nonce }: { ticker: string; nonce: numbe
           <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)}
             style={({ pressed }) => [st.headline, k === 0 && { borderTopWidth: 0 }, pressed && { opacity: 0.6 }]} accessibilityRole="link">
             {tagged && (
-              <View style={[st.tag, { borderColor: labelColor(C, h.label) }]}>
-                <Text style={[st.tagText, { color: labelColor(C, h.label) }]}>{h.label || "n/a"}</Text>
+              <View>
+                <View style={[st.tag, { borderColor: labelColor(C, h.label) }]}>
+                  <Text style={[st.tagText, { color: labelColor(C, h.label) }]}>{h.label || "n/a"}</Text>
+                </View>
+                {advanced && <Text style={st.cryptoTag}>Crypto model{"\n"}<Text style={{ color: h.crypto_label ? labelColor(C, h.crypto_label) : C.dim }}>{h.crypto_label || "n/a"}</Text></Text>}
               </View>
             )}
             <View style={{ flex: 1 }}>
@@ -575,7 +586,8 @@ export function CryptoNewsCard({ ticker, nonce }: { ticker: string; nonce: numbe
           </Pressable>
         )}
         {d?.filter_note ? <Text style={st.small}>{d.filter_note}.</Text> : null}
-        {tagged && <Text style={[st.small, { color: C.amber }]}>Tagged by our general news model, not yet validated on crypto.</Text>}
+        {tagged && <Text style={[st.small, { color: C.amber }]}>{CRYPTO_CAPTION}</Text>}
+        {tagged && advanced && !d?.crypto_model && <Text style={st.small}>Crypto model tags: n/a until the next Oscar update.</Text>}
       </Card>
     </>
   );
@@ -630,6 +642,8 @@ const makeStyles = (C: Palette) => sheet({
   turn: { marginTop: 12 },
   youText: { color: C.dim, fontSize: 14, lineHeight: 20 },
   answer: { color: C.ink, fontSize: 15, lineHeight: 21, marginTop: 4 },
+  engine: { color: C.dim, fontSize: 10, letterSpacing: 0.6, marginTop: 2 },
+  cryptoTag: { color: C.dim, fontSize: 10, lineHeight: 13, marginTop: 4, width: 72 },
   hear: { color: C.dim, fontSize: 12, marginTop: 4 },
   source: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 4 },
   askRow: { flexDirection: "row", gap: 8, marginTop: 12 },

@@ -95,7 +95,7 @@ export interface SpecStatus {
 export type Model = "general" | "specialist" | "none"; // "none": crypto, untagged headlines only
 
 export interface CryptoQuote { ticker: string; source: string; last: number; open_24h: number; change_24h: number | null }
-export interface CryptoNews extends Headlines { tagged?: boolean; filter_note?: string }
+export interface CryptoNews extends Omit<Headlines, "items"> { tagged?: boolean; filter_note?: string; crypto_model?: boolean; items: (Headlines["items"][number] & { crypto_label?: Label | null })[] }
 
 export interface ReplayPair { ticker: string; date: string; n: number }
 export interface ReplayAvailable { pairs: ReplayPair[]; source?: string }
@@ -130,7 +130,7 @@ export const paths = {
 // Talk: a question about one stock's news and its tone, answered from the real headlines only. Advice questions
 // (buy, sell, hold, price targets, whether to invest) get a short decline every time.
 export interface TalkSource { n: number; title: string; source?: string; url?: string; time?: string }
-export interface TalkAnswer { ticker: string; id?: string; answer: string; refused: boolean; model?: string; sources: TalkSource[] }
+export interface TalkAnswer { ticker: string; id?: string; answer: string; engine?: "gemini" | "error"; refused?: boolean; model?: string; sources: TalkSource[] }
 export function talk(ticker: string, question: string, history: { q: string; a: string }[] = []) {
   return api<TalkAnswer>("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question, history }) });
 }
