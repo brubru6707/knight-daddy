@@ -11,7 +11,7 @@ import { useAdvanced } from "@/lib/advanced";
 import { isCrypto } from "@/lib/peers";
 
 // Ticker detail, only what is specific to this stock: price and chart, Qwen confidence bar, Gemini briefing with Talk,
-// this stock's sentiment-vs-price history, headlines, competitors, and tuning. Model-wide facts live on Model info.
+// headlines, competitors, and tuning; Advanced adds this stock's sentiment-vs-price history. Model-wide facts live on Model info.
 // The global Advanced switch (in Settings) shows the longer briefing, every article with links and the full fine-tune details.
 export default function Stock() {
   const router = useRouter();
@@ -66,7 +66,7 @@ export default function Stock() {
         {crypto ? <CryptoNewsCard ticker={ticker} nonce={nonce} /> : <>
         <ConfidenceBar key={`c-${active}`} ticker={ticker} model={active} nonce={nonce} />
         <View {...mark("briefing")}><BriefingCard ticker={ticker} nonce={nonce} advanced={advanced} initialTalk={talkParam === "1" || !!hear} hear={hear} /></View>
-        <View {...mark("sentiment")}><SentimentCard ticker={ticker} nonce={nonce} /></View>
+        <View {...mark("sentiment")}>{advanced && <SentimentCard ticker={ticker} nonce={nonce} />}</View>
         <View {...mark("headlines")}><HeadlinesCard key={`h-${active}`} ticker={ticker} model={active} nonce={nonce} advanced={advanced} initialAll={more === "1"} /></View>
         <CompetitorsRow ticker={ticker} onPick={pick} />
         <View {...mark("tune")} />
