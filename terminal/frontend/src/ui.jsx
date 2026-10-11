@@ -46,6 +46,14 @@ export function useSavedPw() {
   useEffect(() => { pwListeners.add(set); return () => pwListeners.delete(set); }, []);
   return pw;
 }
+// Advanced mode (toggle on the stock page): longer briefing, every article with links, full fine-tune details. Kept
+// in this browser and shared by every component through listeners.
+const advListeners = new Set();
+export function useAdvanced() {
+  const [on, set] = useState(() => readLocal("kd.advanced", false));
+  useEffect(() => { advListeners.add(set); return () => advListeners.delete(set); }, []);
+  return [on, (v) => { writeLocal("kd.advanced", v); advListeners.forEach((f) => f(v)); }];
+}
 // POST to a password-protected endpoint with the saved password; a 401 forgets it so the caller can ask again.
 export async function withPw(path, body, pw = getPw()) {
   try {

@@ -1,15 +1,13 @@
-import { useState } from "react";
 import { smoothPath } from "./price.jsx";
-import { SpecialistResults } from "./specialist.jsx";
 import { money, pct, Status, useApi, useWidth } from "./ui.jsx";
 
 const H3 = ({ children }) => <h3 className="text-sm font-semibold text-ink">{children}</h3>;
 const Stat = ({ k, v, cls = "text-ink" }) => (
   <div><div className="text-xs text-dim">{k}</div><div className={`mt-1 text-[17px] ${cls}`}>{v}</div></div>);
 
-function SentimentVsPrice({ ticker, health }) {
+export function SentimentVsPrice({ ticker, health }) {
   const hist = health?.historical_tickers;
-  const s = useApi(!hist || hist.includes(ticker) ? `sentiment?ticker=${ticker}` : null);
+  const s = useApi(health !== undefined && (!hist || hist.includes(ticker)) ? `sentiment?ticker=${ticker}` : null);
   const [ref, w] = useWidth();
   const d = s.data;
   const H = 170, B = 22;
@@ -61,7 +59,7 @@ function SentimentVsPrice({ ticker, health }) {
   );
 }
 
-function Backtest({ ticker, health }) {
+export function Backtest({ ticker, health }) {
   const hist = health?.historical_tickers;
   const s = useApi(!hist || hist.includes(ticker) ? `backtest?ticker=${ticker}` : null);
   const [ref, w] = useWidth();
@@ -109,13 +107,13 @@ function Backtest({ ticker, health }) {
   );
 }
 
-function ModelCard() {
+export function ModelCard() {
   const s = useApi("benchmarks");
   const rows = s.data?.rows || [];
   const ours = rows.find((r) => r.model.includes("2B QLoRA"));
   return (
     <div>
-      <H3>Model</H3>
+      <H3>Ours vs. FinBERT</H3>
       <p className="mt-2 text-sm leading-relaxed text-ink" data-testid="model-copy">
         Qwen3.5-2B QLoRA. 91.9% accuracy, 0.895 macro F1 on 2,388 held-out financial tweets. FinBERT fine-tuned on the same data: 88.9%.</p>
       <Status s={s} what="benchmarks" />
@@ -127,37 +125,16 @@ function ModelCard() {
         </table>
       )}
       {rows.length > 0 && (
-        <details className="mt-4 text-sm">
-          <summary className="cursor-pointer text-xs text-dim hover:text-amber">All benchmark rows ({s.data.dataset})</summary>
+        <div className="mt-6 text-sm" data-testid="benchmark-table">
+          <div className="text-xs text-dim">All benchmark rows ({s.data.dataset})</div>
           <table className="mt-2 w-full text-xs">
             <thead className="text-dim"><tr><th className="py-1 text-left font-normal">model</th><th className="py-1 text-right font-normal">accuracy</th><th className="py-1 text-right font-normal">macro F1</th></tr></thead>
             <tbody>{rows.map((r) => (
               <tr key={r.model} className={`border-t border-line ${r.model.includes("ours") ? "text-ink" : "text-dim"}`}>
                 <td className="py-1.5">{r.model}</td><td className="py-1.5 text-right">{(r.accuracy * 100).toFixed(1)}%</td><td className="py-1.5 text-right">{r.macro_f1.toFixed(3)}</td></tr>))}</tbody>
           </table>
-        </details>
-      )}
-    </div>
-  );
-}
-
-export function AdvancedResearch({ ticker, health, specVersion }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="kd-section mt-12" aria-label="Advanced research">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-baseline gap-2 text-left">
-        <span className="text-dim">{open ? "⌃" : "⌄"}</span>
-        <span className="font-serif text-[17px] font-medium text-ink">Advanced research</span>
-        <span className="text-xs text-dim">sentiment vs. price, backtest, model, specialist</span>
-      </button>
-      {open && (
-        <div className="mt-8 space-y-6">
-          <div className="kd-box p-5"><SentimentVsPrice ticker={ticker} health={health} /></div>
-          <div className="kd-box p-5"><Backtest ticker={ticker} health={health} /></div>
-          <div className="kd-box p-5"><ModelCard /></div>
-          <div className="kd-box p-5"><SpecialistResults ticker={ticker} specVersion={specVersion} /></div>
         </div>
       )}
-    </section>
+    </div>
   );
 }

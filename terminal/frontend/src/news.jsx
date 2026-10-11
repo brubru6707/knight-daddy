@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { Dot, headlinesPath, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
 
 // Latest headlines tagged by the active Qwen model (general or this ticker's specialist). model="none" (crypto):
-// untagged headlines only, no model output.
-export function Headlines({ ticker, model, specVersion }) {
+// untagged headlines only, no model output. Advanced mode lists every real article we have for the stock with its
+// source, full timestamp and a link to the article itself.
+export function Headlines({ ticker, model, specVersion, adv }) {
   const [all, setAll] = useState(false);
   const [source, setSource] = useState("live");
   useEffect(() => setAll(false), [ticker]);
   const tagged = model !== "none";
   const s = useApi(headlinesPath(ticker, model, tagged ? source : "live"), [specVersion]);
   const items = s.data?.items || [];
-  const shown = all ? items : items.slice(0, 3);
+  const shown = adv ? [...items].sort((a, b) => (Date.parse(b.time) || 0) - (Date.parse(a.time) || 0)) : all ? items : items.slice(0, 3);
   const opt = (cur, set, vals) => vals.map((v) => (
     <button key={v} onClick={() => set(v)} aria-pressed={cur === v} className={cur === v ? "text-amber" : "hover:text-ink"}>{v}</button>));
   return (
@@ -19,6 +20,7 @@ export function Headlines({ ticker, model, specVersion }) {
         {tagged && <span className="flex gap-2">{opt(source, setSource, ["live", "historical"])}</span>}
         {tagged && s.data && <span data-testid="analysed">{items.filter((i) => i.label).length} analysed</span>}
       </span>}>Latest headlines</SectionTitle>
+      {adv && s.data && <p className="-mt-2 mb-3 text-xs text-dim" data-testid="advanced-note">All {items.length} articles we have for {ticker}, newest first, with the link to each original story.</p>}
       <Status s={s} what="headlines" />
       {s.data && items.length === 0 && <div className="text-sm text-dim">No headlines found.</div>}
       <ul>
@@ -30,13 +32,18 @@ export function Headlines({ ticker, model, specVersion }) {
             <div className="min-w-0">
               {h.url ? <a href={h.url} target="_blank" rel="noreferrer" className="text-[14px] leading-snug text-ink hover:text-amber">{h.title}</a>
                 : <span className="text-[14px] leading-snug text-ink">{h.title}</span>}
-              {h.general_label && h.general_label !== h.label && <span className="ml-2 text-xs text-amber">general model said {h.general_label}</span>}
-              <div className="mt-1 text-xs text-dim">{[h.source, relTime(h.time)].filter(Boolean).join(" · ")}</div>
+              {adv ? (
+                <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-dim" data-testid="article-meta">
+                  <span className="font-semibold text-ink">{h.source || "Source n/a"}</span>
+                  <time dateTime={h.time}>{fullTime(h.time)}</time>
+                  {h.url ? <a href={h.url} target="_blank" rel="noreferrer" className="text-amber hover:underline" data-testid="article-link">Open article ↗</a> : <span>Link n/a</span>}
+                </div>
+              ) : <div className="mt-1 text-xs text-dim">{[h.source, relTime(h.time)].filter(Boolean).join(" · ")}</div>}
             </div>
           </li>
         ))}
       </ul>
-      {items.length > 3 && (
+      {items.length > 3 && !adv && (
         <button onClick={() => setAll(!all)} className="mt-4 text-sm text-amber hover:underline">
           {all ? "Show fewer headlines" : `View all ${items.length}`}</button>
       )}
@@ -48,6 +55,11 @@ export function Headlines({ ticker, model, specVersion }) {
     </section>
   );
 }
+
+const fullTime = (iso) => {
+  const t = Date.parse(iso || "");
+  return Number.isNaN(t) ? "Time n/a" : new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+};
 
 export function Competitors({ ticker, onPick }) {
   const peers = PEERS[ticker];

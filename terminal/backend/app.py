@@ -256,13 +256,14 @@ def replay(ticker: str, date: str):
 
 
 @app.get("/api/briefing")
-def briefing_endpoint(ticker: str, refresh: bool = False):
-    """One-paragraph Gemini summary of today's model-tagged live headlines (no predictions, no advice)."""
+def briefing_endpoint(ticker: str, refresh: bool = False, mode: str = "normal"):
+    """Gemini summary of this ticker's model-tagged live headlines: mode=normal (<= 4 bullets) or mode=advanced
+    (paragraphs). No predictions, no advice."""
     import briefing
     t = _ticker(ticker)
     feed = headlines(t, source="live", limit=60, model="general")
     try:
-        res = briefing.generate(t, feed["items"], refresh=refresh)
+        res = briefing.generate(t, feed["items"], refresh=refresh, mode=mode)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return {**res, "provider": feed["provider"]}

@@ -42,7 +42,7 @@ with sync_playwright() as p:
     if quick:
         times = []
         for _ in range(3):
-            load(pg, url, "NVDA"); ft = pg.locator("section[aria-label=Fine-tune]"); t0 = time.time()
+            load(pg, url, "NVDA"); pg.locator("[data-testid=advanced-toggle]").click(); ft = pg.locator("section[aria-label=Fine-tune]"); t0 = time.time()
             ft.locator("text=Quick run (not scored)").click()
             ft.locator("text=/Last fine-tune: Done/").wait_for(timeout=300_000); times.append(time.time() - t0)
         check("quick demo runs finish", True, ", ".join(f"{t:.0f}s" for t in times))

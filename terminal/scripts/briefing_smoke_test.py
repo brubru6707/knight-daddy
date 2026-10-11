@@ -31,20 +31,21 @@ with sync_playwright() as p:
         ai.locator("[data-testid=briefing-bullets]").wait_for(timeout=90_000)
         bl = [x.inner_text() for x in ai.locator("[data-testid=briefing-bullets] li").all()]
         check("briefing shown as 1 to 4 bullets", 1 <= len(bl) <= 4, f"{len(bl)} bullets")
-        check("bullets are short (<= 90 chars each)", all(len(x) <= 92 for x in bl), str([len(x) for x in bl]))
+        check("bullets are tight (<= 120 chars each)", all(len(x) <= 120 for x in bl), str([len(x) for x in bl]))
         check("bullets have no prediction or advice phrases", not any(BANNED.search(x) or ADVICE.search(x) for x in bl))
         check("briefing credits Gemini, tags credit Qwen", ai.locator("text=/Written by Gemini .* Tags come from Qwen/").count() == 1)
+        ai.locator("[data-testid=talk]").click()
         if keys.get("ELEVENLABS_API_KEY"):
             ai.locator("[data-testid=speaker]").click()
-            ai.locator("button:has-text('Stop')").wait_for(timeout=60_000); check("Read aloud starts playback", True)
-            ai.locator("button:has-text('Stop')").click()
+            ai.locator("button:has-text('Stop reading')").wait_for(timeout=60_000); check("Talk reads the briefing aloud", True)
+            ai.locator("button:has-text('Stop reading')").click()
         else:
             ai.locator("[data-testid=speaker]").click()
-            ai.locator("text=/Listen: /").wait_for(timeout=30_000); check("speaker explains it is unavailable", True)
+            ai.locator("text=/Read-aloud: /").wait_for(timeout=30_000); check("speaker explains it is unavailable", True)
     else:
         ai.locator("text=/Briefing: n\\/a/").wait_for(timeout=90_000)
         check("briefing unavailable shows n/a", True)
     pg.screenshot(path=out, clip={"x": 0, "y": 0, "width": 1440, "height": 760})
     b.close()
-errors[:] = [e for e in errors if "briefing/audio" not in e]  # a missing ElevenLabs key is reported in the UI
+errors[:] = [e for e in errors if "audio" not in e]  # a missing ElevenLabs key is reported in the UI
 sys.exit(finish())

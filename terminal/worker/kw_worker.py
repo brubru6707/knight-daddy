@@ -61,7 +61,7 @@ def urls_for(client, t):
     if client.get(f"/api/specialist/status?ticker={t}").json().get("phase") == "done":
         models.append("specialist")
     u += [f"headlines?ticker={t}&source={s}&limit=40&model={m}" for s in ("live", "historical") for m in models]
-    u += [f"sentiment?ticker={t}", f"backtest?ticker={t}", f"briefing?ticker={t}",
+    u += [f"sentiment?ticker={t}", f"backtest?ticker={t}", f"briefing?ticker={t}", f"briefing?mode=advanced&ticker={t}",
           f"specialist/status?ticker={t}", f"specialist/eval?ticker={t}"]
     return u
 

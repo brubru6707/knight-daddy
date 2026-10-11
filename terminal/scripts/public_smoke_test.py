@@ -20,8 +20,11 @@ with sync_playwright() as p:
     pg.locator("[data-testid=headline]").first.wait_for(timeout=30_000)
     check("headline feed from snapshot (Finnhub)", pg.locator("text=/Live headlines from Finnhub/").count() == 1)
     pg.locator("[data-testid=briefing-bullets]").or_(pg.locator("text=/Briefing: n\\/a/")).first.wait_for(timeout=30_000); check("briefing from snapshot", True)
-    pg.locator("text=Advanced research").click(); pg.locator("[data-testid=backtest-caption]").wait_for(timeout=30_000)
-    check("backtest from snapshot", True)
+    pg.goto(f"{url}/model"); pg.locator("[data-testid=backtest-caption]").wait_for(timeout=30_000)
+    check("backtest from snapshot (Model info)", True)
+    load(pg, url, "NVDA")
+    pg.locator("[data-testid=advanced-toggle]").click()  # full fine-tune controls
+    pg.locator("[data-testid=model-status] >> text=/online|offline/").wait_for(timeout=30_000)
     status = pg.locator("[data-testid=model-status]").inner_text()
     online = bool(h.get("worker_online"))
     check("model status dot matches worker", status.endswith("online" if online else "offline"), status)

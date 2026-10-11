@@ -31,9 +31,10 @@ def load(pg, url, ticker):
 
 
 def ui_text(pg):
-    """Visible UI copy, excluding third-party headline titles (quoted as published)."""
+    """Visible UI copy, excluding third-party headline titles (quoted as published) and Talk's own replies (the advice
+    decline has to name what it declines; replies are checked separately in ui_smoke_test)."""
     return pg.evaluate("""() => { const c = document.body.cloneNode(true);
-      c.querySelectorAll('[data-testid=headline] a, [data-testid=headline] span.leading-snug').forEach(e => e.remove());
+      c.querySelectorAll('[data-testid=headline] a, [data-testid=headline] span.leading-snug, [data-testid=talk-turns]').forEach(e => e.remove());
       return c.innerText; }""")
 
 

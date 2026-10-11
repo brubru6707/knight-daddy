@@ -39,6 +39,69 @@ function routeOf(req) {
 
 const send = (res, code, body) => res.status(code).json(body);
 
+// ---------- Talk: questions about one stock's news and its tone, answered only from the real headlines ----------
+// Hard rule: news and sentiment only. Questions about buying, selling, holding, price targets, predictions or whether
+// to invest get the same short decline every time, before any model call; answers are checked again afterwards.
+const DECLINE = "I only talk about the news coverage and its tone. I can't help with buying, selling, holding, price targets, predictions or whether to invest. Try asking what the headlines say.";
+const ADVICE_Q = /\b(buy|buying|sell|selling|hold|holding|short(ing)?|invest(ing|ment|or)?s?|should i|price target|target price|worth (it|buying)|undervalued|overvalued|entry point|exit point|portfolio|predict(ion)?|forecast|go(ing)? (up|down)|(rise|fall|drop|climb|rally) (to|by)|good (buy|investment|time))\b/i;
+const ADVICE_A = /\b(you should|you might want to|consider (buying|selling|holding)|(should|could) (buy|sell|hold)|good (time|investment|buy)|price target|i recommend|we recommend|recommend (buying|selling|holding)|is (likely|expected) to (rise|fall|climb|drop))\b/i;
+const TALK_DAILY_CAP = 300;
+
+async function talk(body) {
+  const t = String(body.ticker || "").toUpperCase(), q = String(body.question || "").trim().slice(0, 300);
+  if (!q) return [400, { detail: "Ask a question about the news." }];
+  if (ADVICE_Q.test(q)) return [200, { ticker: t, answer: DECLINE, refused: true, sources: [] }];
+  const coin = !!COINS[t];
+  const feed = coin ? await cryptoNews(t)
+    : (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model: "general" })}`))?.body;
+  const items = (feed?.items || []).slice(0, 40);
+  if (!items.length) return [200, { ticker: t, answer: `I don't have any headlines for ${t} right now, so I can't answer that.`, refused: false, sources: [] }];
+  if (!process.env.GEMINI_API_KEY) return [200, matchAnswer(t, q, items)];
+  const day = `kw:talkq:${new Date().toISOString().slice(0, 10)}`, used = (await getJSON(day)) || 0;
+  if (used >= TALK_DAILY_CAP) return [429, { detail: "Question limit for today reached." }];
+  await setJSON(day, used + 1, { ex: 2 * 86400 });
+  const list = items.map((h, i) => `[${i + 1}] ${h.title} (${h.source || "unknown source"}, ${String(h.time || "").slice(0, 10)}${h.label ? `, tagged ${h.label}` : ""})`).join("\n");
+  const prompt = `You answer questions about the news coverage of ${t} and how that coverage is framed. Tags come from our sentiment model${coin ? " (not yet validated on crypto)" : ""}.
+Rules: use ONLY the numbered headlines below; cite them like [2]. If they do not cover the question, say the headlines do not say. Never give investment advice, price predictions, price targets, or views on buying, selling or holding; if asked, reply exactly: "${DECLINE}" Do not invent facts, numbers or quotes. At most 80 words, plain sentences, no dashes as punctuation.
+
+Headlines:
+${list}
+
+Question: ${q}`;
+  const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
+    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 220 } }),
+  });
+  if (!r.ok) return [502, { detail: r.status === 429 ? "The AI is busy right now. Try again in a minute." : "The AI is unavailable right now." }];
+  let answer = ((await r.json()).candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("").trim().replace(/\s*\u2014\s*/g, ", ");
+  if (!answer) return [502, { detail: "The AI is unavailable right now." }];
+  const refused = answer.startsWith(DECLINE.slice(0, 40)) || ADVICE_A.test(answer);
+  if (refused) answer = DECLINE;
+  const cited = refused ? [] : [...new Set([...answer.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])))].filter((n) => n >= 1 && n <= items.length);
+  const id = hashId(t + q + answer);
+  await setJSON(`kw:talk:${id}`, answer, { ex: 86400 }).catch(() => {});
+  return [200, { ticker: t, id, answer, refused, model, sources: cited.map((n) => ({ n, title: items[n - 1].title, source: items[n - 1].source, url: items[n - 1].url, time: items[n - 1].time })) }];
+}
+// Without a Gemini key: no generated prose, just the headlines whose words match the question and their tag counts.
+const STOP = new Set("a an and are about any anything as at be been by can could did do does for from has have how i in is it its me more most news of on or say saying says tell that the their them there these they this to was what whats when where which who why will with you your headlines headline latest recent today stock company".split(" "));
+const TONE_Q = /\b(sentiment|tone|mood|feel|feeling|positive|negative|bullish|bearish|neutral|overall|optimistic|pessimistic)\b/i;
+function matchAnswer(t, q, items) {
+  const words = [...new Set(q.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w) && w !== t.toLowerCase()).map((w) => (w.length > 4 ? w.replace(/(ies|es|s)$/, "") : w)))];
+  const hits = words.length ? items.map((h, i) => [i, words.filter((w) => h.title.toLowerCase().includes(w)).length]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([i]) => i) : [];
+  const pool = hits.length ? hits.map((i) => items[i]) : TONE_Q.test(q) ? items : [];
+  const count = (l) => pool.filter((h) => h.label === l).length;
+  const tags = pool.length === 1 && pool[0].label ? ` Our model tagged it ${pool[0].label.toLowerCase()}.` : pool.some((h) => h.label) ? ` Our model tagged them ${count("Bullish")} bullish, ${count("Neutral")} neutral and ${count("Bearish")} bearish.` : "";
+  let answer;
+  if (hits.length) answer = `${hits.length} of the latest ${items.length} ${t} headlines match that: ${hits.map((i) => `[${i + 1}]`).join(" ")}.${tags}`;
+  else if (TONE_Q.test(q)) answer = `Across the latest ${items.length} ${t} headlines:${tags || " no tags are available yet."}`;
+  else answer = `None of the latest ${items.length} ${t} headlines mention that, so I can't say.`;
+  const id = hashId(t + q + answer);
+  setJSON(`kw:talk:${id}`, answer, { ex: 86400 }).catch(() => {});
+  return { ticker: t, id, answer, refused: false, model: "headline search", sources: hits.map((i) => ({ n: i + 1, title: items[i].title, source: items[i].source, url: items[i].url, time: items[i].time })) };
+}
+const hashId = (x) => crypto.createHash("sha1").update(x).digest("hex").slice(0, 16);
+
 // ---------- crypto (display rows): Coinbase Exchange public API, no key ----------
 const COINS = { "BTC-USD": ["Bitcoin", "BTC"], "ETH-USD": ["Ethereum", "Ether", "ETH"], "SOL-USD": ["Solana", "SOL"] };
 const CB = "https://api.exchange.coinbase.com/products";
@@ -145,6 +208,39 @@ async function syncToTiger(key, snap) {
 
 // ElevenLabs text-to-speech for a pushed briefing. Cached per briefing id; capped per day to protect the quota.
 const TTS_DAILY_CAP = 60;
+// ElevenLabs text to speech, cached per id, capped per day. Returns [code, body] or [200, Buffer].
+async function tts(cacheKey, text) {
+  const key = process.env.ELEVENLABS_API_KEY;
+  let mp3 = await getJSON(cacheKey);
+  if (!mp3) {
+    const day = `kw:tts:${new Date().toISOString().slice(0, 10)}`;
+    const used = (await getJSON(day)) || 0;
+    if (used >= TTS_DAILY_CAP) return [429, { detail: "Read-aloud limit for today reached." }];
+    await setJSON(day, used + 1, { ex: 2 * 86400 });
+    const voice = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb"; // premade "George"
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+      method: "POST", headers: { "xi-api-key": key, "content-type": "application/json", accept: "audio/mpeg" },
+      body: JSON.stringify({ text: String(text).slice(0, 2500), model_id: process.env.ELEVENLABS_MODEL || "eleven_flash_v2_5" }),
+    });
+    if (!r.ok) return [502, { detail: `ElevenLabs HTTP ${r.status}` }];
+    mp3 = Buffer.from(await r.arrayBuffer()).toString("base64");
+    await setJSON(cacheKey, mp3, { ex: 2 * 86400 }).catch(() => {}); // cache is best effort
+  }
+  return [200, Buffer.from(mp3, "base64")];
+}
+
+// Reads a Talk answer aloud. Only answers this site produced (stored by id) can be spoken.
+async function talkAudio(req, res) {
+  if (!process.env.ELEVENLABS_API_KEY) return send(res, 503, { detail: "Read-aloud is not available on the public site." });
+  const id = String(req.query.id || "").replace(/[^a-f0-9]/g, "").slice(0, 16);
+  const text = id ? await getJSON(`kw:talk:${id}`) : null;
+  if (!text) return send(res, 404, { detail: "No answer with that id." });
+  const [code, out] = await tts(`kw:audio:talk:${id}`, text.replace(/\[\d+\]/g, ""));
+  if (code !== 200) return send(res, code, out);
+  res.setHeader("content-type", "audio/mpeg");
+  return res.status(200).send(out);
+}
+
 async function briefingAudio(req, res) {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) return send(res, 503, { detail: "Read-aloud is not available on the public site." });
@@ -153,28 +249,17 @@ async function briefingAudio(req, res) {
   const tickers = req.query.ticker ? [String(req.query.ticker).toUpperCase()] : meta?.tickers || [];
   let b = null;
   for (const t of tickers) {
-    const snap = await getJSON(`kw:get:${canonical("briefing", { ticker: t })}`);
-    if (snap?.body?.status === "ok" && (!id || snap.body.id === id)) { b = snap.body; break; }
+    for (const q of [{ ticker: t }, { ticker: t, mode: "advanced" }]) {
+      const snap = await getJSON(`kw:get:${canonical("briefing", q)}`);
+      if (snap?.body?.status === "ok" && (!id || snap.body.id === id)) { b = snap.body; break; }
+    }
+    if (b) break;
   }
   if (!b) return send(res, 404, { detail: "No briefing with that id on the public site." });
-  const cacheKey = `kw:audio:${b.id}`;
-  let mp3 = await getJSON(cacheKey);
-  if (!mp3) {
-    const day = `kw:tts:${new Date().toISOString().slice(0, 10)}`;
-    const used = (await getJSON(day)) || 0;
-    if (used >= TTS_DAILY_CAP) return send(res, 429, { detail: "Read-aloud limit for today reached." });
-    await setJSON(day, used + 1, { ex: 2 * 86400 });
-    const voice = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb"; // premade "George"
-    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
-      method: "POST", headers: { "xi-api-key": key, "content-type": "application/json", accept: "audio/mpeg" },
-      body: JSON.stringify({ text: String(b.text).slice(0, 1500), model_id: process.env.ELEVENLABS_MODEL || "eleven_flash_v2_5" }),
-    });
-    if (!r.ok) return send(res, 502, { detail: `ElevenLabs HTTP ${r.status}` });
-    mp3 = Buffer.from(await r.arrayBuffer()).toString("base64");
-    await setJSON(cacheKey, mp3, { ex: 2 * 86400 }).catch(() => {}); // cache is best effort
-  }
+  const [code, out] = await tts(`kw:audio:${b.id}`, b.text);
+  if (code !== 200) return send(res, code, out);
   res.setHeader("content-type", "audio/mpeg");
-  return res.status(200).send(Buffer.from(mp3, "base64"));
+  return res.status(200).send(out);
 }
 
 async function mirror(res, key, extra) {
@@ -315,6 +400,8 @@ export default async function handler(req, res) {
       return send(res, 404, { detail: "unknown crypto route" });
     }
     if (route === "briefing/audio" && method === "GET") return briefingAudio(req, res);
+    if (route === "talk" && method === "POST") { const [code, out] = await talk(body); return send(res, code, out); }
+    if (route === "talk/audio" && method === "GET") return talkAudio(req, res);
     if (route === "history" && method === "GET") {
       if (!tigerOn) return send(res, 503, { detail: "History store not connected (no TIGER_DB_URL)." });
       const ticker = String(req.query.ticker || "").toUpperCase();
@@ -328,7 +415,7 @@ export default async function handler(req, res) {
       return mirror(res, "health", () => ({
         mode: "vercel", store: backend, snapshot_pushed_at: meta?.pushed_at || null, tracked_tickers: meta?.tickers || [],
         worker_online: !!seen && now() - seen < WORKER_ONLINE_MS, train_password_required: true,
-        keys: { FINNHUB_API_KEY: false, GEMINI_API_KEY: false, ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY },
+        keys: { FINNHUB_API_KEY: !!process.env.FINNHUB_API_KEY, GEMINI_API_KEY: !!process.env.GEMINI_API_KEY, ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY },
         history_store: tigerOn ? "tiger" : null,
       }));
     }

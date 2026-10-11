@@ -65,7 +65,7 @@ with sync_playwright() as p:
         cd = pg.locator("[data-testid=crypto-detail]"); cd.wait_for(timeout=30_000)
         pg.locator("[data-testid=headline]").first.or_(pg.locator("text=No headlines found.")).or_(pg.locator("text=/Headlines: n\\/a/")).first.wait_for(timeout=60_000)
         check("crypto detail: price and headlines only",
-              all(pg.locator(x).count() == 0 for x in ("[data-testid=confidence]", "section[aria-label=Briefing]", "section[aria-label=Fine-tune]", "section[aria-label='Advanced research']")))
+              all(pg.locator(x).count() == 0 for x in ("[data-testid=confidence]", "section[aria-label=Briefing]", "section[aria-label=Fine-tune]", "section[aria-label='Sentiment vs. price']")))
         tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
         cap = pg.locator("[data-testid=crypto-caption]")
         check("crypto tags appear only with the 'not yet validated on crypto' caption",
@@ -109,6 +109,7 @@ with sync_playwright() as p:
     pg.route("**/api/specialist/status?*", lambda r: r.fulfill(json={"phase": "done", "step": 75, "total_steps": 75, "elapsed_s": 48}))
     pg.route("**/api/health", lambda r: r.fulfill(json={"mode": "vercel", "worker_online": True, "train_password_required": True, "keys": {}}))
     pg.route("**/api/specialist/info", lambda r: r.fulfill(json={"supported": ["NVDA"]}))
+    pg.evaluate("localStorage.setItem('kd.advanced', 'true')")  # full fine-tune controls
     pg.goto(f"{url}/?t=NVDA"); ft = pg.locator("section[aria-label=Fine-tune]")
     ft.locator("button:has-text('Fine-tune to this stock')").click()
     ft.locator("input[aria-label='Train password']").fill("pw-test-A"); ft.locator("button:has-text('Start')").click()

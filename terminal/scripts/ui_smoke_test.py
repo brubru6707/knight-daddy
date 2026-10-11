@@ -68,17 +68,31 @@ with sync_playwright() as p:
         n = brief.locator("[data-testid=briefing-bullets] li").count()
         check("briefing: 1 to 4 Gemini bullets", 1 <= n <= 4, f"{n} bullets")
         check("briefing labeled as Gemini", brief.locator("text=/Written by Gemini/").count() == 1)
-        check("speaker button reads this ticker's briefing", ticker in (brief.locator("[data-testid=speaker]").get_attribute("aria-label") or ""))
+        check("Talk button (no Listen button)", brief.locator("[data-testid=talk]").inner_text().strip() == "Talk" and brief.locator("text=Listen").count() == 0)
+        brief.locator("[data-testid=talk]").click()
+        check("Talk reads this ticker's briefing aloud", ticker in (brief.locator("[data-testid=speaker]").get_attribute("aria-label") or ""))
+        for q in ("Should I buy this stock?", "What is the price target?", "Is it a good investment right now?"):
+            n = brief.locator("[data-testid=talk-answer]").count()
+            brief.locator("[data-testid=talk-input]").fill(q); brief.locator("[data-testid=talk-ask]").click()
+            brief.locator("[data-testid=talk-answer]").nth(n).wait_for(timeout=30_000)
+            check(f"Talk declines advice: {q}", brief.locator("[data-testid=talk-answer]").nth(n).inner_text().startswith("I only talk about the news coverage"))
+        n = brief.locator("[data-testid=talk-answer]").count()
+        brief.locator("[data-testid=talk-input]").fill("What is the overall tone of the headlines?"); brief.locator("[data-testid=talk-ask]").click()
+        brief.locator("[data-testid=talk-answer]").nth(n).or_(brief.locator("[data-testid=talk-error]")).first.wait_for(timeout=60_000)
+        ans = brief.locator("[data-testid=talk-answer]").nth(n)
+        check("Talk answers a news question from the headlines", ans.count() == 1 and not ans.inner_text().startswith("I only talk"),
+              ans.inner_text()[:120] if ans.count() else brief.locator("[data-testid=talk-error]").inner_text())
     else:  # Gemini down upstream: a plain n/a line, never the raw error
         check("briefing unavailable shows plain n/a", True, brief.locator("[data-testid=briefing-unavailable]").inner_text())
 
     ft = pg.locator("section[aria-label=Fine-tune]")
-    active = ft.locator("[data-testid=active-model]").inner_text()
-    check("active model status line", active in ("Active model: general", f"Active model: {ticker} specialist"), active)
-    check("Fine-tune to this stock button", ft.locator("button:has-text('Fine-tune to this stock')").count() == 1)
-    check("Reset to general model shown only for a specialist",
-          ft.locator("button:has-text('Reset to general model')").count() == (1 if "specialist" in active else 0))
-
+    check("regular mode: Tune to this stock button", ft.locator("button:has-text('Tune to this stock')").count() == 1
+          and ft.locator("button:has-text('Fine-tune')").count() == 0)
+    check("regular mode: one plain caption", ft.locator("[data-testid=tune-caption]").inner_text() in
+          ("Trains the model on this stock's news so it reads these headlines more accurately. About a minute.", "Tuning is offline right now."),
+          ft.locator("[data-testid=tune-caption]").inner_text())
+    check("regular mode: no jargon (active model, adapter, quick run, steps)",
+          not re.search(r"active model|adapter|quick run|step \d|general model|specialist|GPU|Oscar", ft.inner_text(), re.I), ft.inner_text().replace("\n", " | "))
     pg.locator("[data-testid=headline]").first.wait_for(timeout=150_000)
     check("3 headlines shown first", pg.locator("[data-testid=headline]").count() == 3)
     tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
@@ -89,22 +103,58 @@ with sync_playwright() as p:
     raw = [w for w in ("HTTP 4", "HTTP 5", "certificate", "quota", "server error") if w in pg.inner_text("body")]
     check("no raw error text on the page", not raw, ", ".join(raw))
     check("competitors row has 3 peers", pg.locator("section[aria-label=Competitors] button").count() == 3)
-    check("advanced research collapsed by default", pg.locator("[data-testid=sentiment-caption]").count() == 0)
-    pg.locator("text=Advanced research").click()
-    pg.locator("[data-testid=sentiment-caption]").wait_for(timeout=60_000)
-    check("sentiment caption", pg.locator("[data-testid=sentiment-caption]").inner_text() ==
-          "Sentiment tracks the previous day's move, not the next one. It lags price.")
-    pg.locator("[data-testid=backtest-caption]").wait_for(timeout=60_000)
-    check("backtest caption", pg.locator("[data-testid=backtest-caption]").inner_text() == "Trading on sentiment lost to buy-and-hold.")
-    check("model card copy", pg.locator("[data-testid=model-copy]").inner_text() ==
-          "Qwen3.5-2B QLoRA. 91.9% accuracy, 0.895 macro F1 on 2,388 held-out financial tweets. FinBERT fine-tuned on the same data: 88.9%.")
-    pg.locator("[data-testid=specialist-table]").wait_for(timeout=60_000)
-    check("specialist before/after with verdict", pg.locator("[data-testid=specialist-table] >> text=No clear difference").count() >= 1)
-    check("specialist labeled Claude-labeled", pg.locator("[data-testid=claude-badge]").count() == 1)
+    sv = pg.locator("section[aria-label='Sentiment vs. price']")
+    sv.locator("[data-testid=sentiment-caption]").or_(sv.locator("text=/n\\/a/")).first.wait_for(timeout=60_000)
+    check("sentiment vs. price shown directly on the detail page", sv.count() == 1, sv.inner_text()[:80])
+    order = pg.eval_on_selector_all("main section[aria-label], div > section[aria-label]", "els => els.map(e => e.getAttribute('aria-label'))")
+    check("no model-wide or specialist sections on the detail page",
+          not any(x in order for x in ("Advanced research", "Model", "Backtest")) and pg.locator("[data-testid=specialist-table]").count() == 0
+          and pg.locator("[data-testid=model-copy]").count() == 0 and pg.locator("text=/general model said/").count() == 0, ", ".join(order))
+    # ---- Advanced mode ----
+    pg.locator("[data-testid=advanced-toggle]").click()
+    brief.locator("[data-testid=briefing-paragraphs]").or_(brief.locator("[data-testid=briefing-long-na]")).or_(brief.locator("[data-testid=briefing-unavailable]")).first.wait_for(timeout=60_000)
+    if brief.locator("[data-testid=briefing-paragraphs]").count():
+        paras = [x.inner_text() for x in brief.locator("[data-testid=briefing-paragraphs] p").all()]
+        check("advanced briefing: full paragraphs", 2 <= len(paras) <= 5 and sum(len(x.split()) for x in paras) >= 60, f"{len(paras)} paragraphs")
+        check("advanced briefing: no advice or price targets", not any(re.search(r"\b(buy|sell|hold|price target|should)\b", x, re.I) for x in paras))
+    else:
+        check("advanced briefing: n/a note until published", True)
+    active = ft.locator("[data-testid=active-model]").inner_text()
+    check("advanced: active model status line", active in ("Active model: general", f"Active model: {ticker} specialist"), active)
+    check("advanced: Fine-tune to this stock button", ft.locator("button:has-text('Fine-tune to this stock')").count() == 1)
+    check("advanced: Reset to general model shown only for a specialist",
+          ft.locator("button:has-text('Reset to general model')").count() == (1 if "specialist" in active else 0))
+    hl = pg.locator("section[aria-label='Latest headlines']")
+    hl.locator("[data-testid=article-meta]").first.wait_for(timeout=15_000)
+    metas = hl.locator("[data-testid=article-meta]").all()
+    check("advanced headlines: every real article listed", len(metas) == pg.locator("[data-testid=headline]").count() and len(metas) > 3, str(len(metas)))
+    links = [l.get_attribute("href") or "" for l in hl.locator("[data-testid=article-link]").all()]
+    check("advanced headlines: source, timestamp and article link", all(m.locator("time").count() == 1 and "n/a" not in m.locator("time").inner_text() for m in metas)
+          and len(links) >= len(metas) * 0.8 and all(l.startswith("http") for l in links), f"{len(links)} links")
+    copy_rules(pg, "(advanced)")
+    pg.screenshot(path=out.replace(".png", "_advanced.png"), full_page=True)
+    pg.locator("[data-testid=advanced-toggle]").click()
     check("footer copy", pg.locator("footer").inner_text() == "News sentiment, not investment advice.")
     copy_rules(pg, "(detail)")
     pg.wait_for_timeout(800)
     pg.screenshot(path=out, full_page=True)
+
+    # ---- model info ----
+    pg.locator("[data-testid=nav-model]").click()
+    pg.locator("[data-testid=model-info]").wait_for(timeout=15_000)
+    check("Model info page at /model", pg.url.rstrip("/").endswith("/model"), pg.url)
+    pg.locator("[data-testid=model-copy]").wait_for(timeout=30_000)
+    check("model card copy (ours vs FinBERT)", pg.locator("[data-testid=model-copy]").inner_text() ==
+          "Qwen3.5-2B QLoRA. 91.9% accuracy, 0.895 macro F1 on 2,388 held-out financial tweets. FinBERT fine-tuned on the same data: 88.9%.")
+    pg.locator("[data-testid=benchmark-table]").wait_for(timeout=30_000)
+    check("benchmark table shown", pg.locator("[data-testid=benchmark-table] tbody tr").count() >= 2)
+    pg.locator("[data-testid=backtest-caption]").wait_for(timeout=60_000)
+    check("backtest on Model info", pg.locator("[data-testid=backtest-caption]").inner_text().startswith("Trading on sentiment"))
+    check("no specialist before/after on Model info", pg.locator("text=/specialist/i").count() == 0)
+    check("Model info footer", pg.locator("footer").inner_text() == "News sentiment, not investment advice.")
+    copy_rules(pg, "(model info)")
+    pg.screenshot(path=out.replace(".png", "_model.png"), full_page=True)
+    pg.go_back(); pg.locator("[data-testid=price]").wait_for(timeout=15_000)
 
     # ---- back ----
     pg.locator("[data-testid=back]").click()

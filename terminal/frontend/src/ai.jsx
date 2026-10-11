@@ -78,49 +78,147 @@ const Speaker = ({ on }) => (
   </svg>
 );
 
-// Gemini (summary): up to 4 plain-English bullets from /api/briefing, read aloud through the ElevenLabs endpoint.
-export function Briefing({ ticker }) {
+const Mic = ({ on }) => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" fill={on ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" strokeLinecap="round" />
+  </svg>
+);
+
+// Plays an mp3 from one of our audio endpoints; returns a stop function. Throws a short message on failure.
+async function play(url, player, onEnd) {
+  const h = await api("health");
+  if (!h.keys?.ELEVENLABS_API_KEY) throw new Error("n/a on this site");
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("n/a right now");
+  const src = URL.createObjectURL(await r.blob());
+  const a = new Audio(src);
+  player.current = a;
+  a.onended = () => { URL.revokeObjectURL(src); onEnd(); };
+  await a.play();
+}
+
+// Talk: reads the briefing aloud and answers questions (typed or spoken) about this stock's news and its tone, from the
+// real headlines only, with the cited articles listed. Questions about buying, selling, holding, price targets or
+// whether to invest get a short decline from the server every time.
+function Talk({ ticker, briefingId, mode }) {
+  const [q, setQ] = useState("");
+  const [turns, setTurns] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [audio, setAudio] = useState({ state: "idle", which: null, msg: null });
+  const [listening, setListening] = useState(false);
+  const player = useRef(null), rec = useRef(null);
+  const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const stop = () => { player.current?.pause(); player.current = null; setAudio({ state: "idle", which: null, msg: null }); };
+  useEffect(() => () => { stop(); rec.current?.abort(); }, []);
+
+  const speak = async (which, url) => {
+    if (audio.state === "playing" && audio.which === which) return stop();
+    stop(); setAudio({ state: "loading", which, msg: null });
+    try {
+      await play(url, player, () => setAudio({ state: "idle", which: null, msg: null }));
+      setAudio({ state: "playing", which, msg: null });
+    } catch (e) { setAudio({ state: "idle", which: null, msg: e.message }); }
+  };
+  const ask = async (text) => {
+    const question = (text ?? q).trim();
+    if (!question || busy) return;
+    setBusy(true); setErr(null); setQ("");
+    try {
+      const r = await api("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question }) });
+      setTurns((t) => [...t, { q: question, ...r }]);
+      if (r.id && !r.refused) speak(`a-${r.id}`, `/api/talk/audio?id=${r.id}`);
+    } catch (e) { setErr(e.message); setQ(question); } finally { setBusy(false); }
+  };
+  const listen = () => {
+    if (listening) { rec.current?.stop(); return; }
+    const r = new SR(); rec.current = r;
+    r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 1;
+    r.onresult = (e) => { const said = e.results[0][0].transcript; setQ(said); ask(said); };
+    r.onerror = () => setErr("Couldn't hear that. Try typing instead.");
+    r.onend = () => setListening(false);
+    setListening(true); r.start();
+  };
+  const playing = (w) => audio.which === w && audio.state === "playing";
+
+  return (
+    <div className="mt-5 border-t border-line pt-4" data-testid="talk-panel">
+      <button onClick={() => speak("briefing", `/api/briefing/audio?id=${briefingId}&ticker=${ticker}${mode === "advanced" ? "&mode=advanced" : ""}`)} disabled={audio.state === "loading"} data-testid="speaker"
+        aria-label={playing("briefing") ? "Stop reading" : `Read the ${ticker} briefing aloud`}
+        className="flex items-center gap-1.5 text-xs text-ink hover:text-amber disabled:opacity-40">
+        <Speaker on={playing("briefing")} />{playing("briefing") ? "Stop reading" : audio.state === "loading" && audio.which === "briefing" ? "Loading" : "Read the briefing aloud"}</button>
+      {audio.msg && <div className="mt-1 text-xs text-dim">Read-aloud: {audio.msg}</div>}
+      <ul className="mt-4 space-y-4" data-testid="talk-turns">
+        {turns.map((t, i) => (
+          <li key={i} className="text-[14px] leading-snug">
+            <div className="text-dim">You: {t.q}</div>
+            <div className={`mt-1.5 ${t.refused ? "text-dim" : "text-ink"}`} data-testid="talk-answer">{t.answer}</div>
+            {t.id && !t.refused && (
+              <button onClick={() => speak(`a-${t.id}`, `/api/talk/audio?id=${t.id}`)} className="mt-1 flex items-center gap-1 text-xs text-dim hover:text-amber">
+                <Speaker on={playing(`a-${t.id}`)} />{playing(`a-${t.id}`) ? "Stop" : "Hear answer"}</button>)}
+            {t.sources?.length > 0 && (
+              <ol className="mt-2 space-y-1 text-xs text-dim" data-testid="talk-sources">
+                {t.sources.map((x) => (
+                  <li key={x.n}>[{x.n}] {x.url ? <a href={x.url} target="_blank" rel="noreferrer" className="text-ink hover:text-amber">{x.title}</a> : x.title}
+                    {x.source ? ` · ${x.source}` : ""}</li>))}
+              </ol>)}
+          </li>))}
+      </ul>
+      <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); ask(); }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} placeholder={`Ask about ${ticker}'s news`} aria-label={`Ask about ${ticker}'s news`}
+          data-testid="talk-input" className="min-w-0 flex-1 border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-dim focus:border-amber" />
+        {SR && <button type="button" onClick={listen} aria-label={listening ? "Stop listening" : "Ask by voice"} aria-pressed={listening}
+          className={`flex w-10 items-center justify-center border ${listening ? "border-amber text-amber" : "border-line text-ink hover:border-amber"}`}><Mic on={listening} /></button>}
+        <button disabled={!q.trim() || busy} className="bg-ink px-3 py-2 text-sm font-semibold text-ground disabled:opacity-40" data-testid="talk-ask">{busy ? "…" : "Ask"}</button>
+      </form>
+      {err && <div className="mt-2 text-xs text-down" data-testid="talk-error">{err}</div>}
+      <p className="mt-2 text-xs text-dim">Answers come only from {ticker}'s recent headlines and their tags. No investment advice, price targets or predictions.</p>
+    </div>
+  );
+}
+
+// Bullet lines ("- ...") as the model wrote them, after dropping any line with advice words; older one-paragraph
+// briefings fall back to bullets(). Advanced briefings are paragraphs separated by blank lines.
+const ADVICE_LINE = /\b(buy|buys|buying|sell|sells|selling|hold|holds|holding|price targets?)\b/i;
+const toBullets = (text = "") => {
+  const lines = text.split("\n").map((l) => l.trim()).filter((l) => /^[-*•]\s+/.test(l)).map((l) => l.replace(/^[-*•]\s+/, ""));
+  return lines.length ? lines.filter((l) => !ADVICE_LINE.test(l)).slice(0, 4) : bullets(text);
+};
+const toParas = (text = "") => text.split(/\n\s*\n/)
+  .map((p) => p.replace(/^[-*•]\s+/gm, "").replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+(?=[A-Z"])/).filter((x) => !ADVICE_LINE.test(x)).join(" "))
+  .filter(Boolean);
+
+// Gemini briefing from this stock's own tagged headlines (/api/briefing): up to 4 bullets, or paragraphs in Advanced
+// mode. Talk opens read-aloud (ElevenLabs) and questions.
+export function Briefing({ ticker, adv }) {
   const [b, setB] = useState(null);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [audio, setAudio] = useState({ state: "idle", msg: null });
-  const player = useRef(null);
+  const [talk, setTalk] = useState(false);
+  const [fallback, setFallback] = useState(false); // advanced asked, only the short one is published
 
-  const stop = () => { player.current?.pause(); player.current = null; setAudio({ state: "idle", msg: null }); };
   useEffect(() => {
-    stop(); setErr(null); setLoading(true); setB(null);
-    api(`briefing?ticker=${ticker}`).then(setB).catch((e) => setErr(e.message)).finally(() => setLoading(false));
-    return stop;
-  }, [ticker]);
-
-  const readAloud = async () => {
-    if (audio.state === "playing") return stop();
-    setAudio({ state: "loading", msg: null });
-    try {
-      const h = await api("health");
-      if (!h.keys?.ELEVENLABS_API_KEY) throw new Error("n/a on this site");
-      const r = await fetch(`/api/briefing/audio?id=${b.id}&ticker=${ticker}`);
-      if (!r.ok) throw new Error("n/a right now");
-      const url = URL.createObjectURL(await r.blob());
-      const a = new Audio(url);
-      player.current = a;
-      a.onended = () => { URL.revokeObjectURL(url); setAudio({ state: "idle", msg: null }); };
-      await a.play();
-      setAudio({ state: "playing", msg: null });
-    } catch (e) { setAudio({ state: "idle", msg: e.message }); }
-  };
+    let live = true;
+    setErr(null); setLoading(true); setB(null); setFallback(false);
+    const short = () => api(`briefing?ticker=${ticker}`);
+    (adv ? api(`briefing?ticker=${ticker}&mode=advanced`).then((r) => (r.status === "ok" ? r : Promise.reject(r))).catch(() => { if (live) setFallback(true); return short(); }) : short())
+      .then((r) => live && setB(r)).catch((e) => live && setErr(e.message)).finally(() => live && setLoading(false));
+    return () => { live = false; };
+  }, [ticker, adv]);
+  useEffect(() => setTalk(false), [ticker]);
 
   const ok = b?.status === "ok";
-  const pts = ok ? bullets(b.text) : [];
+  const long = ok && b.mode === "advanced";
+  const pts = ok && !long ? toBullets(b.text) : [];
+  const paras = long ? toParas(b.text) : [];
   return (
     <section className="kd-box mt-6 p-5" aria-label="Briefing">
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-serif text-[17px] font-medium text-ink"><span className="text-amber">✦</span>Briefing</h2>
         {ok && (
-          <button onClick={readAloud} disabled={audio.state === "loading"} data-testid="speaker"
-            aria-label={audio.state === "playing" ? "Stop reading" : `Read the ${ticker} briefing aloud`}
-            className="flex items-center gap-1.5 border border-line px-2.5 py-1.5 text-xs text-ink hover:border-amber hover:text-amber disabled:opacity-40">
-            <Speaker on={audio.state === "playing"} />{audio.state === "playing" ? "Stop" : audio.state === "loading" ? "Loading" : "Listen"}</button>
+          <button onClick={() => setTalk(!talk)} aria-expanded={talk} data-testid="talk"
+            className={`flex items-center gap-1.5 border px-2.5 py-1.5 text-xs hover:border-amber hover:text-amber ${talk ? "border-amber text-amber" : "border-line text-ink"}`}>
+            <Mic />Talk</button>
         )}
       </div>
       {loading && <div className="mt-4 text-sm text-dim">Reading the latest headlines<span className="animate-pulse">_</span></div>}
@@ -128,12 +226,19 @@ export function Briefing({ ticker }) {
       {b && !ok && <div className="mt-4 text-sm text-dim" data-testid="briefing-unavailable">Briefing: n/a. {b.status === "no_key" ? "No Gemini key is set on this server." : b.message}</div>}
       {ok && (
         <>
-          <ul className="mt-4 space-y-2.5" data-testid="briefing-bullets">
-            {pts.map((p, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-snug text-ink"><span className="text-amber">·</span><span>{p}</span></li>)}
-            {pts.length === 0 && <li className="text-sm text-dim">Summary: n/a</li>}
-          </ul>
-          <div className="mt-3 text-xs text-dim">Written by Gemini ({b.model || "n/a"}) from {b.n} headlines, {b.window}. Tags come from Qwen.</div>
-          {audio.msg && <div className="mt-1 text-xs text-dim">Listen: {audio.msg}</div>}
+          {long ? (
+            <div className="mt-4 space-y-3" data-testid="briefing-paragraphs">
+              {paras.map((p, i) => <p key={i} className="text-[14px] leading-relaxed text-ink">{p}</p>)}
+            </div>
+          ) : (
+            <ul className="mt-4 space-y-2.5" data-testid="briefing-bullets">
+              {pts.map((p, i) => <li key={i} className="flex gap-2.5 text-[14px] leading-snug text-ink"><span className="text-amber">·</span><span>{p}</span></li>)}
+              {pts.length === 0 && <li className="text-sm text-dim">Summary: n/a</li>}
+            </ul>
+          )}
+          <div className="mt-3 text-xs text-dim">Written by Gemini ({b.model || "n/a"}) from {b.n} {ticker} headlines, {b.window}. Tags come from Qwen.</div>
+          {fallback && <div className="mt-1 text-xs text-dim" data-testid="briefing-long-na">Longer briefing: n/a until the next update. Showing the short one.</div>}
+          {talk && <Talk ticker={ticker} briefingId={b.id} mode={b.mode} />}
         </>
       )}
     </section>

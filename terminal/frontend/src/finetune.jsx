@@ -11,7 +11,9 @@ const clock = (s) => (s === null || s === undefined ? null : s >= 60 ? `${Math.f
 // Fine-tune a ticker specialist through the password-protected train endpoint. Every run starts from a fresh copy of the
 // general model on Oscar (never from an earlier specialist). Progress and elapsed time come from /api/specialist/status,
 // polled every 2 s. The train password is asked once, then saved in this browser and reused; a 401 asks again.
-export function FineTune({ ticker, health, info, active, onActive, onTrained }) {
+// Advanced mode shows everything (active model, status dot, steps, elapsed time, quick run, the long explanation);
+// otherwise the same button and box with plain wording, a simple progress state and a Done check.
+export function FineTune({ ticker, health, info, active, adv, onActive, onTrained }) {
   const [st, setSt] = useState(null);
   const [err, setErr] = useState(null);
   const saved = useSavedPw();
@@ -70,6 +72,42 @@ export function FineTune({ ticker, health, info, active, onActive, onTrained }) 
 
   const frac = st?.phase === "done" ? 1 : st?.total_steps ? st.step / st.total_steps : 0;
   const elapsed = clock(st?.phase === "queued" ? st.queued_s : st?.elapsed_s);
+  if (!adv) {
+    const done = st?.phase === "done" && !st.quick, failed = st?.phase === "failed";
+    return (
+      <section className="kd-box mt-6 p-5" aria-label="Fine-tune">
+        <div className="flex flex-wrap items-center gap-3">
+          <button onClick={() => run("train")} disabled={!supported || running || online === false}
+            className="border border-rule bg-ink px-4 py-2 text-sm font-semibold text-ground hover:bg-amber hover:border-amber disabled:cursor-not-allowed disabled:opacity-40">
+            {running ? "Tuning…" : "Tune to this stock"}</button>
+          {active === "specialist" && !running && (
+            <button onClick={() => run("reset")} className="border border-rule px-4 py-2 text-sm text-ink hover:border-amber hover:text-amber">
+              Undo tuning</button>
+          )}
+        </div>
+        {ask && !running && (
+          <form className="mt-3 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); if (pw) run(ask, pw); }}>
+            <input type="password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Train password" aria-label="Train password"
+              className="w-56 border border-line bg-ground px-3 py-1.5 text-sm text-ink outline-none focus:border-amber" />
+            <button className="bg-amber px-3 py-1.5 text-sm font-semibold text-ground disabled:opacity-40" disabled={!pw}>{ask === "reset" ? "Undo" : "Start"}</button>
+          </form>
+        )}
+        {(running || done || failed) && (
+          <div className="mt-4" data-testid="train-progress">
+            <div className="mb-1.5 text-xs text-dim" data-testid="simple-state">
+              {running ? "Tuning…" : done ? <span className="text-up">✓ Done</span> : <span className="text-down">Didn't finish. Try again later.</span>}</div>
+            <div className="h-2 w-full overflow-hidden border border-line bg-card" role="progressbar" aria-valuenow={Math.round(frac * 100)} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full bg-up transition-all" style={{ width: `${frac * 100}%` }} />
+            </div>
+          </div>
+        )}
+        <div className="mt-3 text-xs text-dim" data-testid="tune-caption">
+          {online === false ? "Tuning is offline right now." : !info || supported ? "Trains the model on this stock's news so it reads these headlines more accurately. About a minute."
+            : `Tuning is available for ${stocks.join(", ")}.`}</div>
+        {err && <div className="mt-1 text-xs text-down">{err}</div>}
+      </section>
+    );
+  }
   return (
     <section className="kd-box mt-6 p-5" aria-label="Fine-tune">
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -1,5 +1,5 @@
 """Headless test of Fine-tune against a local GPU backend: train NVDA from the UI, follow the progress bar to done,
-then check it becomes the active model, retags headlines, resets to general, and the before/after table. Usage: python scripts/specialist_smoke_test.py [base_url] [out.png]"""
+then check it becomes the active model, retags headlines, and resets to general. Usage: python scripts/specialist_smoke_test.py [base_url] [out.png]"""
 import sys, time
 from playwright.sync_api import sync_playwright
 from _kd import check, finish, load, watch_errors
@@ -25,8 +25,6 @@ with sync_playwright() as p:
     pg.locator("text=/Tags by Qwen, NVDA specialist/").wait_for(timeout=120_000); check("headlines retagged by the specialist", True)
     ft.locator("button:has-text('Reset to general model')").click()
     ft.locator("text=Active model: general").wait_for(timeout=30_000); check("Reset to general model", True)
-    pg.locator("text=Advanced research").click(); pg.locator("[data-testid=specialist-table]").wait_for(timeout=60_000)
-    check("before/after table", pg.locator("[data-testid=specialist-table] >> text=NVDA").count() >= 1)
     pg.screenshot(path=out, full_page=True)
     b.close()
 sys.exit(finish())
