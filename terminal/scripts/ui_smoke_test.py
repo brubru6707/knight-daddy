@@ -71,7 +71,7 @@ with sync_playwright() as p:
         check("Talk button (no Listen button)", brief.locator("[data-testid=talk]").inner_text().strip() == "Talk" and brief.locator("text=Listen").count() == 0)
         brief.locator("[data-testid=talk]").click()
         check("Talk reads this ticker's briefing aloud", ticker in (brief.locator("[data-testid=speaker]").get_attribute("aria-label") or ""))
-        check("Talk is press-to-talk", brief.locator("[data-testid=talk-hold]").count() == 1)
+        check("Talk is tap-to-talk", brief.locator("[data-testid=talk-hold]").count() == 1)
         brief.locator("[data-testid=talk-type]").click()
         for q in ("Should I buy this stock?", "What is the price target?", "Is it a good investment right now?"):
             n = brief.locator("[data-testid=talk-answer]").count()

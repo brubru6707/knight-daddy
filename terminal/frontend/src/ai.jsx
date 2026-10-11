@@ -97,91 +97,126 @@ async function play(url, player, onEnd) {
   await a.play();
 }
 
-// Talk: a press-to-talk conversation about this stock's news and its tone. Hold the button, ask, release: the browser's
-// own speech recognition turns it into text (the recorded clip goes to /api/talk/stt when it can't), the question and
-// the last few turns go to /api/talk, which answers only from the real headlines, and the answer is spoken with
-// ElevenLabs. Advice questions (buy, sell, hold, price targets, whether to invest) get a short decline every time.
-function Talk({ ticker, briefingId, mode }) {
+// "Hey KD" wake phrase. Recognizers hear "KD" many ways ("Katie", "K.D.", "kay dee", "Casey"...), so accept the common
+// ones. afterWake returns what was said after the last wake phrase, or null if it wasn't said.
+const WAKE = /\b(?:hey|hi|hay|a|okay|ok)[\s,.!]*(?:k\.?\s?d\.?|kd|kdee|kay\s?dee|kaydee|katie|katy|kady|cady|kd's|casey)(?![a-z])[\s,.!?:]*/gi;
+export function afterWake(text) {
+  let last = null, m;
+  WAKE.lastIndex = 0;
+  while ((m = WAKE.exec(text))) last = m;
+  return last ? text.slice(last.index + last[0].length).trim() : null;
+}
+const SILENCE_MS = 1600, WAKE_TIMEOUT_MS = 7000;
+
+// Talk: a hands-free conversation about this stock's news and its tone. Tap the mic once to start; the browser's own
+// speech recognition listens and waits for "Hey KD", takes what follows as the question and sends it when you pause.
+// /api/talk answers only from the real headlines (with the last few turns as memory); the answer is spoken with
+// ElevenLabs while the mic pauses, then it listens for the next "Hey KD". Tap the mic again to end. Browsers without
+// speech recognition fall back to tap to record, tap to send (transcribed by /api/talk/stt). Advice questions get a
+// short decline every time.
+function Talk({ ticker, briefingId, mode: briefingMode }) {
   const [turns, setTurns] = useState([]);
-  const [phase, setPhase] = useState("idle"); // idle | listening | hearing | thinking
+  const [mode, setModeState] = useState("off"); // off | waiting | capturing | recording | thinking | speaking
+  const [live, setLive] = useState("");
   const [err, setErr] = useState(null);
   const [typing, setTyping] = useState(false);
   const [q, setQ] = useState("");
   const [audio, setAudio] = useState({ state: "idle", which: null, msg: null });
-  const player = useRef(null), rec = useRef(null), media = useRef(null), heard = useRef(""), holding = useRef(false);
+  const player = useRef(null), rec = useRef(null), media = useRef(null);
+  const modeRef = useRef("off"), turnsRef = useRef(turns), question = useRef(""), silence = useRef(null), wakeTimer = useRef(null);
+  turnsRef.current = turns;
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
-  const stop = () => { player.current?.pause(); player.current = null; setAudio({ state: "idle", which: null, msg: null }); };
-  useEffect(() => () => { stop(); rec.current?.abort(); media.current?.stream.getTracks().forEach((t) => t.stop()); }, []);
+  const setMode = (m) => { modeRef.current = m; setModeState(m); };
+  const clearTimers = () => { clearTimeout(silence.current); clearTimeout(wakeTimer.current); };
+  const stopAudio = () => { player.current?.pause(); player.current = null; setAudio({ state: "idle", which: null, msg: null }); };
+  const stopRec = () => { const r = rec.current; rec.current = null; if (r) { r.onend = null; r.onresult = null; try { r.abort(); } catch { /* already stopped */ } } };
+  useEffect(() => () => { modeRef.current = "off"; clearTimers(); stopAudio(); stopRec(); media.current?.stream?.getTracks().forEach((t) => t.stop()); }, []);
 
-  const speak = async (which, url) => {
-    if (audio.state === "playing" && audio.which === which) return stop();
-    stop(); setAudio({ state: "loading", which, msg: null });
+  const speak = async (which, url, after) => {
+    stopAudio(); setAudio({ state: "loading", which, msg: null });
     try {
-      await play(url, player, () => setAudio({ state: "idle", which: null, msg: null }));
+      await play(url, player, () => { setAudio({ state: "idle", which: null, msg: null }); after?.(); });
       setAudio({ state: "playing", which, msg: null });
-    } catch (e) { setAudio({ state: "idle", which: null, msg: e.message }); }
-  };
-  const ask = async (question) => {
-    question = (question || "").trim();
-    if (!question) { setPhase("idle"); setErr("I didn't catch that. Hold Talk and ask again."); return; }
-    setPhase("thinking"); setErr(null);
-    const history = turns.filter((t) => !t.refused).slice(-3).map((t) => ({ q: t.q, a: t.answer }));
-    try {
-      const r = await api("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question, history }) });
-      setTurns((t) => [...t, { q: question, ...r }]);
-      if (r.id) speak(`a-${r.id}`, `/api/talk/audio?id=${r.id}`);
-    } catch (e) { setErr(e.message); } finally { setPhase("idle"); }
+    } catch (e) { setAudio({ state: "idle", which: null, msg: e.message }); after?.(); }
   };
 
-  // Press: start the browser recognizer and a recorder together. Release: use the recognizer's text if it produced
-  // any, else send the recording to the server for transcription.
-  const start = async () => {
-    if (phase !== "idle") return;
-    holding.current = true;
-    stop(); setErr(null); heard.current = ""; setPhase("listening");
+  // One recognition session that waits for "Hey KD". Sessions end on their own now and then; restart until tapped off.
+  const listen = () => {
+    stopRec(); question.current = ""; setLive(""); setMode("waiting");
+    const r = new SR(); rec.current = r;
+    r.lang = "en-US"; r.interimResults = true; r.continuous = true;
+    r.onresult = (e) => {
+      const m = modeRef.current;
+      if (m !== "waiting" && m !== "capturing") return;
+      const after = afterWake([...e.results].map((x) => x[0].transcript).join(" "));
+      if (after === null) return; // not addressed to KD
+      if (m === "waiting") { setMode("capturing"); clearTimeout(wakeTimer.current); wakeTimer.current = setTimeout(() => modeRef.current === "capturing" && !question.current && listen(), WAKE_TIMEOUT_MS); }
+      question.current = after; setLive(after);
+      clearTimeout(silence.current);
+      if (after) silence.current = setTimeout(() => modeRef.current === "capturing" && question.current && ask(question.current, true), SILENCE_MS);
+    };
+    r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { setMode("off"); setErr("Microphone access is off. Allow it in the browser, or type instead."); } };
+    r.onend = () => {
+      const m = modeRef.current;
+      if (m === "capturing" && question.current) return ask(question.current, true);
+      if (m === "waiting" || m === "capturing") setTimeout(() => (modeRef.current === "waiting" || modeRef.current === "capturing") && listen(), 250);
+    };
+    try { r.start(); } catch { setMode("off"); setErr("Couldn't start listening. Try again, or type instead."); }
+  };
+  const resume = () => { if (modeRef.current === "speaking" || modeRef.current === "thinking") (SR ? listen() : setMode("off")); };
+  const ask = async (text, viaVoice) => {
+    text = (text || "").trim();
+    if (!text) { if (viaVoice) resume(); return; }
+    clearTimers(); setErr(null);
+    if (viaVoice) { setMode("thinking"); stopRec(); }
+    const history = turnsRef.current.filter((t) => !t.refused).slice(-3).map((t) => ({ q: t.q, a: t.answer }));
+    try {
+      const r = await api("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question: text, history }) });
+      setTurns((t) => [...t, { q: text, ...r }]); setLive("");
+      if (r.id) { if (viaVoice) setMode("speaking"); speak(`a-${r.id}`, `/api/talk/audio?id=${r.id}`, viaVoice ? resume : undefined); }
+      else if (viaVoice) resume();
+    } catch (e) { setErr(e.message); if (viaVoice) resume(); }
+  };
+
+  // Fallback without browser speech recognition: tap to record, tap again to send the clip for transcription.
+  const record = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream); const chunks = [];
       mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       mr.done = new Promise((ok) => { mr.onstop = () => { stream.getTracks().forEach((t) => t.stop()); ok(new Blob(chunks, { type: mr.mimeType || "audio/webm" })); }; });
-      mr.start(250); media.current = mr;
-    } catch { setPhase("idle"); setErr("Microphone access is off. Allow it in the browser, or type instead."); return; }
-    if (SR) {
-      try {
-        const r = new SR(); rec.current = r;
-        r.lang = "en-US"; r.interimResults = true; r.continuous = true;
-        r.onresult = (e) => { heard.current = [...e.results].map((x) => x[0].transcript).join(" "); };
-        r.onerror = () => {}; r.start();
-      } catch { /* recorder still runs */ }
-    }
-    if (!holding.current) release(true); // let go before the microphone was ready
+      mr.start(250); media.current = mr; setMode("recording");
+      setTimeout(() => media.current === mr && sendRecording(), 60_000);
+    } catch { setMode("off"); setErr("Microphone access is off. Allow it in the browser, or type instead."); }
   };
-  const release = async (early = false) => {
-    if (!early) holding.current = false;
-    if (!media.current) return;
-    setPhase("hearing");
+  const sendRecording = async () => {
     const mr = media.current; media.current = null;
-    rec.current?.stop(); mr.stop();
+    if (!mr) return;
+    setMode("thinking"); mr.stop();
     const blob = await mr.done;
-    await new Promise((ok) => setTimeout(ok, 400)); // let the recognizer deliver its last words
-    let text = heard.current.trim();
-    if (!text) {
-      try {
-        const b64 = await new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(",")[1]); f.onerror = no; f.readAsDataURL(blob); });
-        text = (await api("talk/stt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ audio: b64, mime: blob.type }) })).text;
-      } catch (e) { setPhase("idle"); setErr(e.message); return; }
-    }
-    ask(text);
+    try {
+      const b64 = await new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(",")[1]); f.onerror = no; f.readAsDataURL(blob); });
+      const { text } = await api("talk/stt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ audio: b64, mime: blob.type }) });
+      if (!text) { setMode("off"); setErr("I didn't catch that. Tap the mic and ask again."); return; }
+      ask(text, true);
+    } catch (e) { setMode("off"); setErr(e.message); }
   };
-  const keyDown = (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); start(); } };
-  const keyUp = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); release(); } };
+
+  const toggle = () => {
+    if (mode === "recording") return sendRecording();
+    if (mode !== "off") { clearTimers(); setMode("off"); setLive(""); stopRec(); stopAudio(); return; }
+    setErr(null); stopAudio();
+    SR ? listen() : record();
+  };
   const playing = (w) => audio.which === w && audio.state === "playing";
-  const label = { idle: turns.length ? "Hold to ask again" : "Hold to talk", listening: "Listening… release to send", hearing: "Got it…", thinking: "Thinking…" }[phase];
+  const active = mode !== "off";
+  const label = { off: turns.length ? "Tap to talk again" : "Tap to start talking", waiting: "Say “Hey KD”, then your question. Tap to stop.", capturing: "Listening…",
+    recording: "Listening… tap to send", thinking: "Thinking…", speaking: "Answering… then say “Hey KD” again" }[mode];
 
   return (
     <div className="mt-5 border-t border-line pt-4" data-testid="talk-panel">
-      <button onClick={() => speak("briefing", `/api/briefing/audio?id=${briefingId}&ticker=${ticker}${mode === "advanced" ? "&mode=advanced" : ""}`)} disabled={audio.state === "loading"} data-testid="speaker"
-        aria-label={playing("briefing") ? "Stop reading" : `Read the ${ticker} briefing aloud`}
+      <button onClick={() => (playing("briefing") ? stopAudio() : speak("briefing", `/api/briefing/audio?id=${briefingId}&ticker=${ticker}${briefingMode === "advanced" ? "&mode=advanced" : ""}`))}
+        disabled={audio.state === "loading"} data-testid="speaker" aria-label={playing("briefing") ? "Stop reading" : `Read the ${ticker} briefing aloud`}
         className="flex items-center gap-1.5 text-xs text-ink hover:text-amber disabled:opacity-40">
         <Speaker on={playing("briefing")} />{playing("briefing") ? "Stop reading" : audio.state === "loading" && audio.which === "briefing" ? "Loading" : "Read the briefing aloud"}</button>
       <ul className="mt-4 space-y-4" data-testid="talk-turns">
@@ -190,7 +225,7 @@ function Talk({ ticker, briefingId, mode }) {
             <div className="text-dim" data-testid="talk-heard">You: {t.q}</div>
             <div className={`mt-1.5 ${t.refused ? "text-dim" : "text-ink"}`} data-testid="talk-answer">{t.answer}</div>
             {t.id && (
-              <button onClick={() => speak(`a-${t.id}`, `/api/talk/audio?id=${t.id}`)} className="mt-1 flex items-center gap-1 text-xs text-dim hover:text-amber" data-testid="talk-hear">
+              <button onClick={() => (playing(`a-${t.id}`) ? stopAudio() : speak(`a-${t.id}`, `/api/talk/audio?id=${t.id}`))} className="mt-1 flex items-center gap-1 text-xs text-dim hover:text-amber" data-testid="talk-hear">
                 <Speaker on={playing(`a-${t.id}`)} />{playing(`a-${t.id}`) ? "Stop" : audio.state === "loading" && audio.which === `a-${t.id}` ? "Loading" : "Hear again"}</button>)}
             {t.sources?.length > 0 && (
               <ol className="mt-2 space-y-1 text-xs text-dim" data-testid="talk-sources">
@@ -200,20 +235,20 @@ function Talk({ ticker, briefingId, mode }) {
               </ol>)}
           </li>))}
       </ul>
+      {(mode === "capturing" || mode === "thinking") && live && <div className="mt-3 text-[14px] text-dim" data-testid="talk-live">You: {live}</div>}
       {audio.msg && <div className="mt-2 text-xs text-dim">Read-aloud: {audio.msg}</div>}
       <div className="mt-4 flex flex-col items-center gap-2">
-        <button onPointerDown={(e) => { e.preventDefault(); start(); }} onPointerUp={() => release()} onPointerLeave={() => holding.current && release()} onKeyDown={keyDown} onKeyUp={keyUp}
-          onContextMenu={(e) => e.preventDefault()} disabled={phase === "hearing" || phase === "thinking"} data-testid="talk-hold" aria-label={label}
-          className={`flex h-16 w-16 touch-none select-none items-center justify-center rounded-full border-2 transition-all disabled:opacity-50
-            ${phase === "listening" ? "scale-110 border-amber bg-amber text-ground" : "border-ink bg-ink text-ground hover:border-amber hover:bg-amber"}`}>
-          <Mic on={phase === "listening"} /></button>
-        <div className="text-xs text-dim" data-testid="talk-state" aria-live="polite">{label}</div>
+        <button onClick={toggle} data-testid="talk-hold" aria-pressed={active} aria-label={active ? "Stop talking" : "Start talking"}
+          className={`flex h-16 w-16 select-none items-center justify-center rounded-full border-2 transition-all
+            ${active ? "border-amber bg-amber text-ground" : "border-ink bg-ink text-ground hover:border-amber hover:bg-amber"} ${mode === "capturing" || mode === "recording" ? "scale-110" : ""}`}>
+          <Mic on={mode === "capturing" || mode === "recording"} /></button>
+        <div className="text-center text-xs text-dim" data-testid="talk-state" aria-live="polite">{label}</div>
       </div>
       {typing ? (
-        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); const x = q; setQ(""); ask(x); }}>
+        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); const x = q; setQ(""); ask(x, false); }}>
           <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} autoFocus placeholder={`Ask about ${ticker}'s news`} aria-label={`Ask about ${ticker}'s news`}
             data-testid="talk-input" className="min-w-0 flex-1 border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-dim focus:border-amber" />
-          <button disabled={!q.trim() || phase !== "idle"} className="bg-ink px-3 py-2 text-sm font-semibold text-ground disabled:opacity-40" data-testid="talk-ask">Ask</button>
+          <button disabled={!q.trim()} className="bg-ink px-3 py-2 text-sm font-semibold text-ground disabled:opacity-40" data-testid="talk-ask">Ask</button>
         </form>
       ) : <button onClick={() => setTyping(true)} className="mx-auto mt-2 block text-xs text-amber hover:underline" data-testid="talk-type">Type instead</button>}
       {err && <div className="mt-2 text-center text-xs text-down" data-testid="talk-error">{err}</div>}

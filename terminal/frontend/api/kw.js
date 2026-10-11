@@ -54,9 +54,16 @@ const STT_DAILY_CAP = 300;
 
 // Speech-to-text for one press-to-talk clip: {audio: base64, mime}. The apps use the phone's or browser's own speech
 // recognition first; this is the backup. ElevenLabs Scribe when the key allows speech_to_text, else Gemini.
+// Gemini sometimes answers 503 "high demand" for a moment; one quick retry covers it.
+async function geminiFetch(url, init) {
+  const r = await fetch(url, init);
+  if (r.status !== 503 && r.status !== 500) return r;
+  await new Promise((ok) => setTimeout(ok, 900));
+  return fetch(url, init);
+}
 async function sttGemini(b64, mime) {
   const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const r = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ inline_data: { mime_type: mime.split(";")[0], data: b64 } },
       { text: "Transcribe the spoken English in this clip exactly. Output only the words, nothing else. If there is no speech, output nothing." }] }],
@@ -120,7 +127,7 @@ ${list}
 ${history.length ? `\nEarlier in this conversation (for follow-ups like "tell me more"):\n${history.map((h) => `User: ${h.q}\nYou: ${h.a}`).join("\n")}\n` : ""}
 Question: ${q}`;
   const model = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const r = await geminiFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST", headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "content-type": "application/json" },
     // thinking tokens count against maxOutputTokens on gemini-3 models, so keep thinking low and the budget roomy
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }],
