@@ -330,7 +330,14 @@ async function siteBriefing(t, mode, key) {
     text = await ask(`\nYour previous draft used a forbidden phrase ("${text.match(BRIEF_BANNED)[0]}"). Rewrite without it.`).catch(() => null);
     guard = "regenerated once";
   }
-  if (!text || BRIEF_BANNED.test(text)) return none("AI summary temporarily unavailable.");
+  // still a forbidden word: drop just those lines or sentences (the rest is often fine), never show them
+  if (text && BRIEF_BANNED.test(text)) {
+    text = text.split("\n").map((line) => [line, line.split(/(?<=[.!?])\s+/).filter((x) => !BRIEF_BANNED.test(x)).join(" ")])
+      .filter(([was, now]) => !was.trim() || (now.trim() && now.trim() !== "-")).map(([, now]) => now) // keep paragraph breaks
+      .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    guard = "sentences with forbidden wording removed";
+  }
+  if (!text || (mode === "normal" && !/^- /m.test(text))) return none("AI summary temporarily unavailable.");
   const body = { status: "ok", id: hashId(`site${mode}${t}${lines}`), ticker: t, mode, text, window: "latest headlines", n: items.length,
     counts: null, model, guard, generated_at: new Date().toISOString(), provider: "Yahoo Finance", untagged: true,
     headlines: items.map((h) => ({ title: h.title, label: null, source: h.source })) };
@@ -349,7 +356,7 @@ async function liveSentiment(t) {
   if (!days.length) return [404, { detail: `No tagged ${t} headlines stored yet; the chart starts once Oscar tags them.` }];
   const snap = (await getJSON(`kw:get:${canonical("prices", { ticker: t, period: "1y" })}`))?.body;
   const px = snap?.bars?.length ? snap : await yahooPrices(t, "1y");
-  if (!px?.bars?.length) return null;
+  if (!px?.bars?.length) return [503, { detail: `${t} prices: n/a right now, try again in a moment.` }];
   const first = days[0].day, bars = px.bars.filter((b) => b.time >= first);
   if (!bars.length) return [404, { detail: `No ${t} trading days since the first tagged headline (${first}) yet.` }];
   const acc = new Map(bars.map((b) => [b.time, { b: 0, r: 0, n: 0 }]));
