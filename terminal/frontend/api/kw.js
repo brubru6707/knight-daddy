@@ -196,7 +196,12 @@ async function cryptoCandles(t, days) {
 async function cryptoNews(t) {
   const snap = async (model) => (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model })}`))?.body;
   const tagged = await snap("general");
-  if (tagged?.items?.length) return { ...tagged, tagged: tagged.items.some((i) => i.label) };
+  if (tagged?.items?.length) {
+    // the 3-class crypto adapter's tag rides along (Advanced mode shows it beside the general tag) once Oscar pushes it
+    const cm = new Map(((await snap("crypto"))?.items || []).filter((i) => i.label).map((i) => [i.title, i.label]));
+    const items = tagged.items.map((i) => (cm.has(i.title) ? { ...i, crypto_label: cm.get(i.title) } : i));
+    return { ...tagged, items, tagged: items.some((i) => i.label), crypto_model: cm.size > 0 };
+  }
   if (process.env.FINNHUB_API_KEY) {
     const r = await fetch("https://finnhub.io/api/v1/news?category=crypto", { headers: { "X-Finnhub-Token": process.env.FINNHUB_API_KEY } });
     if (r.ok) {

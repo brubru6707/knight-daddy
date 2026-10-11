@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Backtest, ModelCard } from "./advanced.jsx";
+import { Backtest, CryptoModelCard, ModelCard } from "./advanced.jsx";
 import { HOME, useApi } from "./ui.jsx";
 
 // Model info (/model): facts about the sentiment model itself, not about any one stock. Ours vs. FinBERT, the full
@@ -18,6 +18,7 @@ export function ModelInfo({ onBack }) {
       <p className="mt-2 text-sm text-dim">How the headline tagger was built and how it scores. The same model tags every stock.</p>
       <div className="mt-8 space-y-6">
         <section className="kd-box p-5" aria-label="Model"><ModelCard /></section>
+        <section className="kd-box p-5" aria-label="Crypto model"><CryptoModelCard /></section>
         <section className="kd-box p-5" aria-label="Backtest">
           <div className="mb-3 flex flex-wrap gap-2 text-xs" role="group" aria-label="Backtest stock">
             {hist.map((x) => (

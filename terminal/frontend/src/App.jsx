@@ -57,12 +57,13 @@ function Header({ onHome, onPick, onReplay, onModel, dark, setDark, current, onM
 
 // Crypto: Coinbase price chart and crypto headlines (tags only once the worker pushes them). No fine-tune.
 function CryptoDetail({ ticker, onBack }) {
+  const [adv] = useAdvanced(); // Advanced adds the crypto model's tag beside each general tag
   return (
     <div className="mx-auto max-w-[720px] px-4 pb-12 pt-4 sm:px-6 sm:pt-6" data-testid="crypto-detail">
       <button onClick={onBack} className="-ml-1 mb-5 flex items-center gap-1.5 px-1 py-2 text-sm text-dim hover:text-ink" data-testid="back">
         <span aria-hidden>‹</span> Back to stocks</button>
       <PriceBlock key={ticker} ticker={ticker} crypto />
-      <CryptoNews key={`n-${ticker}`} ticker={ticker} Bar={ProbBar} />
+      <CryptoNews key={`n-${ticker}`} ticker={ticker} Bar={ProbBar} adv={adv} />
       <footer className="mt-16 border-t border-rule pt-4 text-xs text-dim">News sentiment, not investment advice.</footer>
     </div>
   );

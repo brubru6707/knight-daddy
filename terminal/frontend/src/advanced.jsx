@@ -138,3 +138,28 @@ export function ModelCard() {
     </div>
   );
 }
+
+// Crypto 3-class experiment (crypto/EXPERIMENT_RESULTS_3CLASS.md): accuracy on held-out crypto posts and headlines.
+const CRYPTO3 = [
+  { model: "Crypto model (fine-tuned)", posts: 0.723, headlines: 0.649 },
+  { model: "General model (ours)", posts: 0.52, headlines: 0.658 },
+  { model: "FinBERT (zero-shot)", posts: 0.432, headlines: 0.58 },
+];
+export function CryptoModelCard() {
+  return (
+    <div data-testid="crypto-model-card">
+      <H3>Crypto model</H3>
+      <p className="mt-2 text-sm leading-relaxed text-ink">
+        Fine-tuning helped on crypto social posts (+20 pts) but tied on news headlines, so headlines use the general model.</p>
+      <table className="mt-4 w-full text-xs" data-testid="crypto-table">
+        <thead className="text-dim"><tr><th className="py-1 text-left font-normal">model</th>
+          <th className="py-1 text-right font-normal">posts (400)</th><th className="py-1 text-right font-normal">headlines (231)</th></tr></thead>
+        <tbody>{CRYPTO3.map((r) => (
+          <tr key={r.model} className="border-t border-line text-ink">
+            <td className="py-1.5">{r.model}</td><td className="py-1.5 text-right">{(r.posts * 100).toFixed(1)}%</td>
+            <td className="py-1.5 text-right">{(r.headlines * 100).toFixed(1)}%</td></tr>))}</tbody>
+      </table>
+      <p className="mt-3 text-xs text-amber" data-testid="crypto-label-note">Claude-labeled, needs human spot-check.</p>
+    </div>
+  );
+}

@@ -25,6 +25,8 @@ export const HOME = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "DDOG"];
 // Crypto rows are display only: price and untagged headlines (model=none), never a model output or fine-tune.
 export const CRYPTO = ["BTC-USD", "ETH-USD", "SOL-USD"];
 export const isCrypto = (t) => CRYPTO.includes(t);
+// Crypto tags come from the general model (crypto/EXPERIMENT_RESULTS_3CLASS.md, Claude-labeled headline test set).
+export const CRYPTO_CAPTION = "Tagged by our general model (65.8% on crypto headlines).";
 export const short = (t) => t.replace(/-USD$/, "");
 
 // Onboarding groups: our supported tickers only. Grouping organizes the user's own choices; it never suggests picks.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dot, headlinesPath, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
+import { CRYPTO_CAPTION, Dot, headlinesPath, NAMES, PEERS, relTime, SectionTitle, Status, TAG, useApi } from "./ui.jsx";
 
 // Latest headlines tagged by the active Qwen model (general or this ticker's specialist). model="none" (crypto):
 // untagged headlines only, no model output. 3 at first, "Show more" expands the full list. Advanced mode adds each
@@ -83,7 +83,7 @@ export function Competitors({ ticker, onPick }) {
 
 // Crypto headlines (/api/crypto/news). Tags and the probability bar appear only once the worker pushes the general
 // model's tags for the coin; until then both are hidden (not shown as n/a). No fine-tune on crypto.
-export function CryptoNews({ ticker, Bar }) {
+export function CryptoNews({ ticker, Bar, adv }) {
   const [all, setAll] = useState(false);
   const s = useApi(`crypto/news?ticker=${ticker}`, [ticker]);
   const d = s.data, items = d?.items || [];
@@ -96,9 +96,10 @@ export function CryptoNews({ ticker, Bar }) {
         <section className="kd-box mt-8 p-5" aria-label="Model confidence" data-testid="confidence">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="font-serif text-[17px] font-medium text-ink">Headline tone</h2>
-            <span className="text-xs text-dim">general news model</span>
+            <span className="text-xs text-dim">general model</span>
           </div>
           <Bar d={d} />
+          <p className="mt-3 text-xs text-dim" data-testid="crypto-bar-caption">{CRYPTO_CAPTION}</p>
         </section>
       )}
       <section className="mt-12" aria-label="Latest headlines">
@@ -109,8 +110,11 @@ export function CryptoNews({ ticker, Bar }) {
         <ul>
           {shown.map((h, k) => (
             <li key={k} className="flex gap-4 border-b border-line py-3.5" data-testid="headline">
-              {tagged && <span className={`flex h-fit w-[80px] shrink-0 items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}>
-                <Dot label={h.label} />{h.label || "n/a"}</span>}
+              {tagged && <span className="flex shrink-0 flex-col gap-1">
+                <span className={`flex h-fit w-[80px] items-center gap-1.5 border border-current px-1.5 py-0.5 text-[11px] ${TAG[h.label] || "text-dim"}`}>
+                  <Dot label={h.label} />{h.label || "n/a"}</span>
+                {adv && <span className="w-[80px] text-[10px] leading-tight text-dim" data-testid="crypto-model-tag">Crypto model<br />
+                  <span className={TAG[h.crypto_label] || "text-dim"}>{h.crypto_label || "n/a"}</span></span>}</span>}
               <div className="min-w-0">
                 {h.url ? <a href={h.url} target="_blank" rel="noreferrer" className="text-[14px] leading-snug text-ink hover:text-amber">{h.title}</a>
                   : <span className="text-[14px] leading-snug text-ink">{h.title}</span>}
@@ -124,7 +128,8 @@ export function CryptoNews({ ticker, Bar }) {
             {all ? "Show less" : "Show more"}</button>
         )}
         {d && <p className="mt-4 text-xs text-dim">Live headlines from {d.provider || "n/a"}{d.filter_note ? `. ${d.filter_note}` : ""}.</p>}
-        {tagged && <p className="mt-1 text-xs text-amber" data-testid="crypto-caption">Tagged by our general news model, not yet validated on crypto.</p>}
+        {tagged && <p className="mt-1 text-xs text-amber" data-testid="crypto-caption">{CRYPTO_CAPTION}</p>}
+        {tagged && adv && !d.crypto_model && <p className="mt-1 text-xs text-dim" data-testid="crypto-model-pending">Crypto model tags: n/a until the next Oscar update.</p>}
       </section>
     </>
   );

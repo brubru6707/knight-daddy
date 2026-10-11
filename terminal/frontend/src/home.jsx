@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CATEGORIES, CRYPTO, dominant, HOME, headlinesPath, isCrypto, NAMES, pct, Pill, short, toneClass, usd, useApi } from "./ui.jsx";
+import { CATEGORIES, CRYPTO, CRYPTO_CAPTION, dominant, HOME, headlinesPath, isCrypto, NAMES, pct, Pill, short, toneClass, usd, useApi } from "./ui.jsx";
 
 // One tappable row: name on the left; live price and today's change on the right, plus the dominant headline tone.
 // Crypto: Coinbase price and 24h change; the tone pill appears only once the worker pushes model tags for that coin.
@@ -92,7 +92,7 @@ export function Home({ onOpen, list, onEdit, onReplay, onAdd }) {
         note="Price and today's change, with the dominant tone of recent headlines."
         right={list.length === 0 ? <button onClick={onEdit} className="text-xs text-amber hover:underline">Build your list</button> : null} />
       <Section title="Crypto" label="Crypto" tickers={CRYPTO} onOpen={onOpen} empty="Crypto prices: n/a right now."
-        note="Coinbase price and 24h change." />
+        note={`Coinbase price and 24h change. ${CRYPTO_CAPTION}`} />
       <Explore list={list} onAdd={onAdd} onOpen={onOpen} />
       <button onClick={onReplay} className="mt-10 block w-full border border-line px-4 py-3 text-left hover:bg-card" data-testid="replay-link">
         <span className="font-serif text-[17px] text-ink">Replay</span>

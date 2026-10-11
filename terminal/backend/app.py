@@ -23,6 +23,9 @@ POC = Path(os.path.expanduser(os.getenv("POC_DIR", "~/poc1")))
 CACHE = Path(os.path.expanduser(os.getenv("CACHE_DIR", "~/scratch/poc1/terminal")))
 BT_CACHE = Path(os.path.expanduser(os.getenv("BACKTEST_CACHE", "~/scratch/poc1/backtest")))
 ADAPTER = os.path.expanduser(os.getenv("ADAPTER_DIR", "~/poc1/adapters/qwen35-2b"))
+# 3-class crypto adapter (crypto/EXPERIMENT_RESULTS_3CLASS.md): +20 pts on crypto posts, tied with the general model on
+# headlines, so the apps show its tags only as a second opinion in Advanced mode.
+CRYPTO_ADAPTER = Path(os.path.expanduser(os.getenv("CRYPTO_ADAPTER_DIR", "~/scratch/poc1/crypto/runs3/run-7280265/adapter")))
 MODEL_URL = os.getenv("MODEL_ENDPOINT_URL", "").rstrip("/")
 MODEL_TOKEN = os.getenv("MODEL_ENDPOINT_TOKEN", "")
 CACHE.mkdir(parents=True, exist_ok=True)
@@ -157,8 +160,10 @@ def _confidence(items):
 @app.get("/api/headlines")
 def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "general"):
     t = _ticker(ticker)
-    if model not in ("general", "specialist", "none"):
-        raise HTTPException(400, "model must be general, specialist or none")
+    if model not in ("general", "specialist", "none", "crypto"):
+        raise HTTPException(400, "model must be general, specialist, crypto or none")
+    if model == "crypto" and not CRYPTO_ADAPTER.exists():
+        raise HTTPException(404, f"crypto adapter not found at {CRYPTO_ADAPTER}")
     if source == "live":
         f = CACHE / f"news2_{t}_{datetime.now():%Y%m%d%H}.json"  # news2: Finnhub results are name-filtered
         cached = json.loads(f.read_text()) if f.exists() else None
@@ -199,10 +204,12 @@ def headlines(ticker: str, source: str = "live", limit: int = 60, model: str = "
             raise HTTPException(404, f"no trained specialist for {t} yet")
         adapter = run / "adapter"
         labels = classify_specialist(titles, adapter) if items else []
+    if model == "crypto":
+        labels = classify_specialist(titles, CRYPTO_ADAPTER) if items else []
     for i, lab, gen in zip(items, labels, general):
         if lab:
             i.update(lab)
-        if model == "specialist":
+        if model in ("specialist", "crypto"):
             i["general_label"] = gen["label"] if gen else None
     return {"ticker": t, "source": source, "provider": provider, "provider_note": note, "filter_note": fnote, "model": model,
             "items": items, "labeled": all(labels),

@@ -69,8 +69,8 @@ with sync_playwright() as p:
               and (pg.locator("[data-testid=confidence]").count() == 0 or pg.locator("[data-testid=crypto-caption]").count() == 1))
         tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
         cap = pg.locator("[data-testid=crypto-caption]")
-        check("crypto tags appear only with the 'not yet validated on crypto' caption",
-              (tags == 0 and cap.count() == 0) or (tags > 0 and cap.inner_text() == "Tagged by our general news model, not yet validated on crypto."))
+        check("crypto tags appear only with the general-model caption",
+              (tags == 0 and cap.count() == 0) or (tags > 0 and cap.inner_text() == "Tagged by our general model (65.8% on crypto headlines)."))
         pg.locator("text=/Coinbase/").first.wait_for(timeout=30_000)
         check("crypto chart from Coinbase", pg.locator("[aria-label='Price chart']").count() == 1)
         check("no confidence n/a on crypto", pg.locator("[data-testid=confidence-na]").count() == 0)
