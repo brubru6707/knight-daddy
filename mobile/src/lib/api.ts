@@ -92,6 +92,9 @@ export interface SpecStatus {
 }
 export type Model = "general" | "specialist" | "none"; // "none": crypto, untagged headlines only
 
+export interface CryptoQuote { ticker: string; source: string; last: number; open_24h: number; change_24h: number | null }
+export interface CryptoNews extends Headlines { tagged?: boolean; filter_note?: string }
+
 export interface ReplayPair { ticker: string; date: string; n: number }
 export interface ReplayAvailable { pairs: ReplayPair[]; source?: string }
 export interface Replay {
@@ -108,6 +111,9 @@ export const paths = {
   audio: (id: string, t: string) => `${API_BASE}/briefing/audio?id=${id}&ticker=${t}`,
   specActive: (t: string) => `specialist/active?ticker=${t}`,
   replayAvailable: () => "replay/available",
+  cryptoQuote: (t: string) => `crypto/quote?ticker=${t}`,
+  cryptoCandles: (t: string) => `crypto/candles?ticker=${t}&days=730`,
+  cryptoNews: (t: string) => `crypto/news?ticker=${t}`,
   replay: (t: string, d: string) => `replay?ticker=${t}&date=${d}`,
   briefing: (t: string) => `briefing?ticker=${t}`,
   sentiment: (t: string) => `sentiment?ticker=${t}`,

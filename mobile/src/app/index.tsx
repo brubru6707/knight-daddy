@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SettingsButton } from "@/components/Settings";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { paths, type Headlines, type Label, type Prices } from "@/lib/api";
+import { paths, type CryptoNews, type CryptoQuote, type Headlines, type Label, type Prices } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { CRYPTO, HOME, isCrypto, NAMES, short } from "@/lib/peers";
 import { useList } from "@/lib/list";
@@ -25,10 +26,13 @@ function Row({ ticker, nonce, onOpen }: { ticker: string; nonce: number; onOpen:
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const crypto = isCrypto(ticker);
-  const p = useApi<Prices>(paths.prices(ticker, "3mo"), nonce);
-  const h = useApi<Headlines>(crypto ? null : paths.headlines(ticker), nonce); // crypto: price only, no model output
+  // crypto: Coinbase price and 24h change; the tone pill appears only once the worker pushes tags for the coin
+  const p = useApi<Prices | CryptoQuote>(crypto ? paths.cryptoQuote(ticker) : paths.prices(ticker, "3mo"), nonce);
+  const h = useApi<Headlines | CryptoNews>(crypto ? paths.cryptoNews(ticker) : paths.headlines(ticker), nonce);
   if (!crypto && p.err && h.err) return null; // only stock rows with real data; a crypto row shows n/a
   const tone = h.data ? dominant(h.data.items) : null;
+  const change = p.data ? ("change_24h" in p.data ? p.data.change_24h : p.data.change_1d) : null;
+  const showPill = crypto ? !!((h.data as CryptoNews | null)?.tagged && tone) : !h.loading;
   return (
     <Pressable onPress={() => onOpen(ticker)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.line }]}
       accessibilityRole="button" accessibilityLabel={`${ticker}, ${NAMES[ticker]}`}>
@@ -40,13 +44,13 @@ function Row({ ticker, nonce, onOpen }: { ticker: string; nonce: number; onOpen:
       <View style={st.right}>
         <Text style={st.price}>{p.data ? usd(p.data.last) : p.loading ? "…" : "n/a"}</Text>
         <View style={st.rightRow}>
-          {!crypto && !h.loading && (
+          {showPill && (
             <View style={[st.pill, { borderColor: labelColor(C, tone) }]}>
               <Text style={[st.pillText, { color: labelColor(C, tone) }]}>{tone || "n/a"}</Text>
             </View>
           )}
-          <Text style={[st.change, { color: p.data ? toneColor(C, p.data.change_1d) : C.dim }]}>
-            {p.data ? pct(p.data.change_1d, 2) : p.loading ? "" : "n/a"}</Text>
+          <Text style={[st.change, { color: typeof change === "number" ? toneColor(C, change) : C.dim }]}>
+            {p.data ? pct(change, 2) : p.loading ? "" : "n/a"}</Text>
         </View>
       </View>
     </Pressable>
@@ -95,17 +99,20 @@ export default function Home() {
           <Image source={require("../../assets/icon.png")} style={st.logo} />
           <Text style={st.brandText}>Knight-Daddy</Text>
         </View>
+        <View style={{ flexDirection: "row" }}>
         <Pressable onPress={toggle} style={st.themeBtn} hitSlop={6} accessibilityRole="button"
           accessibilityLabel={dark ? "Switch to light mode" : "Switch to dark mode"}>
           <Text style={st.themeIcon}>{dark ? "☀︎" : "☾"}</Text>
         </Pressable>
+        <SettingsButton current={null} />
+        </View>
       </View>
       <ScrollView contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={false} tintColor={C.amber} onRefresh={() => setNonce((n) => n + 1)} />}>
         {list.length > 0 && <Section title="Your list" tickers={list} nonce={nonce} onOpen={open} right={edit("Edit your list")} />}
         <Section title="Stocks" note={"Price and today's change, with the dominant tone of recent headlines."} tickers={HOME}
           nonce={nonce} onOpen={open} right={list.length ? null : edit("Build your list")} />
-        <Section title="Crypto" note="Prices and headlines only. No sentiment model runs on crypto." tickers={CRYPTO} nonce={nonce} onOpen={open} />
+        <Section title="Crypto" note="Coinbase price and 24h change." tickers={CRYPTO} nonce={nonce} onOpen={open} />
         <Pressable onPress={() => router.push("/replay")} style={({ pressed }) => [st.replay, pressed && { opacity: 0.7 }]} accessibilityRole="button">
           <Text style={st.h2}>Replay</Text>
           <Text style={st.sub}>{"Re-run the model on a past day's headlines and see what it would have said."}</Text>

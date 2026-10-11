@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SettingsButton } from "@/components/Settings";
 import { useRouter } from "expo-router";
 import { paths, type Replay as ReplayData, type ReplayAvailable } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -36,10 +37,13 @@ export default function Replay() {
         <Pressable onPress={back} style={st.backBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={st.backText}>‹ Back</Text>
         </Pressable>
+        <View style={{ flexDirection: "row" }}>
         <Pressable onPress={toggle} style={st.themeBtn} hitSlop={6} accessibilityRole="button"
           accessibilityLabel={dark ? "Switch to light mode" : "Switch to dark mode"}>
           <Text style={st.themeIcon}>{dark ? "☀︎" : "☾"}</Text>
         </Pressable>
+        <SettingsButton current={null} />
+        </View>
       </View>
       <ScrollView contentContainerStyle={st.content}>
         <Text style={st.h1}>Replay</Text>

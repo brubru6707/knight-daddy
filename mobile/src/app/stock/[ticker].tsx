@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SettingsButton } from "@/components/Settings";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, paths, type Model } from "@/lib/api";
 import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
-import { BriefingCard, CompetitorsRow, ConfidenceBar, FineTuneCard, HeadlinesCard, PriceHero } from "@/components/detail";
+import { BriefingCard, CompetitorsRow, ConfidenceBar, CryptoNewsCard, FineTuneCard, HeadlinesCard, PriceHero } from "@/components/detail";
 import { AdvancedResearch } from "@/components/advanced";
 import { isCrypto } from "@/lib/peers";
 
@@ -14,7 +15,7 @@ export default function Stock() {
   const router = useRouter();
   const { C, dark, toggle } = useTheme();
   const st = useStyles(makeStyles);
-  const { ticker: raw } = useLocalSearchParams<{ ticker: string }>();
+  const { ticker: raw, settings } = useLocalSearchParams<{ ticker: string; settings?: string }>();
   const ticker = String(raw || "").toUpperCase();
   const [nonce, setNonce] = useState(0);
   const crypto = isCrypto(ticker); // display only: price and untagged headlines, no model output, no fine-tune
@@ -34,15 +35,18 @@ export default function Stock() {
         <Pressable onPress={back} style={st.back} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={st.backText}>‹ Back</Text>
         </Pressable>
+        <View style={{ flexDirection: "row" }}>
         <Pressable onPress={toggle} style={st.themeBtn} hitSlop={6} accessibilityRole="button"
           accessibilityLabel={dark ? "Switch to light mode" : "Switch to dark mode"}>
           <Text style={st.themeIcon}>{dark ? "☀︎" : "☾"}</Text>
         </Pressable>
+        <SettingsButton current={ticker} onChanged={() => setNonce((n) => n + 1)} initiallyOpen={settings === "1"} />
+        </View>
       </View>
       <ScrollView contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={false} tintColor={C.amber} onRefresh={() => setNonce((n) => n + 1)} />}>
         <PriceHero ticker={ticker} nonce={nonce} crypto={crypto} />
-        {crypto ? <HeadlinesCard ticker={ticker} model="none" nonce={nonce} /> : <>
+        {crypto ? <CryptoNewsCard ticker={ticker} nonce={nonce} /> : <>
         <ConfidenceBar key={`c-${active}`} ticker={ticker} model={active} nonce={nonce} />
         <BriefingCard ticker={ticker} nonce={nonce} />
         <FineTuneCard ticker={ticker} active={active} onActive={setActive} onTrained={() => setNonce((n) => n + 1)} />

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
-import { api, ApiError, paths, resetModel, startTraining, type Briefing, type Headlines, type Health, type Label, type Model,
+import { api, ApiError, paths, resetModel, startTraining, type Briefing, type CryptoNews, type Headlines, type Health, type Label, type Model,
   type Prices, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
@@ -25,16 +25,16 @@ const RANGES = [
   { k: "ALL", api: "2y", label: "past 2 years" },
 ] as const;
 
-// Crypto trades every day: a week is 7 daily bars and a month 30, not 6 and 22.
-const DAYS_7: Record<string, number> = { "1W": 7, "1M": 30 };
+// Crypto: Coinbase daily candles (2 years, fetched once) trading every day, so ranges are counted in calendar days.
+const CRYPTO_DAYS: Record<string, number | null> = { "1W": 7, "1M": 30, "3M": 90, "1Y": 365, ALL: null };
 
 export function PriceHero({ ticker, nonce, crypto = false }: { ticker: string; nonce: number; crypto?: boolean }) {
   const [rk, setRk] = useState<string>("1M");
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const r = RANGES.find((x) => x.k === rk)!;
-  const s = useApi<Prices>(r.api ? paths.prices(ticker, r.api) : null, nonce);
-  const n = crypto && DAYS_7[rk] ? DAYS_7[rk] : "n" in r ? r.n : null;
+  const s = useApi<Prices>(!r.api ? null : crypto ? paths.cryptoCandles(ticker) : paths.prices(ticker, r.api), nonce);
+  const n = crypto ? CRYPTO_DAYS[rk] ?? null : "n" in r ? r.n : null;
   const bars = s.data ? (n ? s.data.bars.slice(-n) : s.data.bars) : [];
   const first = bars[0]?.close, last = bars.at(-1)?.close;
   const chg = first && last ? last - first : null;
@@ -46,7 +46,7 @@ export function PriceHero({ ticker, nonce, crypto = false }: { ticker: string; n
       <Text style={st.price} accessibilityLabel="Price">{last !== undefined ? usd(last) : s.loading ? "…" : "n/a"}</Text>
       <Text style={[st.change, { color }]}>
         {chg !== null ? `${chg >= 0 ? "+" : "-"}${usd(Math.abs(chg))} (${pct(chg / first!, 2)})  ` : r.api ? (s.loading ? "" : "n/a  ") : "Intraday prices: n/a  "}
-        <Text style={st.changeDim}>{r.api ? r.label : ""}</Text>
+        <Text style={st.changeDim}>{r.api ? r.label : ""}{crypto && r.api ? " · Coinbase" : ""}</Text>
       </Text>
       <View style={st.chart}>
         {bars.length > 1 ? <LineChart series={[{ values: bars.map((b) => b.close), color: C.up, width: 2.5, area: true }]} height={200} baseline={first} />
@@ -220,6 +220,7 @@ export function FineTuneCard({ ticker, active, onActive, onTrained }: {
     try {
       if (what === "reset") onActive((await resetModel(ticker, pw)).active);
       else { await startTraining(ticker, pw); setStatus({ phase: "queued", step: 0, total_steps: null }); follow(); }
+      if (pw !== password) setPassword(pw); // accepted: keep it in the keychain
     } catch (e) {
       const code = e instanceof ApiError ? e.status : 0;
       if (code === 401) { setPassword(null); setPwErr("Wrong password. Try again."); setAsk(what); return; }
@@ -267,7 +268,7 @@ export function FineTuneCard({ ticker, active, onActive, onTrained }: {
       </Text>
       {err && <Text style={[st.small, { color: C.down }]}>{err}</Text>}
       <PasswordModal visible={!!ask} error={pwErr} onCancel={() => setAsk(null)}
-        onSubmit={(pw) => { const what = ask!; setPassword(pw); setAsk(null); run(what, pw); }} />
+        onSubmit={(pw) => { const what = ask!; setAsk(null); run(what, pw); }} />
     </Card>
   );
 }
@@ -306,6 +307,50 @@ export function HeadlinesCard({ ticker, model, nonce }: { ticker: string; model:
       {s.data && <Text style={st.small}>{model === "none" ? "No sentiment model runs on crypto, so these are untagged."
         : `Tags by Qwen, ${model === "specialist" ? `${ticker} specialist` : "general model"}.`}</Text>}
     </Card>
+  );
+}
+
+// Crypto headlines (/api/crypto/news). Tags and the tone bar appear only once the worker pushes the general model's
+// tags for the coin; until then both are hidden (not shown as n/a). No fine-tune on crypto.
+export function CryptoNewsCard({ ticker, nonce }: { ticker: string; nonce: number }) {
+  const { C } = useTheme();
+  const st = useStyles(makeStyles);
+  const s = useApi<CryptoNews>(paths.cryptoNews(ticker), nonce);
+  const [all, setAll] = useState(false);
+  const d = s.data, items = d?.items || [];
+  const tagged = !!d?.tagged;
+  const hasBar = tagged && [d?.p_bearish, d?.p_neutral, d?.p_bullish].every((x) => typeof x === "number");
+  const shown = all ? items : items.slice(0, 3);
+  return (
+    <>
+      {hasBar && <Card title="Headline tone" right={<Text style={st.small}>general news model</Text>}><ProbBar d={d} /></Card>}
+      <Card title="Latest headlines" right={d?.provider ? <Text style={st.small}>{d.provider}</Text> : null}>
+        {s.loading && <Status s={s} what="headlines" />}
+        {s.err && <Text style={st.dim}>Headlines: n/a right now.</Text>}
+        {d && items.length === 0 && <Text style={st.dim}>No headlines found.</Text>}
+        {shown.map((h, k) => (
+          <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)}
+            style={({ pressed }) => [st.headline, k === 0 && { borderTopWidth: 0 }, pressed && { opacity: 0.6 }]} accessibilityRole="link">
+            {tagged && (
+              <View style={[st.tag, { borderColor: labelColor(C, h.label) }]}>
+                <Text style={[st.tagText, { color: labelColor(C, h.label) }]}>{h.label || "n/a"}</Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={st.headlineText} numberOfLines={3}>{h.title}</Text>
+              <Text style={st.meta}>{[h.source, relTime(h.time)].filter(Boolean).join(" · ")}</Text>
+            </View>
+          </Pressable>
+        ))}
+        {items.length > 3 && (
+          <Pressable onPress={() => setAll(!all)} style={st.moreBtn} accessibilityRole="button">
+            <Text style={st.more}>{all ? "Show fewer headlines" : `View all ${items.length}`}</Text>
+          </Pressable>
+        )}
+        {d?.filter_note ? <Text style={st.small}>{d.filter_note}.</Text> : null}
+        {tagged && <Text style={[st.small, { color: C.amber }]}>Tagged by our general news model, not yet validated on crypto.</Text>}
+      </Card>
+    </>
   );
 }
 

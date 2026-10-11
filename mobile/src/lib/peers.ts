@@ -35,6 +35,6 @@ export const CATEGORIES = [
   { name: "Software and cloud", tickers: ["MSFT", "DDOG"] },
   { name: "Consumer tech and retail", tickers: ["AAPL", "AMZN"] },
   { name: "Cars", tickers: ["TSLA"] },
-  { name: "Crypto (prices only)", tickers: CRYPTO },
+  { name: "Crypto", tickers: CRYPTO },
 ];
 export const SUPPORTED = [...HOME, ...CRYPTO];

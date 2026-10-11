@@ -4,7 +4,7 @@ import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 
 interface Props { visible: boolean; error?: string | null; onSubmit: (pw: string) => void; onCancel: () => void }
 
-// Asked once per app session. The value goes to session state (memory only), nowhere else.
+// Asked once; the caller saves an accepted password in the keychain (see lib/session.tsx).
 export function PasswordModal({ visible, error, onSubmit, onCancel }: Props) {
   const [pw, setPw] = useState("");
   const { C } = useTheme();
@@ -15,7 +15,7 @@ export function PasswordModal({ visible, error, onSubmit, onCancel }: Props) {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.backdrop}>
         <View style={s.box}>
           <Text style={s.title}>Train password</Text>
-          <Text style={s.dim}>Needed to fine-tune or switch models. Kept in memory only for this session.</Text>
+          <Text style={s.dim}>Needed to fine-tune or switch models. Asked once, then saved securely on this device.</Text>
           <TextInput value={pw} onChangeText={setPw} secureTextEntry autoFocus autoCapitalize="none" autoCorrect={false}
             placeholder="password" placeholderTextColor={C.dim} style={s.input} onSubmitEditing={submit}
             textContentType="none" autoComplete="off" />

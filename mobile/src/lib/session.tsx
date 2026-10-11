@@ -1,11 +1,11 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import * as SecureStore from "expo-secure-store";
 
-export type Mode = "simple" | "advanced";
+// Train password: asked once, then kept in the iOS keychain (expo-secure-store) and reused silently. Cleared when the
+// server rejects it (401) or the user picks "Forget password" in settings. Never written to the repo or the bundle.
+const KEY = "kd.trainpw";
 
 interface Session {
-  mode: Mode;
-  setMode: (m: Mode) => void;
-  // Train password: React state only. Never persisted, never logged, gone when the app closes.
   password: string | null;
   setPassword: (p: string | null) => void;
 }
@@ -13,9 +13,13 @@ interface Session {
 const Ctx = createContext<Session | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<Mode>("simple");
-  const [password, setPassword] = useState<string | null>(null);
-  return <Ctx.Provider value={{ mode, setMode, password, setPassword }}>{children}</Ctx.Provider>;
+  const [password, setPw] = useState<string | null>(null);
+  useEffect(() => { SecureStore.getItemAsync(KEY).then((v) => v && setPw(v)).catch(() => {}); }, []);
+  const setPassword = (p: string | null) => {
+    setPw(p);
+    (p ? SecureStore.setItemAsync(KEY, p) : SecureStore.deleteItemAsync(KEY)).catch(() => {});
+  };
+  return <Ctx.Provider value={{ password, setPassword }}>{children}</Ctx.Provider>;
 }
 
 export function useSession() {
