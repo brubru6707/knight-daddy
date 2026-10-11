@@ -8,7 +8,7 @@ import { useApi } from "@/lib/useApi";
 import { useSession } from "@/lib/session";
 import { labelColor, pct, relTime, SERIF, usd, useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { reasons } from "@/lib/outlook";
-import { NAMES, PEERS } from "@/lib/peers";
+import { NAMES, PEERS, short } from "@/lib/peers";
 import { Card, Status } from "./Card";
 import { LineChart } from "./LineChart";
 import { PasswordModal } from "./PasswordModal";
@@ -25,20 +25,24 @@ const RANGES = [
   { k: "ALL", api: "2y", label: "past 2 years" },
 ] as const;
 
-export function PriceHero({ ticker, nonce }: { ticker: string; nonce: number }) {
+// Crypto trades every day: a week is 7 daily bars and a month 30, not 6 and 22.
+const DAYS_7: Record<string, number> = { "1W": 7, "1M": 30 };
+
+export function PriceHero({ ticker, nonce, crypto = false }: { ticker: string; nonce: number; crypto?: boolean }) {
   const [rk, setRk] = useState<string>("1M");
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const r = RANGES.find((x) => x.k === rk)!;
   const s = useApi<Prices>(r.api ? paths.prices(ticker, r.api) : null, nonce);
-  const bars = s.data ? ("n" in r ? s.data.bars.slice(-r.n) : s.data.bars) : [];
+  const n = crypto && DAYS_7[rk] ? DAYS_7[rk] : "n" in r ? r.n : null;
+  const bars = s.data ? (n ? s.data.bars.slice(-n) : s.data.bars) : [];
   const first = bars[0]?.close, last = bars.at(-1)?.close;
   const chg = first && last ? last - first : null;
   const color = chg === null ? C.dim : chg >= 0 ? C.up : C.down;
   return (
     <View style={st.hero}>
       <Text style={st.name}>{NAMES[ticker] || ticker}</Text>
-      <Text style={st.tick}>{ticker}</Text>
+      <Text style={st.tick}>{short(ticker)}{crypto ? " · CRYPTO" : ""}</Text>
       <Text style={st.price} accessibilityLabel="Price">{last !== undefined ? usd(last) : s.loading ? "…" : "n/a"}</Text>
       <Text style={[st.change, { color }]}>
         {chg !== null ? `${chg >= 0 ? "+" : "-"}${usd(Math.abs(chg))} (${pct(chg / first!, 2)})  ` : r.api ? (s.loading ? "" : "n/a  ") : "Intraday prices: n/a  "}
@@ -60,37 +64,43 @@ export function PriceHero({ ticker, nonce }: { ticker: string; nonce: number }) 
   );
 }
 
-// Qwen (classification): one bar split by the model's real softmax probabilities for this ticker. Reads the
-// p_bearish / p_neutral / p_bullish fields the Oscar worker pushes; until they exist it says n/a, never a fake split.
-export function ConfidenceBar({ ticker, model, nonce }: { ticker: string; model: Model; nonce: number }) {
+type Probs = { p_bearish?: number | null; p_neutral?: number | null; p_bullish?: number | null; confidence_n?: number } | null | undefined;
+
+// Red / yellow / green bar sized by class probabilities. n/a when the fields are missing.
+export function ProbBar({ d }: { d: Probs }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
-  const s = useApi<Headlines>(paths.headlines(ticker, model), nonce);
-  const d = s.data;
   const field = { Bearish: d?.p_bearish, Neutral: d?.p_neutral, Bullish: d?.p_bullish };
   const ok = LABELS.every((l) => typeof field[l] === "number");
   const sum = ok ? LABELS.reduce((a, l) => a + (field[l] as number), 0) : 0;
   const fill = { Bearish: C.down, Neutral: C.neutral, Bullish: C.up };
+  if (!ok || !sum) return <Text style={st.dim}>Confidence: n/a</Text>;
+  const pctOf = (l: Label) => Math.round(((field[l] as number) / sum) * 100);
+  return (
+    <>
+      <View style={st.bar}>
+        {LABELS.map((l) => (field[l] as number) > 0 && (
+          <View key={l} style={[st.seg, { flex: field[l] as number, backgroundColor: fill[l] }]} accessibilityLabel={`${l} ${pctOf(l)} percent`}>
+            <Text style={st.segText} numberOfLines={1}>{pctOf(l)}%</Text>
+          </View>
+        ))}
+      </View>
+      <View style={st.legend}>
+        {LABELS.map((l) => <Text key={l} style={[st.legendText, { color: labelColor(C, l) }]}>● {l}</Text>)}
+      </View>
+      <Text style={st.small}>Qwen classification: average class probability over {d?.confidence_n ?? "n/a"} headlines.</Text>
+    </>
+  );
+}
+
+// Qwen (classification): one bar split by the model's real softmax probabilities for this ticker. Reads the
+// p_bearish / p_neutral / p_bullish fields the Oscar worker pushes; until they exist it says n/a, never a fake split.
+export function ConfidenceBar({ ticker, model, nonce }: { ticker: string; model: Model; nonce: number }) {
+  const st = useStyles(makeStyles);
+  const s = useApi<Headlines>(paths.headlines(ticker, model), nonce);
   return (
     <Card title="Model confidence" right={<Text style={st.small}>Qwen{model === "specialist" ? `, ${ticker} specialist` : ", general"}</Text>}>
-      {s.loading && <Status s={s} what="confidence" />}
-      {!s.loading && (!ok || !sum) && <Text style={st.dim}>Confidence: n/a</Text>}
-      {ok && sum > 0 && (
-        <>
-          <View style={st.bar}>
-            {LABELS.map((l) => (field[l] as number) > 0 && (
-              <View key={l} style={[st.seg, { flex: field[l] as number, backgroundColor: fill[l] }]}
-                accessibilityLabel={`${l} ${Math.round(((field[l] as number) / sum) * 100)} percent`}>
-                <Text style={st.segText} numberOfLines={1}>{Math.round(((field[l] as number) / sum) * 100)}%</Text>
-              </View>
-            ))}
-          </View>
-          <View style={st.legend}>
-            {LABELS.map((l) => <Text key={l} style={[st.legendText, { color: labelColor(C, l) }]}>● {l}</Text>)}
-          </View>
-          <Text style={st.small}>Qwen classification: average class probability over {d?.confidence_n ?? "n/a"} recent headlines.</Text>
-        </>
-      )}
+      {s.loading ? <Status s={s} what="confidence" /> : <ProbBar d={s.data} />}
     </Card>
   );
 }
@@ -274,12 +284,14 @@ export function HeadlinesCard({ ticker, model, nonce }: { ticker: string; model:
       <Status s={s} what="headlines" />
       {s.data && items.length === 0 && <Text style={st.dim}>No headlines found.</Text>}
       {shown.map((h, k) => (
-        <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)}
+        <Pressable key={k} disabled={!h.url} onPress={() => h.url && WebBrowser.openBrowserAsync(h.url)} testID="headline"
           style={({ pressed }) => [st.headline, k === 0 && { borderTopWidth: 0 }, pressed && { opacity: 0.6 }]}
           accessibilityRole="link" accessibilityLabel={`${h.label || "Untagged"}: ${h.title}`}>
-          <View style={[st.tag, { borderColor: labelColor(C, h.label) }]}>
-            <Text style={[st.tagText, { color: labelColor(C, h.label) }]}>{h.label || "n/a"}</Text>
-          </View>
+          {model !== "none" && (
+            <View style={[st.tag, { borderColor: labelColor(C, h.label) }]}>
+              <Text style={[st.tagText, { color: labelColor(C, h.label) }]}>{h.label || "n/a"}</Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={st.headlineText} numberOfLines={3}>{h.title}</Text>
             <Text style={st.meta}>{[h.source, relTime(h.time)].filter(Boolean).join(" · ")}</Text>
@@ -291,7 +303,8 @@ export function HeadlinesCard({ ticker, model, nonce }: { ticker: string; model:
           <Text style={st.more}>{all ? "Show fewer headlines" : `View all ${items.length}`}</Text>
         </Pressable>
       )}
-      {s.data && <Text style={st.small}>Tags by Qwen, {model === "specialist" ? `${ticker} specialist` : "general model"}.</Text>}
+      {s.data && <Text style={st.small}>{model === "none" ? "No sentiment model runs on crypto, so these are untagged."
+        : `Tags by Qwen, ${model === "specialist" ? `${ticker} specialist` : "general model"}.`}</Text>}
     </Card>
   );
 }

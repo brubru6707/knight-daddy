@@ -18,7 +18,23 @@ export const NAMES: Record<string, string> = {
   LCID: "Lucid Group, Inc.", F: "Ford Motor Company", SNOW: "Snowflake Inc.", MDB: "MongoDB, Inc.", DT: "Dynatrace, Inc.",
   MNST: "Monster Beverage Corporation", KDP: "Keurig Dr Pepper Inc.", PEP: "PepsiCo, Inc.", DELL: "Dell Technologies Inc.",
   HPE: "Hewlett Packard Enterprise", QCOM: "Qualcomm Incorporated", WMT: "Walmart Inc.",
+  "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
 };
 
 // Home list: stocks the Oscar worker pushes live data for. Stocks only; crypto stays out of the app.
 export const HOME = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "DDOG"];
+
+// Crypto rows are display only: price and untagged headlines (model=none), never a model output or fine-tune.
+export const CRYPTO = ["BTC-USD", "ETH-USD", "SOL-USD"];
+export const isCrypto = (t: string) => CRYPTO.includes(t);
+export const short = (t: string) => t.replace(/-USD$/, "");
+
+// Onboarding groups: our supported tickers only. Grouping organizes the user's own choices; it never suggests picks.
+export const CATEGORIES = [
+  { name: "Chips", tickers: ["NVDA"] },
+  { name: "Software and cloud", tickers: ["MSFT", "DDOG"] },
+  { name: "Consumer tech and retail", tickers: ["AAPL", "AMZN"] },
+  { name: "Cars", tickers: ["TSLA"] },
+  { name: "Crypto (prices only)", tickers: CRYPTO },
+];
+export const SUPPORTED = [...HOME, ...CRYPTO];

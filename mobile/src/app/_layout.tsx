@@ -6,6 +6,7 @@ import { IBMPlexSerif_500Medium } from "@expo-google-fonts/ibm-plex-serif";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider } from "@/lib/session";
+import { ListProvider } from "@/lib/list";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 
 function Root() {
@@ -29,7 +30,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <SessionProvider>
-          <Root />
+          <ListProvider>
+            <Root />
+          </ListProvider>
         </SessionProvider>
       </ThemeProvider>
     </SafeAreaProvider>

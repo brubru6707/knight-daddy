@@ -1,5 +1,6 @@
 // Client for the deployed Knight-Daddy API (same one the web terminal uses). See mobile/API.md.
-export const API_BASE = "https://knight-daddy.us/api";
+// EXPO_PUBLIC_API_BASE overrides it at build time (local testing only); installed builds use the public site.
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || "https://knight-daddy.us/api";
 
 export class ApiError extends Error {
   status: number;
@@ -89,7 +90,15 @@ export interface SpecStatus {
   ticker?: string; phase: string; running?: boolean; step?: number; total_steps?: number | null;
   quick?: boolean; note?: string; error?: string; elapsed_s?: number; queued_s?: number;
 }
-export type Model = "general" | "specialist";
+export type Model = "general" | "specialist" | "none"; // "none": crypto, untagged headlines only
+
+export interface ReplayPair { ticker: string; date: string; n: number }
+export interface ReplayAvailable { pairs: ReplayPair[]; source?: string }
+export interface Replay {
+  ticker: string; date: string; replay: true; model: string; source: string; items: Headline[];
+  p_bearish?: number | null; p_neutral?: number | null; p_bullish?: number | null; confidence_n?: number;
+  price?: { close: number; prev_close: number | null; change_1d: number | null };
+}
 
 // Same query strings as the web app: the public site only replays paths the worker pushed.
 export const paths = {
@@ -98,6 +107,8 @@ export const paths = {
   headlines: (t: string, model: Model = "general") => `headlines?ticker=${t}&source=live&limit=40&model=${model}`,
   audio: (id: string, t: string) => `${API_BASE}/briefing/audio?id=${id}&ticker=${t}`,
   specActive: (t: string) => `specialist/active?ticker=${t}`,
+  replayAvailable: () => "replay/available",
+  replay: (t: string, d: string) => `replay?ticker=${t}&date=${d}`,
   briefing: (t: string) => `briefing?ticker=${t}`,
   sentiment: (t: string) => `sentiment?ticker=${t}`,
   backtest: (t: string) => `backtest?ticker=${t}`,
@@ -117,7 +128,7 @@ export function startTraining(ticker: string, password: string) {
 }
 
 export function resetModel(ticker: string, password: string) {
-  return api<{ ticker: string; active: Model }>("specialist/reset", {
+  return api<{ ticker: string; active: "general" | "specialist" }>("specialist/reset", {
     method: "POST",
     headers: { "content-type": "application/json", "x-train-password": password },
     body: JSON.stringify({ ticker }),

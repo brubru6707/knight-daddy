@@ -6,6 +6,7 @@ import { api, paths, type Model } from "@/lib/api";
 import { useStyles, useTheme, type Palette, sheet } from "@/lib/theme";
 import { BriefingCard, CompetitorsRow, ConfidenceBar, FineTuneCard, HeadlinesCard, PriceHero } from "@/components/detail";
 import { AdvancedResearch } from "@/components/advanced";
+import { isCrypto } from "@/lib/peers";
 
 // Ticker detail: price and chart, Qwen confidence bar, Gemini briefing, fine-tune controls, headlines, competitors,
 // advanced research. Back returns to the home list.
@@ -16,11 +17,13 @@ export default function Stock() {
   const { ticker: raw } = useLocalSearchParams<{ ticker: string }>();
   const ticker = String(raw || "").toUpperCase();
   const [nonce, setNonce] = useState(0);
+  const crypto = isCrypto(ticker); // display only: price and untagged headlines, no model output, no fine-tune
   const [active, setActive] = useState<Model>("general");
   useEffect(() => {
+    if (crypto) return;
     api<{ active: Model }>(paths.specActive(ticker))
       .then((d) => setActive(d.active === "specialist" ? "specialist" : "general")).catch(() => setActive("general"));
-  }, [ticker, nonce]);
+  }, [ticker, nonce, crypto]);
   const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
   // Competitor taps open the peer on top of this page, so Back walks back through them to the list.
   const pick = (t: string) => router.push({ pathname: "/stock/[ticker]", params: { ticker: t } });
@@ -38,13 +41,15 @@ export default function Stock() {
       </View>
       <ScrollView contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={false} tintColor={C.amber} onRefresh={() => setNonce((n) => n + 1)} />}>
-        <PriceHero ticker={ticker} nonce={nonce} />
+        <PriceHero ticker={ticker} nonce={nonce} crypto={crypto} />
+        {crypto ? <HeadlinesCard ticker={ticker} model="none" nonce={nonce} /> : <>
         <ConfidenceBar key={`c-${active}`} ticker={ticker} model={active} nonce={nonce} />
         <BriefingCard ticker={ticker} nonce={nonce} />
         <FineTuneCard ticker={ticker} active={active} onActive={setActive} onTrained={() => setNonce((n) => n + 1)} />
         <HeadlinesCard key={`h-${active}`} ticker={ticker} model={active} nonce={nonce} />
         <CompetitorsRow ticker={ticker} onPick={pick} />
         <AdvancedResearch ticker={ticker} nonce={nonce} />
+        </>}
         <Text style={st.footer}>News sentiment, not investment advice.</Text>
       </ScrollView>
     </SafeAreaView>
