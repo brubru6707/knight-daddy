@@ -64,8 +64,9 @@ with sync_playwright() as p:
         sec.locator("[data-testid=home-row]").first.click()
         cd = pg.locator("[data-testid=crypto-detail]"); cd.wait_for(timeout=30_000)
         pg.locator("[data-testid=headline]").first.or_(pg.locator("text=No headlines found.")).or_(pg.locator("text=/Headlines: n\\/a/")).first.wait_for(timeout=60_000)
-        check("crypto detail: price and headlines only",
-              all(pg.locator(x).count() == 0 for x in ("[data-testid=confidence]", "section[aria-label=Briefing]", "section[aria-label=Fine-tune]", "section[aria-label='Sentiment vs. price']")))
+        check("crypto detail: price and headlines only (tone bar only once tagged)",
+              all(pg.locator(x).count() == 0 for x in ("section[aria-label=Briefing]", "section[aria-label=Fine-tune]", "section[aria-label='Sentiment vs. price']"))
+              and (pg.locator("[data-testid=confidence]").count() == 0 or pg.locator("[data-testid=crypto-caption]").count() == 1))
         tags = pg.locator("[data-testid=headline] >> text=/^(Bullish|Bearish|Neutral)$/").count()
         cap = pg.locator("[data-testid=crypto-caption]")
         check("crypto tags appear only with the 'not yet validated on crypto' caption",

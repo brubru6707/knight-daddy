@@ -268,6 +268,8 @@ async function mirror(res, key, extra) {
   if (snap && key.startsWith("briefing?") && (snap.status >= 400 || !snap.body?.status)) // upstream (Gemini) failure
     return send(res, 200, { status: "unavailable", ticker: new URLSearchParams(key.split("?")[1]).get("ticker"),
                             message: "AI summary temporarily unavailable." });
+  if (!snap && key.startsWith("briefing?mode=advanced")) // the longer briefing appears once the worker pushes it
+    return send(res, 200, { status: "not_published", mode: "advanced", message: "Longer briefing not published yet." });
   if (!snap) {
     const meta = await getJSON("kw:meta");
     return send(res, 404, { detail: `Not available on the public site yet (${key}). Tracked tickers: ${(meta?.tickers || []).join(", ") || "none pushed yet"}.` });
