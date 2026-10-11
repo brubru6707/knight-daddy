@@ -150,7 +150,7 @@ with sync_playwright() as p:
         check("loss chart grows in real time while training", n2 > n1, f"{first} -> {later}")
         h = chart.locator("svg").bounding_box()["height"]
         check("loss chart is short", h <= 70, f"{h}px")
-        ft.screenshot(path=out.replace(".png", "_loss.png"))
+        ft.screenshot(path=f"{out}_loss.png")
         pg.wait_for_function(f"document.querySelector('[data-testid=loss-chart]').innerText.includes('step {len(losses)}/{len(losses)}')", timeout=60_000)
         check("chart keeps the whole run when it finishes", ft.locator("text=Last fine-tune: Done").count() == 1)
         pg.evaluate("localStorage.setItem('kd.advanced', 'false')"); pg.reload(); ft.locator("button:has-text('Tune to this stock')").wait_for(timeout=15_000)
