@@ -26,6 +26,10 @@ with sync_playwright() as p:
     pg.keyboard.press("/")
     check("'/' focuses the search box", pg.evaluate("document.activeElement.getAttribute('aria-label')") == "Ticker")
     pg.locator("[aria-label=Period] >> text=1D").click()
+    try:
+        pg.locator("text=Intraday prices: n/a").wait_for(timeout=10_000)
+    except Exception:
+        pass
     check("1D shows n/a (no intraday data served)", pg.locator("text=Intraday prices: n/a").count() == 1)
     pg.locator("section[aria-label=Competitors] button:has-text('AMD')").click()
     pg.locator("text=Advanced Micro Devices, Inc.").first.wait_for(timeout=15_000)

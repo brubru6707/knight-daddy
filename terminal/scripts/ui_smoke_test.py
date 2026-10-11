@@ -41,6 +41,10 @@ with sync_playwright() as p:
     pg.locator("text=/(Up|Down) over 1 year/").wait_for(timeout=30_000)
     check("period buttons switch the chart", True)
     pg.locator("[aria-label=Period] >> text=1D").click()
+    try:
+        pg.locator("text=Intraday prices: n/a").wait_for(timeout=10_000)
+    except Exception:
+        pass
     check("1D shows n/a (no intraday data served)", pg.locator("text=Intraday prices: n/a").count() == 1)
     pg.locator("[aria-label=Period] >> text=1M").click()
 

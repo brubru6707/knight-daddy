@@ -128,7 +128,8 @@ export default function App() {
   else if (route.page === "detail") page = isCrypto(route.t) ? <CryptoDetail ticker={route.t} onBack={back} />
     : <Detail ticker={route.t} onBack={back} onPick={(t) => go({ page: "detail", t })} modelVersion={modelVersion} />;
   else if (!onboarded || editing) page = <Onboarding initial={list} onDone={finishOnboarding} onSkip={() => finishOnboarding(editing ? list : [])} />;
-  else page = <Home onOpen={open} list={list} onEdit={() => setEditing(true)} onReplay={() => go({ page: "replay" })} />;
+  else page = <Home onOpen={open} list={list} onEdit={() => setEditing(true)} onReplay={() => go({ page: "replay" })}
+    onAdd={(t) => { const l = list.includes(t) ? list : [...list, t]; setList(l); writeLocal("kd.list", l); }} />;
 
   return (
     <div className="min-h-screen">

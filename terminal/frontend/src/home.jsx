@@ -53,7 +53,35 @@ function Section({ title, label, tickers, onOpen, note, empty, right }) {
   );
 }
 
-export function Home({ onOpen, list, onEdit, onReplay }) {
+// Explore more: every supported name not already in Your list, in a fixed alphabetical order, each with an Add button.
+// It only lets the user add names; nothing is ranked or suggested.
+function Explore({ list, onAdd, onOpen }) {
+  const rest = [...HOME, ...CRYPTO].filter((t) => !list.includes(t)).sort((a, b) => short(a).localeCompare(short(b)));
+  return (
+    <section className="mt-10" aria-label="Explore more">
+      <h2 className="font-serif text-[22px] font-medium text-ink">Explore more</h2>
+      <p className="mt-1 text-xs text-dim">Every name Knight-Daddy covers, A to Z. Add any of them to Your list.</p>
+      {rest.length === 0 ? <p className="mt-3 text-sm text-dim">Every covered name is already in Your list.</p> : (
+        <ul className="mt-3 border-t border-rule">
+          {rest.map((t) => (
+            <li key={t} className="flex items-center gap-4 border-b border-line px-1 py-3" data-testid="explore-row" data-ticker={t}>
+              <button onClick={() => onOpen(t)} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-rule font-serif text-[15px] text-ink">{short(t)[0]}</span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-semibold text-ink">{short(t)}</span>
+                  <span className="block truncate text-xs text-dim">{NAMES[t]?.[0] || "n/a"}</span>
+                </span>
+              </button>
+              <button onClick={() => onAdd(t)} className="shrink-0 border border-rule px-3 py-1.5 text-xs font-semibold text-ink hover:border-amber hover:text-amber"
+                aria-label={`Add ${short(t)} to Your list`} data-testid="explore-add">+ Add</button>
+            </li>))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export function Home({ onOpen, list, onEdit, onReplay, onAdd }) {
   return (
     <div className="mx-auto max-w-[720px] px-4 py-6 sm:px-6 sm:py-10">
       {list.length > 0 && (
@@ -65,6 +93,7 @@ export function Home({ onOpen, list, onEdit, onReplay }) {
         right={list.length === 0 ? <button onClick={onEdit} className="text-xs text-amber hover:underline">Build your list</button> : null} />
       <Section title="Crypto" label="Crypto" tickers={CRYPTO} onOpen={onOpen} empty="Crypto prices: n/a right now."
         note="Coinbase price and 24h change." />
+      <Explore list={list} onAdd={onAdd} onOpen={onOpen} />
       <button onClick={onReplay} className="mt-10 block w-full border border-line px-4 py-3 text-left hover:bg-card" data-testid="replay-link">
         <span className="font-serif text-[17px] text-ink">Replay</span>
         <span className="mt-0.5 block text-xs text-dim">Re-run the model on a past day's headlines and see what it would have said.</span>
