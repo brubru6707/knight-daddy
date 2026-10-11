@@ -71,7 +71,8 @@ async function cryptoCandles(t, days) {
 }
 
 // Crypto headlines: the worker's model-tagged snapshot when Oscar pushes one, else Finnhub's crypto news (only if
-// FINNHUB_API_KEY is set here), else the worker's untagged snapshot. Always filtered to headlines naming the coin.
+// FINNHUB_API_KEY is set here), else the worker's untagged snapshot, else Yahoo Finance's public news search (no key).
+// Always filtered to headlines naming the coin.
 async function cryptoNews(t) {
   const snap = async (model) => (await getJSON(`kw:get:${canonical("headlines", { ticker: t, source: "live", limit: "40", model })}`))?.body;
   const tagged = await snap("general");
@@ -87,8 +88,14 @@ async function cryptoNews(t) {
     }
   }
   const plain = await snap("none");
-  if (plain?.items) return { ...plain, tagged: false };
-  return null;
+  if (plain?.items?.length) return { ...plain, tagged: false };
+  const q = new URLSearchParams({ q: COINS[t][0], newsCount: "40", quotesCount: "0", enableFuzzyQuery: "false", newsQueryId: "news_cie_vespa" });
+  const r = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?${q}`, { headers: { "user-agent": "Mozilla/5.0" } });
+  if (!r.ok) return null;
+  const pat = new RegExp(`\\b(${COINS[t].join("|")})\\b`, "i");
+  const items = ((await r.json()).news || []).filter((n) => n.title && pat.test(n.title))
+    .map((n) => ({ title: n.title, source: n.publisher || "", url: n.link || "", time: n.providerPublishTime ? new Date(n.providerPublishTime * 1000).toISOString() : null }));
+  return { ticker: t, provider: "Yahoo Finance", filter_note: `Showing only headlines that name ${COINS[t][0]}`, items, tagged: false };
 }
 const jobKey = (id) => `kw:job:${id}`;
 
