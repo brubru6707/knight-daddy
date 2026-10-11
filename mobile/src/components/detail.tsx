@@ -4,6 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import Svg, { Path, Rect } from "react-native-svg";
+import { afterWake, WAKE_HINTS } from "@/lib/wake";
 import { api, ApiError, paths, resetModel, startTraining, talk, type Briefing, type TalkAnswer, type CryptoNews, type Headlines, type Health, type Label, type Model,
   type Prices, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -120,73 +121,100 @@ async function playUrl(url: string, holder: { current: AudioPlayer | null }, onE
   p.play();
 }
 
-// Talk: a press-to-talk conversation about this stock's news and its tone. Hold the mic, ask, release: iOS speech
-// recognition turns it into text, the question and the last few turns go to /api/talk, which answers only from the
-// real headlines, and the answer is spoken with ElevenLabs. Advice questions get a short decline every time.
-// `hear` (deep link, testing): recognize a recorded audio file instead of the microphone.
+// Talk: a hands-free conversation about this stock's news and its tone. Tap the mic once to start; it listens and
+// waits for "Hey KD", takes what follows as the question, and sends it when you pause. The answer (only from the real
+// headlines, with the last few turns as memory) is spoken with ElevenLabs while the mic pauses, then it listens for the
+// next "Hey KD". Tap the mic again to end. Advice questions get a short decline every time.
+// `hear` (deep link, testing): run one turn on a recorded audio file instead of the microphone.
+type Mode = "off" | "waiting" | "capturing" | "thinking" | "speaking";
+const SILENCE_MS = 1600, WAKE_TIMEOUT_MS = 7000;
+
 function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Briefing; hear?: string }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const [turns, setTurns] = useState<(TalkAnswer & { q: string })[]>([]);
-  const [phase, setPhase] = useState<"idle" | "listening" | "hearing" | "thinking">("idle");
+  const [mode, setModeState] = useState<Mode>("off");
   const [live, setLive] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [q, setQ] = useState("");
   const [audio, setAudio] = useState<{ which: string | null; loading: boolean; msg: string | null }>({ which: null, loading: false, msg: null });
   const player = useRef<AudioPlayer | null>(null);
-  const heard = useRef(""), released = useRef(false), turnsRef = useRef(turns);
+  const modeRef = useRef<Mode>("off"), turnsRef = useRef(turns), question = useRef(""), file = useRef<string | null>(null);
+  const silence = useRef<ReturnType<typeof setTimeout> | null>(null), wakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   turnsRef.current = turns;
-  const stop = () => { player.current?.remove(); player.current = null; setAudio({ which: null, loading: false, msg: null }); };
-  useEffect(() => () => { stop(); ExpoSpeechRecognitionModule.abort(); }, []);
-  const speak = async (which: string, url: string) => {
-    if (audio.which === which && !audio.loading) return stop();
-    stop(); setAudio({ which, loading: true, msg: null });
-    try { await playUrl(url, player, stop); setAudio({ which, loading: false, msg: null }); }
-    catch (e) { setAudio({ which: null, loading: false, msg: e instanceof Error ? e.message : "n/a right now" }); }
+  const setMode = (m: Mode) => { modeRef.current = m; setModeState(m); };
+  const clearTimers = () => { if (silence.current) clearTimeout(silence.current); if (wakeTimer.current) clearTimeout(wakeTimer.current); };
+  const stopAudio = () => { player.current?.remove(); player.current = null; setAudio({ which: null, loading: false, msg: null }); };
+  useEffect(() => () => { clearTimers(); stopAudio(); modeRef.current = "off"; ExpoSpeechRecognitionModule.abort(); }, []);
+
+  const listen = () => { // (re)start a recognition session that waits for "Hey KD"
+    question.current = ""; setLive(""); setMode("waiting");
+    ExpoSpeechRecognitionModule.start({ lang: "en-US", interimResults: true, continuous: true, addsPunctuation: true, contextualStrings: WAKE_HINTS,
+      ...(file.current ? { audioSource: { uri: file.current } } : {}) });
   };
-  const ask = async (question: string) => {
-    question = question.trim();
-    if (!question) { setPhase("idle"); setErr("I didn't catch that. Hold the mic and ask again."); return; }
-    setPhase("thinking"); setErr(null);
+  const speak = async (which: string, url: string, after?: () => void) => {
+    stopAudio(); setAudio({ which, loading: true, msg: null });
+    const done = () => { stopAudio(); after?.(); };
+    try { await playUrl(url, player, done); setAudio({ which, loading: false, msg: null }); }
+    catch (e) { setAudio({ which: null, loading: false, msg: e instanceof Error ? e.message : "n/a right now" }); after?.(); }
+  };
+  const resume = () => { if (modeRef.current === "speaking" || modeRef.current === "thinking") { if (file.current) { file.current = null; setMode("off"); } else listen(); } };
+  const ask = async (text: string, viaVoice: boolean) => {
+    text = text.trim();
+    if (!text) return;
+    clearTimers(); setErr(null);
+    if (viaVoice) { setMode("thinking"); ExpoSpeechRecognitionModule.abort(); }
     const history = turnsRef.current.filter((t) => !t.refused).slice(-3).map((t) => ({ q: t.q, a: t.answer }));
     try {
-      const r = await talk(ticker, question, history);
-      setTurns((t) => [...t, { ...r, q: question }]);
-      if (r.id) speak(`a-${r.id}`, paths.talkAudio(r.id));
-    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setPhase("idle"); setLive(""); }
+      const r = await talk(ticker, text, history);
+      setTurns((t) => [...t, { ...r, q: text }]); setLive("");
+      if (r.id) { if (viaVoice) setMode("speaking"); speak(`a-${r.id}`, paths.talkAudio(r.id), viaVoice ? resume : undefined); }
+      else if (viaVoice) resume();
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); if (viaVoice) resume(); }
   };
 
-  useSpeechRecognitionEvent("result", (e) => { heard.current = e.results[0]?.transcript || heard.current; setLive(heard.current); });
-  useSpeechRecognitionEvent("error", (e) => {
-    if (e.error === "aborted") return;
-    if (e.error === "no-speech" || e.error === "speech-timeout") return; // handled on "end" as "didn't catch that"
-    setErr(e.error === "not-allowed" ? "Microphone or speech access is off. Turn it on in Settings, or type instead." : "Couldn't hear that. Try again, or type instead.");
+  useSpeechRecognitionEvent("result", (e) => {
+    const m = modeRef.current;
+    if (m !== "waiting" && m !== "capturing") return;
+    const text = e.results[0]?.transcript || "";
+    const after = afterWake(text);
+    if (after === null) return; // not addressed to KD
+    if (m === "waiting") { setMode("capturing"); if (wakeTimer.current) clearTimeout(wakeTimer.current); wakeTimer.current = setTimeout(() => { if (modeRef.current === "capturing" && !question.current) { ExpoSpeechRecognitionModule.abort(); } }, WAKE_TIMEOUT_MS); }
+    question.current = after; setLive(after);
+    if (silence.current) clearTimeout(silence.current);
+    if (after) silence.current = setTimeout(() => { if (modeRef.current === "capturing" && question.current) ask(question.current, true); }, SILENCE_MS);
+    if (e.isFinal && after && file.current) ask(after, true); // a recorded file ends without a pause
   });
-  useSpeechRecognitionEvent("end", () => { if (released.current) { released.current = false; ask(heard.current); } else setPhase("idle"); });
+  useSpeechRecognitionEvent("error", (e) => {
+    if (e.error === "aborted" || e.error === "no-speech" || e.error === "speech-timeout") return; // "end" restarts
+    if (e.error === "not-allowed") { setMode("off"); setErr("Microphone or speech access is off. Turn it on in Settings, or type instead."); }
+  });
+  useSpeechRecognitionEvent("end", () => { // sessions end on their own after a while: keep listening until tapped off
+    const m = modeRef.current;
+    if (m === "waiting" || m === "capturing") {
+      if (m === "capturing" && question.current) return ask(question.current, true);
+      if (file.current) { file.current = null; setMode("off"); return; }
+      setTimeout(() => (modeRef.current === "waiting" || modeRef.current === "capturing") && listen(), 250);
+    }
+  });
 
-  const start = async (file?: string) => {
-    if (phase !== "idle") return;
-    stop(); setErr(null); heard.current = ""; setLive(""); released.current = false;
+  const toggle = async () => {
+    if (modeRef.current !== "off") { clearTimers(); setMode("off"); setLive(""); ExpoSpeechRecognitionModule.abort(); stopAudio(); return; }
+    setErr(null); stopAudio();
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!perm.granted) { setErr("Microphone or speech access is off. Turn it on in Settings, or type instead."); return; }
-    setPhase("listening");
-    ExpoSpeechRecognitionModule.start({ lang: "en-US", interimResults: true, continuous: true, addsPunctuation: true,
-      ...(file ? { audioSource: { uri: file } } : {}) });
-    if (file) released.current = true; // a file ends by itself
+    listen();
   };
-  const release = () => {
-    if (phase !== "listening") return;
-    released.current = true; setPhase("hearing");
-    ExpoSpeechRecognitionModule.stop();
-  };
-  useEffect(() => { if (hear) setTimeout(() => start(hear), 800); }, [hear]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (hear) setTimeout(() => { file.current = hear; toggle(); }, 800); }, [hear]); // eslint-disable-line react-hooks/exhaustive-deps
   const on = (w: string) => audio.which === w && !audio.loading;
-  const label = { idle: turns.length ? "Hold to ask again" : "Hold to talk", listening: "Listening… release to send", hearing: "Got it…", thinking: "Thinking…" }[phase];
+  const active = mode !== "off";
+  const label = { off: turns.length ? "Tap to talk again" : "Tap to start talking", waiting: "Say \u201cHey KD\u201d, then your question. Tap to stop.",
+    capturing: "Listening…", thinking: "Thinking…", speaking: "Answering… then say \u201cHey KD\u201d again" }[mode];
 
   return (
     <View style={st.talk}>
-      <Pressable onPress={() => briefing.id && speak("briefing", paths.audio(briefing.id, ticker, briefing.mode))} style={st.talkRead} hitSlop={6}
+      <Pressable onPress={() => briefing.id && (on("briefing") ? stopAudio() : speak("briefing", paths.audio(briefing.id, ticker, briefing.mode)))} style={st.talkRead} hitSlop={6}
         accessibilityRole="button" accessibilityLabel={on("briefing") ? "Stop reading" : `Read the ${ticker} briefing aloud`}>
         {audio.loading && audio.which === "briefing" ? <ActivityIndicator size="small" color={C.ink} /> :
           <Text style={st.speakerText}>{on("briefing") ? "■ Stop reading" : "🔈 Read the briefing aloud"}</Text>}
@@ -196,7 +224,7 @@ function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Brief
           <Text style={st.youText}>You: {t.q}</Text>
           <Text style={[st.answer, t.refused && { color: C.dim }]}>{t.answer}</Text>
           {t.id && (
-            <Pressable onPress={() => speak(`a-${t.id}`, paths.talkAudio(t.id!))} hitSlop={6} accessibilityRole="button">
+            <Pressable onPress={() => (on(`a-${t.id}`) ? stopAudio() : speak(`a-${t.id}`, paths.talkAudio(t.id!)))} hitSlop={6} accessibilityRole="button">
               <Text style={st.hear}>{on(`a-${t.id}`) ? "■ Stop" : audio.loading && audio.which === `a-${t.id}` ? "Loading…" : "🔈 Hear again"}</Text>
             </Pressable>)}
           {t.sources.map((x) => (
@@ -204,23 +232,23 @@ function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Brief
               <Text style={st.source}>[{x.n}] <Text style={{ color: C.ink }}>{x.title}</Text>{x.source ? ` · ${x.source}` : ""}</Text>
             </Pressable>))}
         </View>))}
-      {phase !== "idle" && live ? <Text style={[st.youText, { marginTop: 12 }]}>You: {live}</Text> : null}
+      {(mode === "capturing" || mode === "thinking") && live ? <Text style={[st.youText, { marginTop: 12 }]}>You: {live}</Text> : null}
       {audio.msg && <Text style={st.small}>Read-aloud: {audio.msg}</Text>}
       <View style={st.holdWrap}>
-        <Pressable onPressIn={() => start()} onPressOut={release} disabled={phase === "hearing" || phase === "thinking"}
-          style={[st.hold, phase === "listening" && { backgroundColor: C.amber, borderColor: C.amber, transform: [{ scale: 1.1 }] },
-            (phase === "hearing" || phase === "thinking") && { opacity: 0.5 }]}
-          accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Hold while you speak, release to send">
-          {phase === "thinking" || phase === "hearing" ? <ActivityIndicator color={C.ground} /> : <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={C.ground} strokeWidth={1.8} strokeLinecap="round">
-            <Rect x={9} y={3} width={6} height={11} rx={3} fill={phase === "listening" ? C.ground : "none"} /><Path d="M5 11a7 7 0 0014 0M12 18v3" /></Svg>}
+        <Pressable onPress={toggle}
+          style={[st.hold, active && { backgroundColor: C.amber, borderColor: C.amber }, mode === "capturing" && { transform: [{ scale: 1.12 }] }]}
+          accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={active ? "Stop talking" : "Start talking"} accessibilityHint={label}>
+          {mode === "thinking" ? <ActivityIndicator color={C.ground} /> :
+            <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={C.ground} strokeWidth={1.8} strokeLinecap="round">
+              <Rect x={9} y={3} width={6} height={11} rx={3} fill={mode === "capturing" ? C.ground : "none"} /><Path d="M5 11a7 7 0 0014 0M12 18v3" /></Svg>}
         </Pressable>
-        <Text style={st.holdLabel} accessibilityLiveRegion="polite">{label}</Text>
+        <Text style={[st.holdLabel, { textAlign: "center" }]} accessibilityLiveRegion="polite">{label}</Text>
       </View>
       {typing ? (
         <View style={st.askRow}>
-          <TextInput value={q} onChangeText={setQ} onSubmitEditing={() => { const x = q; setQ(""); ask(x); }} returnKeyType="send" maxLength={300} autoFocus
+          <TextInput value={q} onChangeText={setQ} onSubmitEditing={() => { const x = q; setQ(""); ask(x, false); }} returnKeyType="send" maxLength={300} autoFocus
             placeholder={`Ask about ${ticker}'s news`} placeholderTextColor={C.dim} style={st.input} accessibilityLabel={`Ask about ${ticker}'s news`} />
-          <Pressable onPress={() => { const x = q; setQ(""); ask(x); }} disabled={!q.trim() || phase !== "idle"} style={[st.askBtn, (!q.trim() || phase !== "idle") && { opacity: 0.4 }]} accessibilityRole="button">
+          <Pressable onPress={() => { const x = q; setQ(""); ask(x, false); }} disabled={!q.trim()} style={[st.askBtn, !q.trim() && { opacity: 0.4 }]} accessibilityRole="button">
             <Text style={st.askT}>Ask</Text>
           </Pressable>
         </View>

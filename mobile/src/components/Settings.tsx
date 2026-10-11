@@ -92,13 +92,13 @@ export function SettingsButton({ current, onChanged, initiallyOpen = false }: { 
               {editPw ? (
                 <View style={st.inline}>
                   <TextInput value={typed} onChangeText={setTyped} secureTextEntry autoFocus autoCapitalize="none" autoCorrect={false}
-                    placeholder="New train password" placeholderTextColor={C.dim} style={st.input} textContentType="none" autoComplete="off" />
-                  <Pressable onPress={() => { if (typed) { setPassword(typed); setTyped(""); setEditPw(false); setMsg("Train password saved. It is checked the next time you use it."); } }}
+                    placeholder="Train password" placeholderTextColor={C.dim} style={st.input} textContentType="none" autoComplete="off" />
+                  <Pressable onPress={() => { if (typed) { setPassword(typed); setTyped(""); setEditPw(false); setMsg("Saved on this device. It has to match the site's train password, and is checked the next time you fine-tune."); } }}
                     style={[st.small, !typed && { opacity: 0.4 }]}><Text style={st.smallT}>Save</Text></Pressable>
                 </View>
               ) : (
                 <View style={st.links}>
-                  <Pressable onPress={() => { setEditPw(true); setAskFor(null); setTyped(""); }} hitSlop={8}><Text style={st.link}>Change train password</Text></Pressable>
+                  <Pressable onPress={() => { setEditPw(true); setAskFor(null); setTyped(""); }} hitSlop={8}><Text style={st.link}>Re-enter train password</Text></Pressable>
                   {password ? <Pressable onPress={() => { setPassword(null); setMsg("Train password forgotten on this device."); }} hitSlop={8}><Text style={st.link}>Forget password</Text></Pressable> : null}
                 </View>
               )}
