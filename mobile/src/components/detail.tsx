@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import Svg, { Path, Rect } from "react-native-svg";
 import { api, ApiError, paths, resetModel, startTraining, talk, type Briefing, type TalkAnswer, type CryptoNews, type Headlines, type Health, type Label, type Model,
   type Prices, type SpecInfo, type SpecStatus } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -111,43 +113,77 @@ async function playUrl(url: string, holder: { current: AudioPlayer | null }, onE
   if (!h.keys?.ELEVENLABS_API_KEY) throw new Error("n/a on this server");
   const r = await fetch(url); // the site caches the mp3, so the player's own fetch below is quick
   if (!r.ok) throw new Error("n/a right now");
-  await setAudioModeAsync({ playsInSilentMode: true });
+  await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }); // back to loud playback after listening
   const p = createAudioPlayer({ uri: url });
   holder.current = p;
   p.addListener("playbackStatusUpdate", (x) => { if (x.didJustFinish) onEnd(); });
   p.play();
 }
 
-// Talk: reads the briefing aloud and answers questions about this stock's news and its tone, typed or dictated with
-// the keyboard mic, from the real headlines only (cited below each answer). Advice questions get a short decline.
-function TalkPanel({ ticker, briefing }: { ticker: string; briefing: Briefing }) {
+// Talk: a press-to-talk conversation about this stock's news and its tone. Hold the mic, ask, release: iOS speech
+// recognition turns it into text, the question and the last few turns go to /api/talk, which answers only from the
+// real headlines, and the answer is spoken with ElevenLabs. Advice questions get a short decline every time.
+// `hear` (deep link, testing): recognize a recorded audio file instead of the microphone.
+function TalkPanel({ ticker, briefing, hear }: { ticker: string; briefing: Briefing; hear?: string }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
-  const [q, setQ] = useState("");
   const [turns, setTurns] = useState<(TalkAnswer & { q: string })[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "listening" | "hearing" | "thinking">("idle");
+  const [live, setLive] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [typing, setTyping] = useState(false);
+  const [q, setQ] = useState("");
   const [audio, setAudio] = useState<{ which: string | null; loading: boolean; msg: string | null }>({ which: null, loading: false, msg: null });
   const player = useRef<AudioPlayer | null>(null);
+  const heard = useRef(""), released = useRef(false), turnsRef = useRef(turns);
+  turnsRef.current = turns;
   const stop = () => { player.current?.remove(); player.current = null; setAudio({ which: null, loading: false, msg: null }); };
-  useEffect(() => stop, []);
+  useEffect(() => () => { stop(); ExpoSpeechRecognitionModule.abort(); }, []);
   const speak = async (which: string, url: string) => {
     if (audio.which === which && !audio.loading) return stop();
     stop(); setAudio({ which, loading: true, msg: null });
     try { await playUrl(url, player, stop); setAudio({ which, loading: false, msg: null }); }
     catch (e) { setAudio({ which: null, loading: false, msg: e instanceof Error ? e.message : "n/a right now" }); }
   };
-  const ask = async () => {
-    const question = q.trim();
-    if (!question || busy) return;
-    setBusy(true); setErr(null); setQ("");
+  const ask = async (question: string) => {
+    question = question.trim();
+    if (!question) { setPhase("idle"); setErr("I didn't catch that. Hold the mic and ask again."); return; }
+    setPhase("thinking"); setErr(null);
+    const history = turnsRef.current.filter((t) => !t.refused).slice(-3).map((t) => ({ q: t.q, a: t.answer }));
     try {
-      const r = await talk(ticker, question);
+      const r = await talk(ticker, question, history);
       setTurns((t) => [...t, { ...r, q: question }]);
-      if (r.id && !r.refused) speak(`a-${r.id}`, paths.talkAudio(r.id));
-    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setQ(question); } finally { setBusy(false); }
+      if (r.id) speak(`a-${r.id}`, paths.talkAudio(r.id));
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setPhase("idle"); setLive(""); }
   };
+
+  useSpeechRecognitionEvent("result", (e) => { heard.current = e.results[0]?.transcript || heard.current; setLive(heard.current); });
+  useSpeechRecognitionEvent("error", (e) => {
+    if (e.error === "aborted") return;
+    if (e.error === "no-speech" || e.error === "speech-timeout") return; // handled on "end" as "didn't catch that"
+    setErr(e.error === "not-allowed" ? "Microphone or speech access is off. Turn it on in Settings, or type instead." : "Couldn't hear that. Try again, or type instead.");
+  });
+  useSpeechRecognitionEvent("end", () => { if (released.current) { released.current = false; ask(heard.current); } else setPhase("idle"); });
+
+  const start = async (file?: string) => {
+    if (phase !== "idle") return;
+    stop(); setErr(null); heard.current = ""; setLive(""); released.current = false;
+    const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!perm.granted) { setErr("Microphone or speech access is off. Turn it on in Settings, or type instead."); return; }
+    setPhase("listening");
+    ExpoSpeechRecognitionModule.start({ lang: "en-US", interimResults: true, continuous: true, addsPunctuation: true,
+      ...(file ? { audioSource: { uri: file } } : {}) });
+    if (file) released.current = true; // a file ends by itself
+  };
+  const release = () => {
+    if (phase !== "listening") return;
+    released.current = true; setPhase("hearing");
+    ExpoSpeechRecognitionModule.stop();
+  };
+  useEffect(() => { if (hear) setTimeout(() => start(hear), 800); }, [hear]); // eslint-disable-line react-hooks/exhaustive-deps
   const on = (w: string) => audio.which === w && !audio.loading;
+  const label = { idle: turns.length ? "Hold to ask again" : "Hold to talk", listening: "Listening… release to send", hearing: "Got it…", thinking: "Thinking…" }[phase];
+
   return (
     <View style={st.talk}>
       <Pressable onPress={() => briefing.id && speak("briefing", paths.audio(briefing.id, ticker, briefing.mode))} style={st.talkRead} hitSlop={6}
@@ -155,36 +191,53 @@ function TalkPanel({ ticker, briefing }: { ticker: string; briefing: Briefing })
         {audio.loading && audio.which === "briefing" ? <ActivityIndicator size="small" color={C.ink} /> :
           <Text style={st.speakerText}>{on("briefing") ? "■ Stop reading" : "🔈 Read the briefing aloud"}</Text>}
       </Pressable>
-      {audio.msg && <Text style={st.small}>Read-aloud: {audio.msg}</Text>}
       {turns.map((t, i) => (
         <View key={i} style={st.turn}>
           <Text style={st.youText}>You: {t.q}</Text>
           <Text style={[st.answer, t.refused && { color: C.dim }]}>{t.answer}</Text>
-          {t.id && !t.refused && (
+          {t.id && (
             <Pressable onPress={() => speak(`a-${t.id}`, paths.talkAudio(t.id!))} hitSlop={6} accessibilityRole="button">
-              <Text style={st.hear}>{on(`a-${t.id}`) ? "■ Stop" : "🔈 Hear answer"}</Text>
+              <Text style={st.hear}>{on(`a-${t.id}`) ? "■ Stop" : audio.loading && audio.which === `a-${t.id}` ? "Loading…" : "🔈 Hear again"}</Text>
             </Pressable>)}
           {t.sources.map((x) => (
             <Pressable key={x.n} disabled={!x.url} onPress={() => x.url && WebBrowser.openBrowserAsync(x.url)} accessibilityRole="link">
               <Text style={st.source}>[{x.n}] <Text style={{ color: C.ink }}>{x.title}</Text>{x.source ? ` · ${x.source}` : ""}</Text>
             </Pressable>))}
         </View>))}
-      <View style={st.askRow}>
-        <TextInput value={q} onChangeText={setQ} onSubmitEditing={ask} returnKeyType="send" maxLength={300}
-          placeholder={`Ask about ${ticker}'s news`} placeholderTextColor={C.dim} style={st.input} accessibilityLabel={`Ask about ${ticker}'s news`} />
-        <Pressable onPress={ask} disabled={!q.trim() || busy} style={[st.askBtn, (!q.trim() || busy) && { opacity: 0.4 }]} accessibilityRole="button">
-          {busy ? <ActivityIndicator size="small" color={C.ground} /> : <Text style={st.askT}>Ask</Text>}
+      {phase !== "idle" && live ? <Text style={[st.youText, { marginTop: 12 }]}>You: {live}</Text> : null}
+      {audio.msg && <Text style={st.small}>Read-aloud: {audio.msg}</Text>}
+      <View style={st.holdWrap}>
+        <Pressable onPressIn={() => start()} onPressOut={release} disabled={phase === "hearing" || phase === "thinking"}
+          style={[st.hold, phase === "listening" && { backgroundColor: C.amber, borderColor: C.amber, transform: [{ scale: 1.1 }] },
+            (phase === "hearing" || phase === "thinking") && { opacity: 0.5 }]}
+          accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Hold while you speak, release to send">
+          {phase === "thinking" || phase === "hearing" ? <ActivityIndicator color={C.ground} /> : <Svg width={30} height={30} viewBox="0 0 24 24" fill="none" stroke={C.ground} strokeWidth={1.8} strokeLinecap="round">
+            <Rect x={9} y={3} width={6} height={11} rx={3} fill={phase === "listening" ? C.ground : "none"} /><Path d="M5 11a7 7 0 0014 0M12 18v3" /></Svg>}
         </Pressable>
+        <Text style={st.holdLabel} accessibilityLiveRegion="polite">{label}</Text>
       </View>
-      {err && <Text style={[st.small, { color: C.down }]}>{err}</Text>}
-      <Text style={st.small}>Type, or tap the keyboard mic to speak. Answers come only from {ticker}'s recent headlines and their tags. No investment advice, price targets or predictions.</Text>
+      {typing ? (
+        <View style={st.askRow}>
+          <TextInput value={q} onChangeText={setQ} onSubmitEditing={() => { const x = q; setQ(""); ask(x); }} returnKeyType="send" maxLength={300} autoFocus
+            placeholder={`Ask about ${ticker}'s news`} placeholderTextColor={C.dim} style={st.input} accessibilityLabel={`Ask about ${ticker}'s news`} />
+          <Pressable onPress={() => { const x = q; setQ(""); ask(x); }} disabled={!q.trim() || phase !== "idle"} style={[st.askBtn, (!q.trim() || phase !== "idle") && { opacity: 0.4 }]} accessibilityRole="button">
+            <Text style={st.askT}>Ask</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable onPress={() => setTyping(true)} hitSlop={8} style={{ alignSelf: "center", marginTop: 8 }} accessibilityRole="button">
+          <Text style={st.typeLink}>Type instead</Text>
+        </Pressable>
+      )}
+      {err && <Text style={[st.small, { color: C.down, textAlign: "center" }]}>{err}</Text>}
+      <Text style={st.small}>Answers come only from {ticker}'s recent headlines and their tags, and are read aloud. No investment advice, price targets or predictions.</Text>
     </View>
   );
 }
 
 // Gemini briefing from this stock's own tagged headlines: up to 4 bullets, or paragraphs in Advanced mode. Talk opens
 // read-aloud (ElevenLabs) and questions.
-export function BriefingCard({ ticker, nonce, advanced, initialTalk = false }: { ticker: string; nonce: number; advanced: boolean; initialTalk?: boolean }) {
+export function BriefingCard({ ticker, nonce, advanced, initialTalk = false, hear }: { ticker: string; nonce: number; advanced: boolean; initialTalk?: boolean; hear?: string }) {
   const { C } = useTheme();
   const st = useStyles(makeStyles);
   const long = useApi<Briefing>(advanced ? paths.briefing(ticker, true) : null, nonce);
@@ -203,7 +256,10 @@ export function BriefingCard({ ticker, nonce, advanced, initialTalk = false }: {
     <Card title="Briefing" right={ok ? (
       <Pressable onPress={() => setOpen(!open)} style={[st.speaker, open && { borderColor: C.amber }]} hitSlop={6} accessibilityRole="button"
         accessibilityState={{ expanded: open }} accessibilityLabel={`Talk about ${ticker}'s news`}>
-        <Text style={[st.speakerText, open && { color: C.amber }]}>🎙 Talk</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={open ? C.amber : C.ink} strokeWidth={2} strokeLinecap="round">
+            <Rect x={9} y={3} width={6} height={11} rx={3} /><Path d="M5 11a7 7 0 0014 0M12 18v3" /></Svg>
+          <Text style={[st.speakerText, open && { color: C.amber }]}>Talk</Text></View>
       </Pressable>) : null}>
       {(cur.loading || (advanced && long.loading)) && <Status s={cur} what="briefing" />}
       {cur.err && <Text style={st.dim}>Summary: n/a right now.</Text>}
@@ -217,7 +273,7 @@ export function BriefingCard({ ticker, nonce, advanced, initialTalk = false }: {
           {paras.length === 0 && bullets.length === 0 && <Text style={st.dim}>Summary: n/a</Text>}
           <Text style={st.small}>Written by Gemini ({b.model || "n/a"}) from {b.n} {ticker} headlines, {b.window}. Tags come from Qwen.</Text>
           {fallback && <Text style={st.small}>Longer briefing: n/a until the next update. Showing the short one.</Text>}
-          {open && <TalkPanel ticker={ticker} briefing={b} />}
+          {open && <TalkPanel ticker={ticker} briefing={b} hear={hear} />}
         </>
       )}
     </Card>
@@ -516,6 +572,10 @@ const makeStyles = (C: Palette) => sheet({
   hear: { color: C.dim, fontSize: 12, marginTop: 4 },
   source: { color: C.dim, fontSize: 12, lineHeight: 17, marginTop: 4 },
   askRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  holdWrap: { alignItems: "center", marginTop: 16, gap: 8 },
+  hold: { width: 72, height: 72, borderRadius: 36, backgroundColor: C.ink, borderWidth: 2, borderColor: C.ink, alignItems: "center", justifyContent: "center" },
+  holdLabel: { color: C.dim, fontSize: 13 },
+  typeLink: { color: C.amber, fontSize: 13, fontWeight: "600" },
   input: { flex: 1, borderWidth: 1, borderColor: C.line, color: C.ink, paddingHorizontal: 10, minHeight: 44, fontSize: 15 },
   askBtn: { backgroundColor: C.ink, paddingHorizontal: 16, minHeight: 44, justifyContent: "center" },
   askT: { color: C.ground, fontSize: 15, fontWeight: "700" },

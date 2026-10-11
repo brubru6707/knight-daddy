@@ -130,8 +130,8 @@ export const paths = {
 // (buy, sell, hold, price targets, whether to invest) get a short decline every time.
 export interface TalkSource { n: number; title: string; source?: string; url?: string; time?: string }
 export interface TalkAnswer { ticker: string; id?: string; answer: string; refused: boolean; model?: string; sources: TalkSource[] }
-export function talk(ticker: string, question: string) {
-  return api<TalkAnswer>("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question }) });
+export function talk(ticker: string, question: string, history: { q: string; a: string }[] = []) {
+  return api<TalkAnswer>("talk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ticker, question, history }) });
 }
 
 // Every fine-tune starts on Oscar from a fresh copy of the general model, never from an earlier specialist.

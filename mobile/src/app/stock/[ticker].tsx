@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Dimensions, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SettingsButton } from "@/components/Settings";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -17,10 +17,10 @@ export default function Stock() {
   const router = useRouter();
   const { C, dark, toggle } = useTheme();
   const st = useStyles(makeStyles);
-  // Deep links: ?settings=1 opens settings, ?advanced=1|0 sets Advanced, ?talk=1 opens Talk, ?more=1 expands headlines, ?at=briefing|sentiment|
-  // headlines|tune scrolls to that card.
-  const { ticker: raw, settings, advanced: advParam, talk: talkParam, at, more } =
-    useLocalSearchParams<{ ticker: string; settings?: string; advanced?: string; talk?: string; at?: string; more?: string }>();
+  // Deep links: ?settings=1 opens settings, ?advanced=1|0 sets Advanced, ?talk=1 opens Talk, ?more=1 expands headlines, ?hear=<file uri> asks Talk a recorded question (testing), ?at=briefing|sentiment|
+  // headlines|tune|talk scrolls to that card (talk: the end of the conversation).
+  const { ticker: raw, settings, advanced: advParam, talk: talkParam, at, more, hear } =
+    useLocalSearchParams<{ ticker: string; settings?: string; advanced?: string; talk?: string; at?: string; more?: string; hear?: string }>();
   const scroll = useRef<ScrollView>(null);
   const [ys, setYs] = useState<Record<string, number>>({});
   const mark = (k: string) => ({ onLayout: (e: { nativeEvent: { layout: { y: number } } }) => { const y = e.nativeEvent.layout.y; setYs((m) => (m[k] === y ? m : { ...m, [k]: y })); } });
@@ -31,10 +31,12 @@ export default function Stock() {
   const { advanced, setAdvanced } = useAdvanced();
   useEffect(() => { if (advParam === "1" || advParam === "0") setAdvanced(advParam === "1"); }, [advParam]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!at || ys[at] === undefined) return;
-    const id = setTimeout(() => scroll.current?.scrollTo({ y: Math.max(0, ys[at] - 8), animated: false }), 2500);
+    const key = at === "talk" ? "sentiment" : at; // "talk": the end of the Talk conversation, just above the next card
+    if (!key || ys[key] === undefined) return;
+    const y = at === "talk" ? ys[key] - Dimensions.get("window").height * 0.8 : ys[key] - 8;
+    const id = setTimeout(() => scroll.current?.scrollTo({ y: Math.max(0, y), animated: false }), 2500);
     return () => clearTimeout(id);
-  }, [at, ys[at ?? ""]]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [at, ys[at === "talk" ? "sentiment" : at ?? ""]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (crypto) return;
     api<{ active: Model }>(paths.specActive(ticker))
@@ -63,7 +65,7 @@ export default function Stock() {
         <PriceHero ticker={ticker} nonce={nonce} crypto={crypto} />
         {crypto ? <CryptoNewsCard ticker={ticker} nonce={nonce} /> : <>
         <ConfidenceBar key={`c-${active}`} ticker={ticker} model={active} nonce={nonce} />
-        <View {...mark("briefing")}><BriefingCard ticker={ticker} nonce={nonce} advanced={advanced} initialTalk={talkParam === "1"} /></View>
+        <View {...mark("briefing")}><BriefingCard ticker={ticker} nonce={nonce} advanced={advanced} initialTalk={talkParam === "1" || !!hear} hear={hear} /></View>
         <View {...mark("sentiment")}><SentimentCard ticker={ticker} nonce={nonce} /></View>
         <View {...mark("headlines")}><HeadlinesCard key={`h-${active}`} ticker={ticker} model={active} nonce={nonce} advanced={advanced} initialAll={more === "1"} /></View>
         <CompetitorsRow ticker={ticker} onPick={pick} />

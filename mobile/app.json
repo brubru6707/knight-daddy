@@ -38,10 +38,17 @@
       [
         "expo-audio",
         {
-          "microphonePermission": false
+          "microphonePermission": "Knight-Daddy listens only while you hold Talk, to hear your question about a stock's news."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Knight-Daddy listens only while you hold Talk, to hear your question about a stock's news.",
+          "speechRecognitionPermission": "Knight-Daddy turns your spoken question into text so it can answer from the stock's headlines."
+        }
+      ]
     ]
   }
 }
