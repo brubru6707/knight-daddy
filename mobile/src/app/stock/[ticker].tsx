@@ -63,7 +63,7 @@ export default function Stock() {
       <ScrollView ref={scroll} contentContainerStyle={st.content}
         refreshControl={<RefreshControl refreshing={false} tintColor={C.amber} onRefresh={() => setNonce((n) => n + 1)} />}>
         <PriceHero ticker={ticker} nonce={nonce} crypto={crypto} />
-        {crypto ? <CryptoNewsCard ticker={ticker} nonce={nonce} /> : <>
+        {crypto ? <View {...mark("headlines")}><CryptoNewsCard ticker={ticker} nonce={nonce} /></View> : <>
         <ConfidenceBar key={`c-${active}`} ticker={ticker} model={active} nonce={nonce} />
         <View {...mark("briefing")}><BriefingCard ticker={ticker} nonce={nonce} advanced={advanced} initialTalk={talkParam === "1" || !!hear} hear={hear} /></View>
         <View {...mark("sentiment")}>{advanced && <SentimentCard ticker={ticker} nonce={nonce} />}</View>
